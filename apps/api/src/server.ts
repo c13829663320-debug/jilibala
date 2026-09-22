@@ -1,0 +1,251 @@
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole } from "@balabala/shared";
+import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { createImageTask, createTextTask, findAssetUrl, getTask, TripoError, uploadImageUrl } from './tripo.js';
+import { loadCases as loadStoredCases, saveCases as saveStoredCases, type StoredCase } from './storage.js';
+
+// Load local development secrets without adding a runtime dependency. Production should use process env.
+for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
+  if (!existsSync(envPath)) continue;
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const match=line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (match && !process.env[match[1]]) process.env[match[1]]=match[2].trim();
+  }
+}
+
+const app = Fastify({ logger: true });
+await app.register(cors, { origin: true });
+type CaseRecord = StoredCase & { createdAt: string; shareToken?: string };
+const cases = new Map<string, CaseRecord>();
+for (const item of await loadStoredCases()) {
+  cases.set(item.id, { ...item, createdAt: item.createdAt ?? new Date(0).toISOString() });
+}
+// Queue snapshots so concurrent case creation/verdict completion cannot make
+// a later write get overwritten by an earlier one.
+let persistQueue = Promise.resolve();
+const persistCases = async (): Promise<void> => {
+  const snapshot = [...cases.values()];
+  persistQueue = persistQueue.then(() => saveStoredCases(snapshot)).catch((error) => {
+    app.log.error({ error }, 'Unable to persist case archive');
+  });
+  await persistQueue;
+};
+const tripoKey = process.env.TRIPO_API_KEY;
+const stepfunBase = process.env.STEPFUN_API_BASE_URL ?? "https://api.stepfun.com/v1";
+const stepfunKey = process.env.STEPFUN_API_KEY;
+const stepfunModel = process.env.STEPFUN_MODEL ?? "step-3.5-flash";
+const evomapBase = process.env.EVOMAP_API_BASE_URL ?? "https://api.evomap.ai/v1";
+const evomapKey = process.env.EVOMAP_API_KEY;
+const evomapModel = process.env.EVOMAP_MODEL ?? "evomap-deepseek-v4-flash";
+
+const moderationTerms = [
+  /自杀|自残|轻生|suicide|self[- ]?harm/i,
+  /家暴|虐待|强奸|性侵|child\s*abuse/i,
+  /杀人|杀了我|我要杀|谋杀|炸弹|爆炸/i,
+];
+const moderateInput = (value: string): { ok: true; value: string } | { ok: false; message: string } => {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized) return { ok: false, message: '请先描述一件生活小事。' };
+  if (normalized.length > 500) return { ok: false, message: '案件描述请控制在 500 字以内。' };
+  if (moderationTerms.some((term) => term.test(normalized))) {
+    return { ok: false, message: '本案不在趣味法庭管辖范围，请换一个轻松的话题。' };
+  }
+  return { ok: true, value: normalized };
+};
+
+const fallback = (input:string): Verdict => ({
+  caseNo: `(2026) 巴拉民初字第 ${String(Math.floor(Math.random()*9000)+1000)} 号`,
+  title: `${input.slice(0, 18)}案`, charge: "生活小事过度认真罪", sentence: "判处今日完成一件对自己有益的小事，并在 23:00 前放下手机。",
+  facts: `经审理查明，被告确实经历了“${input}”，且在做出决定前进行了充分的脑内辩论。`,
+  plaintiffClaim: "原告请求法庭承认这件事确实值得被认真对待。",
+  defense: "被告辩称：我只是当时有一点点身不由己。",
+  judgeNote: "日子已经很忙了，允许自己偶尔被生活逗笑。",
+  quote: "你不是案件本身，你只是今天来这里复盘一下。"
+});
+
+
+type GeneratedHearing = { lines:Array<[CourtRole,string,string]>; verdict:Verdict };
+const localLines = (input:string):Array<[CourtRole,string,string]> => [
+  ['judge','法槌一响，本庭现在审理这件生活小事。','敲槌'],
+  ['plaintiff',`原告陈述：关于“${input}”，我方认为这不是小事，这是今天的头等大事。`,'控诉'],
+  ['defendant','被告答辩：我承认事情发生过，但其中一定存在一些不可抗力。','摊手'],
+  ['witness','证人作证：我当时在现场，只能说，被告的脑内戏比现场还热闹。','点头'],
+  ['judge','本庭认为：成年人可以为小事烦恼，也可以把烦恼讲成一个笑话。','思考']
+];
+const extractJson = (text:string):unknown => { const clean=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim(); const start=clean.indexOf('{'); const end=clean.lastIndexOf('}'); if(start<0||end<=start) throw new Error('模型没有返回 JSON'); return JSON.parse(clean.slice(start,end+1)); };
+const buildHearingPrompt = (input:string) => `案件：${input}`;
+const hearingSystem = `你是叽里呱啦 BalaBala 趣味法庭的总编剧。把用户的一件生活小事写成轻松、友善、不涉及真实法律效力的六步庭审。不要辱骂、不要诊断、不要处理自残、家暴或他人隐私。只返回合法 JSON，不要 Markdown。JSON 格式：{"lines":[{"role":"judge|plaintiff|defendant|witness","text":"台词","action":"动作","emotion":"neutral|angry|surprised|warm"}],"verdict":{"caseNo":"案号","title":"案件标题","charge":"趣味罪名","sentence":"可执行且有建设性的量刑","facts":"事实认定","plaintiffClaim":"原告诉求","defense":"被告答辩","judgeNote":"法官寄语","quote":"可分享金句"}}。lines 必须恰好 5 条，角色顺序 judge、plaintiff、defendant、witness、judge。`;
+
+type ProviderConfig = { name:string; base:string; key?:string; model:string };
+const requestStructuredHearing = async (provider:ProviderConfig, input:string):Promise<GeneratedHearing> => {
+  if (!provider.key) throw new Error(`${provider.name} API key missing`);
+  const response=await fetch(`${provider.base.replace(/\/$/,'')}/chat/completions`,{method:'POST',headers:{Authorization:`Bearer ${provider.key}`, 'Content-Type':'application/json'},body:JSON.stringify({model:provider.model,messages:[{role:'system',content:hearingSystem},{role:'user',content:buildHearingPrompt(input)}],temperature:.65,max_tokens:3000,thinking:{type:'disabled'},response_format:{type:'json_object'}}),signal:AbortSignal.timeout(15000)});
+  if(!response.ok) throw new Error(`${provider.name} ${response.status}`);
+  const body=await response.json() as {choices?:Array<{message?:{content?:string}}>};
+  const content=body.choices?.[0]?.message?.content; if(!content) throw new Error(`${provider.name} returned empty content`);
+  const parsed=extractJson(content) as {lines?:Array<{role?:CourtRole,text?:string,action?:string,emotion?:string}>;verdict?:Partial<Verdict>};
+  if(!parsed.lines || parsed.lines.length<5 || !parsed.verdict) throw new Error(`${provider.name} JSON fields incomplete`);
+  const expected: CourtRole[]=['judge','plaintiff','defendant','witness','judge'];
+  const lines=expected.map((role,i)=>{const line=parsed.lines![i];return [role,String(line?.text??''),String(line?.action??'')] as [CourtRole,string,string]}).filter(x=>x[1]);
+  if(lines.length<5) throw new Error(`${provider.name} dialogue incomplete`);
+  const v=parsed.verdict; const local=fallback(input); const verdict:Verdict={caseNo:String(v.caseNo??local.caseNo),title:String(v.title??local.title),charge:String(v.charge??local.charge),sentence:String(v.sentence??local.sentence),facts:String(v.facts??local.facts),plaintiffClaim:String(v.plaintiffClaim??local.plaintiffClaim),defense:String(v.defense??local.defense),judgeNote:String(v.judgeNote??local.judgeNote),quote:String(v.quote??local.quote)};
+  return {lines,verdict};
+};
+
+const generateHearing = async (input:string):Promise<GeneratedHearing> => {
+  const fallbackResult={ lines:localLines(input), verdict:fallback(input) };
+  const providers:ProviderConfig[]=[
+    {name:'StepFun',base:stepfunBase,key:stepfunKey,model:stepfunModel},
+    {name:'EvoMap',base:evomapBase,key:evomapKey,model:evomapModel},
+  ];
+  for (const provider of providers) {
+    if (!provider.key) continue;
+    try { return await requestStructuredHearing(provider,input); }
+    catch (error) { app.log.warn({provider:provider.name,error}, 'LLM generation failed; trying next provider'); }
+  }
+  return fallbackResult;
+};
+
+app.get('/health', async () => ({ ok:true, service:'balabala-api', time:new Date().toISOString(), tripoConfigured:Boolean(tripoKey), stepfunConfigured:Boolean(stepfunKey), stepfunModel, evomapConfigured:Boolean(evomapKey), evomapModel }));
+app.post('/api/cases', async (req, reply) => {
+  // Fastify leaves req.body undefined when a request has no body. Normalize
+  // that case so validation returns the same helpful 400 as an empty input.
+  const body = (req.body ?? {}) as { input?: string };
+  const checked = moderateInput(body.input ?? '');
+  if (!checked.ok) return reply.code(400).send({ message: checked.message });
+  const id = randomUUID();
+  cases.set(id, { id, input: checked.value, createdAt: new Date().toISOString() });
+  await persistCases();
+  return { id };
+});
+app.get('/api/cases/:id', async (req, reply) => { const c=cases.get((req.params as {id:string}).id); return c ?? reply.code(404).send({message:'案件不存在'}); });
+app.get('/api/archives', async () => [...cases.values()].filter((item) => item.verdict).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+app.post('/api/cases/:id/share', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const item = cases.get(id);
+  if (!item) return reply.code(404).send({ message: '案件不存在' });
+  if (!item.verdict) return reply.code(409).send({ message: '判决尚未生成，暂时不能分享' });
+  item.shareToken ??= randomUUID().replaceAll('-', '');
+  await persistCases();
+  return {
+    shareId: item.shareToken,
+    shareUrl: `/share/${item.shareToken}`,
+    title: item.verdict.title,
+    quote: item.verdict.quote,
+    disclaimer: '本内容由 AI 生成，仅供娱乐，不具有法律效力。',
+  };
+});
+app.get('/api/shares/:shareId', async (req, reply) => {
+  const token = (req.params as { shareId: string }).shareId;
+  const item = [...cases.values()].find((candidate) => candidate.shareToken === token && candidate.verdict);
+  if (!item || !item.verdict) return reply.code(404).send({ message: '分享内容不存在或已失效' });
+  return {
+    title: item.verdict.title,
+    quote: item.verdict.quote,
+    charge: item.verdict.charge,
+    sentence: item.verdict.sentence,
+    disclaimer: '本内容由 AI 生成，仅供娱乐，不具有法律效力。',
+  };
+});
+app.delete('/api/cases/:id', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  if (!cases.delete(id)) return reply.code(404).send({ message: '案件不存在' });
+  await persistCases();
+  return { ok: true, id };
+});
+app.delete('/api/archives', async () => { cases.clear(); await persistCases(); return { ok: true }; });
+app.get('/api/cases/:id/trial/stream', async (req, reply) => {
+  const id=(req.params as {id:string}).id, c=cases.get(id); if(!c) return reply.code(404).send({message:'案件不存在'});
+  reply.hijack(); const res=reply.raw; res.writeHead(200,{ 'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache','Connection':'keep-alive','Access-Control-Allow-Origin':'*' });
+  const send=(event:TrialEvent)=>res.write(`data: ${JSON.stringify(event)}\n\n`); const wait=(ms:number)=>new Promise(r=>setTimeout(r,ms));
+  send({type:'stage',stage:'立案'}); await wait(120);
+  const generated=await generateHearing(c.input);
+  const emitLine=async(line?:[CourtRole,string,string])=>{ if(!line)return; send({type:'dialogue',role:line[0],text:line[1],emotion:line[0]==='plaintiff'?'angry':'neutral',action:line[2]}); await wait(420); };
+  for(const stage of TRIAL_STAGES.slice(1)){ send({type:'stage',stage}); await wait(180); if(stage==='开庭') await emitLine(generated.lines[0]); if(stage==='举证'){ await emitLine(generated.lines[1]); await emitLine(generated.lines[3]); } if(stage==='辩论') await emitLine(generated.lines[2]); if(stage==='判决') await emitLine(generated.lines[4]); }
+  const verdict=generated.verdict; c.verdict=verdict; c.updatedAt=new Date().toISOString(); await persistCases(); send({type:'verdict',verdict}); await wait(80); res.end();
+});
+
+app.post('/api/tripo/tasks', async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as { type?: 'text_to_model'|'image_to_model'; prompt?: string; imageUrl?: string; modelVersion?: string; faceLimit?: number };
+    const type = body.type ?? (body.prompt ? 'text_to_model' : 'image_to_model');
+    if (type === 'text_to_model') {
+      if (!body.prompt?.trim()) return reply.code(400).send({ message: 'prompt 不能为空。' });
+      const task = await createTextTask(body.prompt.trim(), { modelVersion: body.modelVersion, faceLimit: body.faceLimit });
+      return reply.code(202).send({ provider: 'tripo', type, task });
+    }
+    if (!body.imageUrl?.trim()) return reply.code(400).send({ message: 'image_to_model 需要 imageUrl。' });
+    const imageToken = await uploadImageUrl(body.imageUrl.trim());
+    const task = await createImageTask(imageToken, { modelVersion: body.modelVersion, faceLimit: body.faceLimit });
+    return reply.code(202).send({ provider: 'tripo', type, task });
+  } catch (error) {
+    if (error instanceof TripoError) return reply.code(error.statusCode).send({ message: error.message, details: error.details });
+    req.log.error(error); return reply.code(500).send({ message: '创建 3D 任务失败。' });
+  }
+});
+app.get('/api/tripo/tasks/:taskId', async (req, reply) => {
+  try {
+    const { taskId } = req.params as { taskId: string };
+    const task = await getTask(taskId);
+    return { provider: 'tripo', task, assetUrl: findAssetUrl(task) ?? null };
+  } catch (error) {
+    if (error instanceof TripoError) return reply.code(error.statusCode).send({ message: error.message, details: error.details });
+    req.log.error(error); return reply.code(500).send({ message: '查询 3D 任务失败。' });
+  }
+});
+app.get('/api/tripo/tasks/:taskId/download.glb', async (req, reply) => {
+  try {
+    const { taskId } = req.params as { taskId: string };
+    const { asset } = req.query as { asset?: string };
+    const task = await getTask(taskId);
+    const assetUrl = findAssetUrl(task, asset);
+    if (!assetUrl) return reply.code(409).send({ message: '任务尚未生成可下载文件。', task });
+    // Proxy the short-lived Tripo CDN URL through our API origin so browser
+    // GLB previews do not depend on the CDN's CORS policy.
+    const assetResponse = await fetch(assetUrl);
+    if (!assetResponse.ok) return reply.code(502).send({ message: `模型文件下载失败（${assetResponse.status}）。` });
+    const contentType = assetResponse.headers.get('content-type') ?? 'model/gltf-binary';
+    const bytes = Buffer.from(await assetResponse.arrayBuffer());
+    return reply.header('content-type', contentType).header('cache-control', 'private, max-age=300').send(bytes);
+  } catch (error) {
+    if (error instanceof TripoError) return reply.code(error.statusCode).send({ message: error.message, details: error.details });
+    req.log.error(error); return reply.code(500).send({ message: '获取 3D 下载地址失败。' });
+  }
+});
+// Keep the original endpoint available for links copied by earlier builds.
+app.get('/api/tripo/tasks/:taskId/download', async (req, reply) => {
+  const { taskId } = req.params as { taskId: string };
+  const query = req.query as { asset?: string };
+  return reply.redirect(`/api/tripo/tasks/${encodeURIComponent(taskId)}/download.glb${query.asset ? `?asset=${encodeURIComponent(query.asset)}` : ''}`);
+});
+
+// Backward-compatible aliases used by the first avatar UI prototype.
+app.post('/api/avatars/generate', async (req, reply) => {
+  const body = (req.body ?? {}) as { type?: 'text_to_model'|'image_to_model'; prompt?: string; imageToken?: string; imageUrl?: string; modelVersion?: string };
+  try {
+    const type = body.type ?? (body.prompt ? 'text_to_model' : 'image_to_model');
+    if (type === 'text_to_model' && !body.prompt?.trim()) return reply.code(400).send({ message: 'prompt 不能为空。' });
+    if (type === 'image_to_model' && !body.imageToken && !body.imageUrl) return reply.code(400).send({ message: 'image_to_model 需要 imageToken 或 imageUrl。' });
+    const task = type === 'text_to_model'
+      ? await createTextTask(body.prompt!.trim(), { modelVersion: body.modelVersion })
+      : await createImageTask(body.imageToken ?? await uploadImageUrl(body.imageUrl!), { modelVersion: body.modelVersion });
+    if (!task.task_id) return reply.code(502).send({ message: 'Tripo 未返回 task_id。' });
+    return reply.code(202).send({ taskId: task.task_id, type });
+  } catch (error) {
+    if (error instanceof TripoError) return reply.code(error.statusCode).send({ message: error.message, details: error.details });
+    req.log.error(error); return reply.code(500).send({ message: '创建 3D 任务失败。' });
+  }
+});
+app.get('/api/avatars/tasks/:taskId', async (req, reply) => {
+  try { return await getTask((req.params as { taskId: string }).taskId); }
+  catch (error) {
+    if (error instanceof TripoError) return reply.code(error.statusCode).send({ message: error.message, details: error.details });
+    req.log.error(error); return reply.code(500).send({ message: '查询 3D 任务失败。' });
+  }
+});
+
+await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
+

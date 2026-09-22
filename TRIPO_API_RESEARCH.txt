@@ -1,0 +1,10 @@
+Tripo3D public docs research (no credentials):
+- Official docs https://docs.tripo3d.ai/get-started/quick-start.html
+- Auth: HTTP Authorization: Bearer YOUR_TRIPO_API_KEY. Keep API key server-side only.
+- Base API: https://api.tripo3d.ai/v2/openapi
+- Create task POST /task JSON. Minimal text: {"type":"text_to_model","prompt":"..."}; response envelope {"code":0,"data":{"task_id":"..."}}.
+- Poll GET /task/{task_id} with same bearer key. Status queued/running/success/failed/banned/expired/cancelled/unknown. On success read data.output; model/base_model/pbr_model/generated_image/rendered_image are temporary download URLs (docs say typically expire after 5 minutes). Poll progress.
+- Image upload (simple) POST /upload/sts multipart file (images webp/jpeg/png <=20 MB) -> data.image_token. Recommended STS flow: POST /upload/sts/token JSON {format: webp/jpeg/png/glb/obj/fbx/stl}, use temporary S3 credentials to upload, then pass object {bucket,key} to model task.
+- H3 text-to-model supports model_version v3.1-20260211 or v3.0-20250812; useful params texture, pbr, geometry_quality, face_limit, quad, auto_size etc.
+- Error envelope {code,message,suggestion}; X-Tripo-Trace-ID response header. HTTP 401/400/403/429 etc. Generation concurrency: 10 for most model versions, P1 5; upload image limit 10 qps. Implement exponential backoff.
+- No official SDK found; docs provide curl/Python/JS snippets. Build a backend adapter and never expose key in browser.
