@@ -146,6 +146,7 @@ function AppInner() {
     onNavigate: navigate,
     onOpenArchive: openArchives,
     onReset: reset,
+    onBack: () => setView('entry'),
   }
 
   // ===== 案卷库 =====

@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, ArrowLeft } from 'lucide-react'
 import { VoiceToggleButton } from './voice-settings'
 import { useIdentity } from './identity'
 
@@ -15,6 +15,8 @@ export type TopNavProps = {
   inCourtroom?: boolean
   onOpenArchive?: () => void
   onReset?: () => void
+  /** 法庭流程的「返回入口」按钮，仅 currentView=court 时显示 */
+  onBack?: () => void
 }
 
 const NAV_ITEMS: Array<{ view: TopView; label: string }> = [
@@ -27,13 +29,18 @@ const NAV_ITEMS: Array<{ view: TopView; label: string }> = [
 const activeNavView = (v: TopView): TopView =>
   v === 'talkshow' || v === 'werewolf' || v === 'bar' || v === 'library' || v === 'gym' ? 'court' : v
 
-export default function TopNav({ currentView, onNavigate, inCourtroom, onReset }: TopNavProps) {
+export default function TopNav({ currentView, onNavigate, inCourtroom, onReset, onBack }: TopNavProps) {
   const navActive = activeNavView(currentView)
   const { user } = useIdentity()
   const nickname = user?.nickname ?? '我'
   const isPhoto = user?.avatarType === 'photo' && Boolean(user.avatarRef)
   return (
     <header className="topnav">
+      {currentView === 'court' && onBack && (
+        <button type="button" className="topnav__icon topnav__back" title="返回场景选择" aria-label="返回场景选择" onClick={onBack}>
+          <ArrowLeft size={18} />
+        </button>
+      )}
       <div className="topnav__brand" onClick={() => onNavigate('court')} role="button" tabIndex={0}
         onKeyDown={(event) => { if (event.key === 'Enter') onNavigate('court') }}>
         <img className="topnav__mark" src="/brand/balabala-mark.jpg" alt="BalaBala" />
