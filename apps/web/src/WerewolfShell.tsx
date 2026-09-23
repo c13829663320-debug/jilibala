@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Users, Moon, Sun, Vote, Skull, Crown, Send, Upload, Timer } from 'lucide-react'
 import { useIdentity } from './identity'
+import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSocket'
 import type {
   WerewolfPlayerSnapshot, WerewolfBroadcastEvent, WerewolfClientAction,
   WerewolfPublicPlayer, WerewolfReportData, WerewolfRole, WSMessage,
@@ -52,17 +53,44 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
   const [selVoteTarget, setSelVoteTarget] = useState<number | null>(null)
   const [selHunterTarget, setSelHunterTarget] = useState<number | null>(null)
 
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimer = useRef<number | null>(null)
-  const wsShouldReconnect = useRef(true)
-
   // ===== 发送 WS 行动 =====
+  const { wsRef, send: wsSend, status: wsStatus, retryCount: wsRetryCount } = useReconnectingWebSocket({
+    url: () => {
+      if (!gameId || !user?.userId) return null
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+      return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(user.userId)}&room=werewolf:${encodeURIComponent(gameId)}`
+    },
+    enabled: Boolean(gameId && user?.userId),
+    onOpen: () => {
+      // 重连成功后拉一次最新快照，恢复房间状态
+      if (gameId && user?.userId) void fetchSnapshot(gameId, user.userId)
+    },
+    onMessage: (raw) => {
+      let msg: WSMessage
+      try { msg = JSON.parse(raw) as WSMessage } catch { return }
+      switch (msg.type) {
+        case 'welcome':
+          setOnlineCount(msg.users.length)
+          break
+        case 'user_joined':
+          setOnlineCount((n) => n + 1)
+          break
+        case 'user_left':
+          setOnlineCount((n) => Math.max(1, n - 1))
+          break
+        case 'werewolf_snapshot':
+          setSnapshot(msg.snapshot)
+          break
+        case 'werewolf_event':
+          handleEvent(msg.event)
+          break
+      }
+    },
+  })
+
   const sendAction = useCallback((action: WerewolfClientAction) => {
-    const ws = wsRef.current
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'werewolf_action', action }))
-    }
-  }, [])
+    wsSend(JSON.stringify({ type: 'werewolf_action', action }))
+  }, [wsSend])
 
   // ===== 获取最新快照 =====
   const fetchSnapshot = useCallback(async (gid: string, uid: string) => {
@@ -119,58 +147,6 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
       } catch { /* ignore */ }
     })()
     return () => { cancelled = true }
-  }, [gameId, user?.userId, fetchSnapshot])
-
-  // ===== WebSocket 连接 werewolf:<gameId> =====
-  useEffect(() => {
-    if (!gameId || !user?.userId) return
-    wsShouldReconnect.current = true
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const url = `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(user.userId)}&room=werewolf:${encodeURIComponent(gameId)}`
-
-    const connect = () => {
-      const ws = new WebSocket(url)
-      wsRef.current = ws
-      ws.onmessage = (ev) => {
-        let msg: WSMessage
-        try { msg = JSON.parse(ev.data) as WSMessage } catch { return }
-        switch (msg.type) {
-          case 'welcome':
-            setOnlineCount(msg.users.length)
-            break
-          case 'user_joined':
-            setOnlineCount((n) => n + 1)
-            break
-          case 'user_left':
-            setOnlineCount((n) => Math.max(1, n - 1))
-            break
-          case 'werewolf_snapshot':
-            setSnapshot(msg.snapshot)
-            break
-          case 'werewolf_event':
-            handleEvent(msg.event)
-            break
-        }
-      }
-      ws.onclose = () => {
-        wsRef.current = null
-        if (wsShouldReconnect.current) reconnectTimer.current = window.setTimeout(connect, 3000)
-      }
-      ws.onerror = () => { ws.close() }
-    }
-    connect()
-    // 重连后拉一次最新快照
-    const reconnectInterval = window.setInterval(() => {
-      if (wsRef.current?.readyState !== WebSocket.OPEN) void fetchSnapshot(gameId, user.userId)
-    }, 10000)
-
-    return () => {
-      wsShouldReconnect.current = false
-      if (reconnectTimer.current) window.clearTimeout(reconnectTimer.current)
-      window.clearInterval(reconnectInterval)
-      wsRef.current?.close()
-      wsRef.current = null
-    }
   }, [gameId, user?.userId, fetchSnapshot])
 
   // ===== 处理广播事件 =====
@@ -369,6 +345,11 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#05060a', color: '#f4f2ec', fontFamily: 'inherit' }}>
+      {wsStatusLabel(wsStatus, wsRetryCount) && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998, background: '#FFD600', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+          {wsStatusLabel(wsStatus, wsRetryCount)}
+        </div>
+      )}
       {/* 3D 背景 */}
       <div style={{ position: 'absolute', inset: 0 }}>
         <Suspense fallback={null}>

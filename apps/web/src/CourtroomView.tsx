@@ -1,8 +1,9 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
-import { Box3, DoubleSide, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
+import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
+import { useSceneCleanup } from './useSceneCleanup'
 
 /**
  * Keep a bad/expired Tripo URL from taking down the whole R3F canvas. The
@@ -232,6 +233,11 @@ function Courtroom({
   celebrities: Celebrity[]
   activeSpeakerId: string | null
 }) {
+  const sceneRef = useRef<Group>(null)
+  useSceneCleanup(sceneRef, () => [
+    '/models/balabala_courtroom.glb',
+    ...celebrities.map((c) => c.model).filter((m): m is string => Boolean(m)),
+  ])
   const sconceLights: Array<[number, number, number]> = [
     [-3.3, 2.4, -4.0], [-1.53, 2.4, -4.0], [1.53, 2.4, -4.0], [3.3, 2.4, -4.0],
     [-5.2, 2.3, -2.1], [5.2, 2.3, -2.1],
@@ -246,7 +252,7 @@ function Courtroom({
   })()
 
   return (
-    <group>
+    <group ref={sceneRef}>
       <color attach="background" args={['#160d08']} />
       <ambientLight intensity={0.42} color="#ffe2b4" />
       <directionalLight position={[5, 9, 6]} intensity={2.3} color="#fff1d2" castShadow shadow-mapSize={[1024, 1024]} />

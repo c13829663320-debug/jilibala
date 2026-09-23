@@ -1,8 +1,9 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
-import { Box3, DoubleSide, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
+import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
+import { useSceneCleanup } from './useSceneCleanup'
 
 // ===== 错误边界：单个名人模型加载失败不拖垮整个 Canvas =====
 class LibraryModelErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
@@ -243,9 +244,13 @@ function Seat({ celebrity, position, active }: { celebrity: Celebrity; position:
 }
 
 function LibraryScene({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; activeSpeakerId: string | null }) {
+  const sceneRef = useRef<Group>(null)
+  useSceneCleanup(sceneRef, () =>
+    celebrities.map((c) => c.model).filter((m): m is string => Boolean(m)),
+  )
   const shown = celebrities.slice(0, 3)
   return (
-    <group>
+    <group ref={sceneRef}>
       <color attach="background" args={['#0a0a14']} />
       {/* 安静氛围：低强度冷环境光 */}
       <ambientLight intensity={0.22} color="#8a93b8" />

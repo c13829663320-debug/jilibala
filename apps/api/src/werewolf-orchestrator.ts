@@ -209,7 +209,7 @@ function pushSnapshotsAll(game: WerewolfGame): void {
 }
 
 // ===== 胜负判定 =====
-function checkWin(game: WerewolfGame): boolean {
+export function checkWin(game: WerewolfGame): boolean {
   const wolves = game.players.filter((p) => p.alive && p.role === "werewolf").length;
   const good = game.players.filter((p) => p.alive && p.role !== "werewolf").length;
   if (wolves === 0) { game.winner = "good"; return true; }

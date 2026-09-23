@@ -2,8 +2,9 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
-import { Box3, DoubleSide, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
+import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
+import { useSceneCleanup } from './useSceneCleanup'
 
 /** GLB 加载失败时不让整个 Canvas 崩掉。 */
 class BarModelErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
@@ -327,6 +328,10 @@ const SEAT_LAYOUT: Array<[number, number, number]> = [
 ]
 
 function Bar({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; activeSpeakerId: string | null }) {
+  const sceneRef = useRef<Group>(null)
+  useSceneCleanup(sceneRef, () =>
+    celebrities.map((c) => c.model).filter((m): m is string => Boolean(m)),
+  )
   const celebList = celebrities.slice(0, 4)
   const layout = SEAT_LAYOUT.slice(0, Math.max(1, celebList.length))
   const activeSeat: [number, number, number] | null = (() => {
@@ -342,7 +347,7 @@ function Bar({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; activ
   ]
 
   return (
-    <group>
+    <group ref={sceneRef}>
       <color attach="background" args={['#1a0f08']} />
       <ambientLight intensity={0.38} color="#ffd9a8" />
       <Environment resolution={128}>

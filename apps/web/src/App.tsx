@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
 import { createPortal } from 'react-dom'
 import { Gavel } from 'lucide-react'
 import RoomEntry from './RoomEntry'
@@ -10,6 +10,8 @@ import VideoStudio from './VideoStudio'
 import TopNav, { type TopView } from './TopNav'
 import CourtroomShell, { type EvidenceMeta } from './CourtroomShell'
 import { IdentityProvider, useIdentity } from './identity'
+import ErrorBoundary from './ErrorBoundary'
+import LoadingFallback from './LoadingFallback'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
@@ -19,35 +21,24 @@ const BarShell = lazy(() => import('./BarShell'))
 const LibraryShell = lazy(() => import('./LibraryShell'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'werewolf' | 'bar' | 'library'/**
- * Lightweight non-blocking backend health probe. On failure shows a fixed yellow
- * overlay bar (portal to body) and retries every 5s; clicking the bar retries immediately.
- */
-function ApiHealthBanner() {
-  const [down, setDown] = useState(false)
-  const [retryTick, setRetryTick] = useState(0)
-  useEffect(() => {
-    let cancelled = false
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), 3000)
-    fetch('/api/health', { signal: controller.signal })
-      .then((res) => { if (!cancelled) setDown(!res.ok) })
-      .catch(() => { if (!cancelled) setDown(true) })
-      .finally(() => window.clearTimeout(timer))
-    return () => { cancelled = true; controller.abort() }
-  }, [retryTick])
-  useEffect(() => {
-    if (!down) return
-    const id = window.setInterval(() => setRetryTick((n) => n + 1), 5000)
-    return () => window.clearInterval(id)
-  }, [down])
-  if (!down) return null
-  return createPortal(
-    <div onClick={() => setRetryTick((n) => n + 1)}
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#FFD600', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
-      后端未连接，正在重连…（点击立即重试）
-    </div>,
-    document.body,
+type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'werewolf' | 'bar' | 'library'
+
+/** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
+function LazyScene({ component: C, props, label }: {
+  component: ComponentType<any>
+  props?: Record<string, unknown>
+  label: string
+}) {
+  const [resetKey, setResetKey] = useState(0)
+  const retry = () => setResetKey((n) => n + 1)
+  return (
+    <ErrorBoundary onRetry={retry} title={`「${label}」加载失败`}>
+      <Suspense fallback={<LoadingFallback label={`正在加载${label}…`} />}>
+        <ErrorBoundary is3D title="3D 场景渲染失败">
+          <C key={resetKey} {...(props as object)} />
+        </ErrorBoundary>
+      </Suspense>
+    </ErrorBoundary>
   )
 }
 
@@ -168,7 +159,8 @@ function AppInner() {
   if (view === 'characters') {
     return <>
       <TopNav {...navProps} currentView="characters" />
-      <Suspense fallback={null}><CharacterHall onBack={() => setView('entry')} onEnterCourt={() => setView('court')} onPlaza={() => setView('plaza')} /></Suspense>
+      <LazyScene component={CharacterHall} label="角色馆"
+        props={{ onBack: () => setView('entry'), onEnterCourt: () => setView('court'), onPlaza: () => setView('plaza') }} />
     </>
   }
 
@@ -176,14 +168,15 @@ function AppInner() {
   if (view === 'plaza') {
     return <>
       <TopNav {...navProps} currentView="plaza" />
-      <Suspense fallback={null}><Plaza3D
-        onBack={() => setView('entry')}
-        onEnterCourt={() => setView('court')}
-        onEnterTalkshow={() => setView('talkshow')}
-        onEnterWerewolf={() => setView('werewolf')}
-        onEnterBar={() => setView('bar')}
-        onEnterLibrary={() => setView('library')}
-      /></Suspense>
+      <LazyScene component={Plaza3D} label="广场"
+        props={{
+          onBack: () => setView('entry'),
+          onEnterCourt: () => setView('court'),
+          onEnterTalkshow: () => setView('talkshow'),
+          onEnterWerewolf: () => setView('werewolf'),
+          onEnterBar: () => setView('bar'),
+          onEnterLibrary: () => setView('library'),
+        }} />
     </>
   }
 
@@ -191,7 +184,8 @@ function AppInner() {
   if (view === 'talkshow') {
     return <>
       <TopNav {...navProps} currentView="talkshow" />
-      <Suspense fallback={null}><TalkshowShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
+      <LazyScene component={TalkshowShell} label="脱口秀剧场"
+        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
     </>
   }
 
@@ -199,7 +193,8 @@ function AppInner() {
   if (view === 'werewolf') {
     return <>
       <TopNav {...navProps} currentView="werewolf" />
-      <Suspense fallback={null}><WerewolfShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
+      <LazyScene component={WerewolfShell} label="狼人杀馆"
+        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
     </>
   }
 
@@ -207,7 +202,8 @@ function AppInner() {
   if (view === 'bar') {
     return <>
       <TopNav {...navProps} currentView="bar" />
-      <Suspense fallback={null}><BarShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
+      <LazyScene component={BarShell} label="酒吧辩论"
+        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
     </>
   }
 
@@ -215,7 +211,8 @@ function AppInner() {
   if (view === 'library') {
     return <>
       <TopNav {...navProps} currentView="library" />
-      <Suspense fallback={null}><LibraryShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
+      <LazyScene component={LibraryShell} label="图书馆"
+        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
     </>
   }
 
@@ -253,10 +250,44 @@ function AppInner() {
   )
 }
 
+/**
+ * Lightweight non-blocking backend health probe. On failure shows a fixed yellow
+ * overlay bar (portal to body) and retries every 5s; clicking the bar retries immediately.
+ */
+function ApiHealthBanner() {
+  const [down, setDown] = useState(false)
+  const [retryTick, setRetryTick] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 3000)
+    fetch('/api/health', { signal: controller.signal })
+      .then((res) => { if (!cancelled) setDown(!res.ok) })
+      .catch(() => { if (!cancelled) setDown(true) })
+      .finally(() => window.clearTimeout(timer))
+    return () => { cancelled = true; controller.abort() }
+  }, [retryTick])
+  useEffect(() => {
+    if (!down) return
+    const id = window.setInterval(() => setRetryTick((n) => n + 1), 5000)
+    return () => window.clearInterval(id)
+  }, [down])
+  if (!down) return null
+  return createPortal(
+    <div onClick={() => setRetryTick((n) => n + 1)}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#FFD600', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
+      后端未连接，正在重连…（点击立即重试）
+    </div>,
+    document.body,
+  )
+}
+
 function App() {
   return (
     <IdentityProvider>
-      <AppInner />
+      <ErrorBoundary>
+        <AppInner />
+      </ErrorBoundary>
     </IdentityProvider>
   )
 }

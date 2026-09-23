@@ -34,7 +34,8 @@ export type StoredCase = {
 /** 广场内容 + 归属用户（不进入共享 PlazaContent 类型，仅服务端持久化用） */
 export type StoredContent = PlazaContent & { userId?: string };
 
-const DB_PATH = resolve(process.cwd(), ".data", "app.db");
+// DB_PATH 支持环境变量覆盖（测试时指向临时文件），默认落在工程 .data/app.db。
+const DB_PATH = process.env.DB_PATH || resolve(process.cwd(), ".data", "app.db");
 mkdirSync(dirname(DB_PATH), { recursive: true });
 
 export const db = new DatabaseSync(DB_PATH);

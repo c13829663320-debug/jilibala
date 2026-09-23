@@ -1,10 +1,11 @@
 import { Component, Suspense, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, ContactShadows, useGLTF } from '@react-three/drei'
-import { Box3, Vector3 } from 'three'
+import { Box3, Group, Vector3 } from 'three'
 import { ChevronRight, Gavel, Loader2, MessageCircle, RotateCw, Search, X } from 'lucide-react'
 import { CELEBRITIES, CELEBRITY_FIELDS, type Celebrity, type CelebrityField } from '@balabala/shared'
 import { TtsPlayButton } from './TtsPlayButton'
+import { useSceneCleanup } from './useSceneCleanup'
 import './character-hall.css'
 
 type ChatTurn = { from: 'me' | 'character'; text: string }
@@ -83,6 +84,8 @@ function ModelReady({ onReady }: { onReady: () => void }) {
 }
 
 function ModelCanvas({ url, onReady, autoRotate }: { url: string; onReady: () => void; autoRotate: boolean }) {
+  const sceneRef = useRef<Group>(null)
+  useSceneCleanup(sceneRef, () => (url ? [url] : []))
   return (
     <Canvas camera={{ position: [0, 1.35, 3.4], fov: 38 }} dpr={[1, 1.5]} shadows>
       <color attach="background" args={['#0b0b0b']} />
@@ -91,7 +94,7 @@ function ModelCanvas({ url, onReady, autoRotate }: { url: string; onReady: () =>
       <pointLight position={[-2.5, 2, 2.5]} intensity={12} distance={9} color="#FFD600" />
       <pointLight position={[2.5, 1.2, 1.5]} intensity={6} distance={8} color="#ffb347" />
       <Suspense fallback={null}>
-        <group>
+        <group ref={sceneRef}>
           <FullBodyModel url={url} />
           <ModelReady onReady={onReady} />
         </group>

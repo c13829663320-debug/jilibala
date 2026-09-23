@@ -7,6 +7,7 @@ import {
   type WSMessage,
 } from '@balabala/shared'
 import { useIdentity } from './identity'
+import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSocket'
 import BenchSelection from './BenchSelection'
 import LiveTranscript from './LiveTranscript'
 import TrialInteraction, { type TrialInteractPayload } from './TrialInteraction'
@@ -68,9 +69,6 @@ export default function CourtroomShell({
   // Multiplayer / room state
   const [wsOnlineCount, setWsOnlineCount] = useState(1)
   const [userSpeeches, setUserSpeeches] = useState<UserSpeechEntry[]>([])
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimer = useRef<number | null>(null)
-  const wsShouldReconnect = useRef(true)
   const [roomCopyStatus, setRoomCopyStatus] = useState('')
 
   const [avatarPrompt, setAvatarPrompt] = useState('卡通风格、穿红色法官袍的猫咪')
@@ -88,67 +86,48 @@ export default function CourtroomShell({
 
   useEffect(() => () => { abortRef.current?.abort() }, [])
 
-  // ===== WebSocket room connection =====
+  // ===== WebSocket room connection（指数退避自动重连） =====
   // Guest mode: connect to ?room=court:<id> immediately.
   // Host mode: connect after caseId is set (hearing started).
   const activeRoomId = isGuest ? roomId! : caseId
-  useEffect(() => {
-    if (!user?.userId || !activeRoomId) return
-    wsShouldReconnect.current = true
-
+  const wsUrl = () => {
+    if (!user?.userId || !activeRoomId) return null
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const url = `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(user.userId)}&room=court:${encodeURIComponent(activeRoomId)}`
+    return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(user.userId)}&room=court:${encodeURIComponent(activeRoomId)}`
+  }
 
-    const connect = () => {
-      const ws = new WebSocket(url)
-      wsRef.current = ws
-
-      ws.onmessage = (ev) => {
-        let msg: WSMessage
-        try { msg = JSON.parse(ev.data) as WSMessage } catch { return }
-        switch (msg.type) {
-          case 'welcome':
-            setWsOnlineCount(msg.users.length)
-            if (msg.courtState) applyCourtSnapshot(msg.courtState)
-            break
-          case 'user_joined':
-            setWsOnlineCount((n) => n + 1)
-            break
-          case 'user_left':
-            setWsOnlineCount((n) => Math.max(1, n - 1))
-            break
-          case 'court_snapshot':
-            applyCourtSnapshot(msg.state)
-            break
-          case 'bench_event':
-            handleBenchEvent(msg.event)
-            break
-          case 'user_speech':
-            setUserSpeeches((prev) => [...prev.slice(-30), { id: `${Date.now()}-${Math.random()}`, nickname: msg.nickname, text: msg.text, time: new Date().toISOString() }])
-            break
-          case 'user_vote':
-            setVotes((prev) => ({ ...prev, [msg.vote]: prev[msg.vote] + 1 }))
-            break
-        }
+  const { wsRef, send: wsSend, status: wsStatus, retryCount: wsRetryCount } = useReconnectingWebSocket({
+    url: wsUrl,
+    enabled: Boolean(user?.userId && activeRoomId),
+    onMessage: (raw) => {
+      let msg: WSMessage
+      try { msg = JSON.parse(raw) as WSMessage } catch { return }
+      switch (msg.type) {
+        case 'welcome':
+          setWsOnlineCount(msg.users.length)
+          if (msg.courtState) applyCourtSnapshot(msg.courtState)
+          break
+        case 'user_joined':
+          setWsOnlineCount((n) => n + 1)
+          break
+        case 'user_left':
+          setWsOnlineCount((n) => Math.max(1, n - 1))
+          break
+        case 'court_snapshot':
+          applyCourtSnapshot(msg.state)
+          break
+        case 'bench_event':
+          handleBenchEvent(msg.event)
+          break
+        case 'user_speech':
+          setUserSpeeches((prev) => [...prev.slice(-30), { id: `${Date.now()}-${Math.random()}`, nickname: msg.nickname, text: msg.text, time: new Date().toISOString() }])
+          break
+        case 'user_vote':
+          setVotes((prev) => ({ ...prev, [msg.vote]: prev[msg.vote] + 1 }))
+          break
       }
-
-      ws.onclose = () => {
-        wsRef.current = null
-        if (wsShouldReconnect.current) {
-          reconnectTimer.current = window.setTimeout(connect, 3000)
-        }
-      }
-      ws.onerror = () => { ws.close() }
-    }
-
-    connect()
-    return () => {
-      wsShouldReconnect.current = false
-      if (reconnectTimer.current) window.clearTimeout(reconnectTimer.current)
-      wsRef.current?.close()
-      wsRef.current = null
-    }
-  }, [user?.userId, activeRoomId])
+    },
+  })
 
   /** Apply a court room snapshot (for late-joining guests). */
   const applyCourtSnapshot = useCallback((state: {
@@ -293,14 +272,11 @@ export default function CourtroomShell({
     if (!caseId) return
     // Guest mode: send speech/vote via WS instead of POST
     if (isGuest) {
-      const ws = wsRef.current
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        if (payload.kind === 'vote' && payload.vote) {
-          setVotes((prev) => ({ ...prev, [payload.vote as 'plaintiff' | 'defendant']: prev[payload.vote as 'plaintiff' | 'defendant'] + 1 }))
-          ws.send(JSON.stringify({ type: 'user_vote', vote: payload.vote }))
-        } else if (payload.text) {
-          ws.send(JSON.stringify({ type: 'user_speech', text: payload.text }))
-        }
+      if (payload.kind === 'vote' && payload.vote) {
+        setVotes((prev) => ({ ...prev, [payload.vote as 'plaintiff' | 'defendant']: prev[payload.vote as 'plaintiff' | 'defendant'] + 1 }))
+        wsSend(JSON.stringify({ type: 'user_vote', vote: payload.vote }))
+      } else if (payload.text) {
+        wsSend(JSON.stringify({ type: 'user_speech', text: payload.text }))
       }
       return
     }
@@ -370,6 +346,11 @@ export default function CourtroomShell({
 
   return (
     <div className="workspace">
+      {wsStatusLabel(wsStatus, wsRetryCount) && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998, background: '#FFD600', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+          {wsStatusLabel(wsStatus, wsRetryCount)}
+        </div>
+      )}
       {/* ===== 左侧配置栏 ===== */}
       <aside className="sidebar">
         {isGuest ? (

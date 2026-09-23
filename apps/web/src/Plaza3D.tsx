@@ -138,7 +138,7 @@ interface PlazaSceneProps {
   onMove: (x: number, z: number) => void
 }
 
-function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, toast, playersRef, remoteUserIds, onMove }: PlazaSceneProps) {
+function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, toast, playersRef, remoteUserIds, onMove, tapRef }: PlazaSceneProps & { tapRef: MutableRefObject<{ downX: number; downY: number; downT: number }> }) {
   const targetRef = useRef(new THREE.Vector3(0, CAMERA_Y, 22))
   const lookRef = useRef(new THREE.Vector3(0, 0, 0))
   const [markers, setMarkers] = useState<Marker[]>([])
@@ -153,7 +153,18 @@ function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar
     return null
   }
 
+  /** 区分 tap 与 drag：pointerup 相对 pointerdown 位移 >10px 或时长 >400ms 视为拖动，不触发 tap。 */
+  const isTap = (e: ThreeEvent<MouseEvent | PointerEvent>): boolean => {
+    const n = e.nativeEvent as PointerEvent
+    const dx = (n.clientX ?? 0) - tapRef.current.downX
+    const dy = (n.clientY ?? 0) - tapRef.current.downY
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const dt = performance.now() - tapRef.current.downT
+    return dist < 10 && dt < 400
+  }
+
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!isTap(e)) return
     e.stopPropagation()
     const b = hitBuilding(e.point.x, e.point.z)
     if (b) {
@@ -235,6 +246,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<number | null>(null)
   const shouldReconnect = useRef(true)
+  // 触屏 tap 与 drag 区分：记录 pointerdown 的位置/时间
+  const tapRef = useRef({ downX: 0, downY: 0, downT: 0 })
 
   const toast = (msg: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current)
@@ -340,8 +353,16 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
     ws.send(JSON.stringify({ type: 'move', x, z, rotation: 0 }))
   }, [])
 
+  // ===== 场景卸载：清理 GLTF 缓存，避免内存泄漏 =====
+  useEffect(() => {
+    return () => {
+      try { useGLTF.clear('/models/balabala_plaza.glb') } catch { /* noop */ }
+    }
+  }, [])
+
   return (
-    <div className="plaza-3d-root">
+    <div className="plaza-3d-root"
+      onPointerDown={(e) => { tapRef.current.downX = e.clientX; tapRef.current.downY = e.clientY; tapRef.current.downT = performance.now() }}>
       <Canvas shadows camera={{ position: [0, CAMERA_Y, 22], fov: 50, near: 0.1, far: 200 }} dpr={[1, 1.5]}>
         <PlazaScene
           onEnterCourt={onEnterCourt}
@@ -353,6 +374,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           playersRef={playersRef}
           remoteUserIds={remoteUserIds}
           onMove={handleMove}
+          tapRef={tapRef}
         />
       </Canvas>
       <div className="plaza-3d-topbar">

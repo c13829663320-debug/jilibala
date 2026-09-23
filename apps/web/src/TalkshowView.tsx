@@ -1,8 +1,9 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
-import { Box3, DoubleSide, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
+import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
+import { useSceneCleanup } from './useSceneCleanup'
 
 /** 明黄主题色。 */
 const YELLOW = '#FFD600'
@@ -211,6 +212,10 @@ function CameraRig({ children }: { children?: ReactNode }) {
 
 /** 剧场主场景。 */
 function Talkshow({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; activeSpeakerId: string | null }) {
+  const sceneRef = useRef<Group>(null)
+  useSceneCleanup(sceneRef, () =>
+    celebrities.map((c) => c.model).filter((m): m is string => Boolean(m)),
+  )
   // 同屏最多 3 位名人，排成一行。
   const cast = celebrities.slice(0, 3)
   const stageTopY = 0.4
@@ -223,7 +228,7 @@ function Talkshow({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; 
   ]
 
   return (
-    <group>
+    <group ref={sceneRef}>
       <color attach="background" args={['#050505']} />
       {/* 灯光：低强度环境 + 舞台聚光 + 观众席微弱点光。 */}
       <ambientLight intensity={0.25} color="#ffe6a8" />

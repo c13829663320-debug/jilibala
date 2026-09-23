@@ -1,8 +1,9 @@
 import { Component, Suspense, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
-import { Box3, DoubleSide, MeshStandardMaterial, Vector3 } from 'three'
+import { Box3, DoubleSide, Group, MeshStandardMaterial, Vector3 } from 'three'
 import { getCelebrity, type WerewolfPlayerSnapshot, type WerewolfPublicPlayer } from '@balabala/shared'
+import { useSceneCleanup } from './useSceneCleanup'
 
 const RED_NEON = '#ff2a3a'
 const SPEAKER_YELLOW = '#FFD600'
@@ -228,13 +229,19 @@ function CameraRig() {
 
 /** 狼人杀馆主场景。 */
 function WerewolfScene({ snapshot }: { snapshot: WerewolfPlayerSnapshot | null }) {
+  const sceneRef = useRef<Group>(null)
+  useSceneCleanup(sceneRef, () =>
+    (snapshot?.players ?? [])
+      .map((p) => (p.celebrityId ? getCelebrity(p.celebrityId)?.model : undefined))
+      .filter((m): m is string => Boolean(m)),
+  )
   const night = snapshot?.phase === 'night'
   const players = snapshot?.players ?? []
   const myRole = snapshot?.myRole
   const wolfTeammates = useMemo(() => new Set(snapshot?.wolfTeammates ?? []), [snapshot?.wolfTeammates])
 
   return (
-    <group>
+    <group ref={sceneRef}>
       <color attach="background" args={[night ? '#03040a' : '#0a0806']} />
 
       <RoomLights night={night} />

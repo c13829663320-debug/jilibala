@@ -55,6 +55,25 @@ npm run dev:web      # Vite Web: http://localhost:5173
 npm run build        # 全量构建（shared + api + web）
 ```
 
+测试：
+
+```powershell
+npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议庭编排 / db CRUD / WS 广播过滤）
+```
+
+## 自动化测试（M10）
+
+后端核心纯逻辑使用 **Vitest** 覆盖，共 54 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
+
+| 测试文件 | 用例数 | 覆盖范围 |
+|---|---|---|
+| `werewolf-orchestrator.test.ts` | 20 | 阶段推进、胜负判定、视角过滤、信息隔离、AI 补位、战报 |
+| `db.test.ts` | 17 | 案件/内容/评论/反应去重/用户/证书/消息/场景记录 DAO + 重启持久化 |
+| `bench-orchestrator.test.ts` | 9 | 合议庭流程事件序列、投票统计、互动消费、非法 JSON 兜底 |
+| `ws.test.ts` | 8 | 房间广播隔离、私密单发、场景房间状态、scene_event 广播 |
+
+测试使用临时 SQLite 文件（`process.env.DB_PATH` 覆盖），每个测试文件独立数据库，`afterAll` 清理。GitHub Actions 在 push/PR 时自动运行 `npm test` + `npm run build`。
+
 ## 数据持久化（M7）
 
 所有业务数据使用 SQLite（Node 22 内置 `node:sqlite`，零原生依赖）持久化，数据库文件位于 `apps/api/.data/app.db`（已 gitignore）。重启 API 不丢数据。
@@ -190,6 +209,51 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - 酒吧辩论：吧台 + 酒瓶 + 圆桌 + 暖光氛围
 - 图书馆：三面书架 + 阅览桌 + 台灯 + 安静氛围
 
+## 移动端适配与 PWA（M10）
+
+### 响应式设计
+- 主断点 `768px`，超小屏补充 `380px`
+- **顶部导航**：小屏改为底部固定 Tab 栏（56px），3 个主项等宽分布，当前页明黄高亮，适配 iPhone 底部安全区
+- **场景控制面板**：小屏改为底部抽屉 / 全屏面板，可展开收起
+- **入口大厅 / 广场卡片 / 案卷库 / 我的页**：小屏网格降列（4→2→1），搜索框全宽
+- 全局触控热区 ≥44×44px
+
+### 3D 触屏操作
+- 广场支持**点地面移动**、**点建筑/名人进入**
+- tap / drag 智能区分（位移 <10px 且时长 <400ms 才算 tap），避免旋转视角时误触发点击
+- 桌面端鼠标操作不受影响
+
+### PWA（vite-plugin-pwa）
+- 可安装到桌面 / 主屏幕，独立窗口运行（`display: standalone`）
+- 离线壳：HTML / JS / CSS / 图片缓存，断网仍可打开应用
+- 3D 大模型（`.glb`）使用 NetworkOnly，不进强缓存，避免占用存储
+- 主题色纯黑 `#000000` + 明黄 `#FFD600`，图标使用产品 logo
+- Service Worker 自动更新（`autoUpdate`）
+
+## 健壮性（M10）
+
+### Error Boundary
+- 根级 + 每个懒加载场景 + 3D 场景内部三层 ErrorBoundary
+- 3D / GPU 崩溃时显示友好回退 + 「重新加载」按钮
+- 懒加载 chunk 失败可点击重试
+- Suspense fallback 统一为明黄 spinner + 「加载中…」
+
+### 全局错误兜底
+- `window.onerror` + `unhandledrejection` 捕获未捕获异常，显示用户友好提示（不暴露技术栈），原始错误仍输出 console
+
+### WebSocket 断线重连
+- 合议庭 / 狼人杀房间使用指数退避重连（1s → 2s → 4s → … → 30s 封顶）
+- 重连期间明黄顶栏提示「连接中断，正在重连…（第 N 次）」，重连成功自动拉取当前状态快照
+
+### 内存管理
+- 每个 3D 场景 unmount 时 dispose 几何体 / 材质 / 纹理，并清除 drei `useGLTF` 模型缓存
+- 共享环境资源（Environment / Lightformer 贴图）不受影响
+- 多场景切换无明显内存累积
+
+### 首屏性能
+- 入口页（RoomEntry）不含 3D 代码，three / r3f 拆为独立 chunk（分别 ~688KB / ~552KB），进入 3D 场景才按需加载
+- 入口 chunk 仅 ~122KB（gzip ~45KB）
+
 ## 项目结构
 
 ```
@@ -235,6 +299,8 @@ packages/
 ## 技术栈
 
 - **后端**：Fastify 5 + node:sqlite + @fastify/websocket + undici
-- **前端**：Vite 5 + React 18 + React Three Fiber + drei + three
+- **前端**：Vite 5 + React 18 + React Three Fiber + drei + three + vite-plugin-pwa
+- **测试**：Vitest（后端核心逻辑，54 用例）
 - **共享**：TypeScript 类型 + 名人数据
+- **CI**：GitHub Actions（push/PR 自动跑 test + build）
 - **AI**：StepFun / EvoMap（庭审生成、名人对话、润色）、Tripo（3D 模型）、StepFun TTS

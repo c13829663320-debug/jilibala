@@ -16,7 +16,7 @@ import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
 
 // ===== 房间数据结构 =====
-type RoomUser = {
+export type RoomUser = {
   userId: string;
   nickname: string;
   avatarType: string;
@@ -28,25 +28,30 @@ type RoomUser = {
   socket: WebSocket;
 };
 
-type Room = {
+export type Room = {
   id: string;
   users: Map<string, RoomUser>;
   courtState?: CourtRoomState;
   sceneState?: SceneRoomState;
 };
 
+/** 供测试使用：清空所有房间，保证用例隔离。 */
+export function _resetRoomsForTest(): void {
+  rooms.clear();
+}
+
 const rooms = new Map<string, Room>();
 
 /** M8: 合法房间前缀。plaza 为全局广场，其余为按场景/案件的房间。 */
 const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:", "werewolf:"];
 
-function isValidRoom(roomId: string): boolean {
+export function isValidRoom(roomId: string): boolean {
   return VALID_ROOM_PREFIXES.some((p) => (p.endsWith(":") ? roomId.startsWith(p) : roomId === p));
 }
 
 const randomPos = () => (Math.random() * 20 - 10);
 
-function getOrCreateRoom(roomId: string): Room {
+export function getOrCreateRoom(roomId: string): Room {
   let room = rooms.get(roomId);
   if (!room) {
     room = { id: roomId, users: new Map() };

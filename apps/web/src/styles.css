@@ -305,3 +305,115 @@ button { cursor: pointer; }
 .certificate__foot{display:flex;justify-content:space-between;margin-top:18px;color:#999;font-size:10px}
 .certificate__hint{margin:14px 0 0;color:#777;font-size:10px}
 @media print{.cert-backdrop{position:static;background:#fff}.certificate{box-shadow:none}}
+/* ============================================================
+   ===== M10: 移动端适配 + 触控热区 + PWA 安全区 =====
+   ============================================================ */
+
+/* 全局：所有可点击元素最小触控热区 44x44 */
+button, a, [role="button"], input[type="button"], input[type="submit"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button { min-height: 44px; }
+.topnav__link, .topnav__archive, .topnav__icon, .topnav__avatar { min-height: 44px; }
+.topnav__icon { width: 44px !important; }
+
+/* iOS 安全区：顶部刘海 / 底部 home indicator */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .topnav { padding-top: env(safe-area-inset-top); height: calc(64px + env(safe-area-inset-top)); }
+  .room-topbar { padding-top: env(safe-area-inset-top); }
+}
+
+/* ========== 小屏 (<=768px) ========== */
+@media (max-width: 768px) {
+  /* ----- TopNav：底部 Tab 栏 ----- */
+  .topnav {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    height: auto; min-height: 56px;
+    flex-direction: row; align-items: stretch; justify-content: space-around;
+    padding: 0 8px env(safe-area-inset-bottom, 0);
+    border-bottom: 0; border-top: 1px solid rgba(255,255,255,.15);
+    background: rgba(10,10,10,.96); backdrop-filter: blur(18px);
+    z-index: 50;
+  }
+  .topnav__brand { display: none; }
+  .topnav__links { flex: 1; justify-content: space-around; gap: 2px; }
+  .topnav__link {
+    flex: 1; padding: 8px 4px; min-height: 56px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 10px; border-radius: 0;
+  }
+  .topnav__link.is-active { background: transparent; color: #FFD600; box-shadow: inset 0 -3px 0 #FFD600; }
+  .topnav__actions { gap: 4px; }
+  .topnav__status { display: none; }
+  .topnav__archive { padding: 6px 10px; font-size: 10px; min-height: 44px; }
+  .topnav__icon { width: 44px !important; height: 44px !important; min-height: 44px; }
+  .topnav__avatar { display: none; }
+
+  /* 给底部 tab 栏腾位：所有主内容底部留 64px 安全边距 */
+  .app-shell, .workspace, .platform-shell, .room-entry, .plaza-3d-root,
+  .archive-page-content, .my-page-root, .library-shell-root, .talkshow-shell-root,
+  .bar-shell-root, .werewolf-root, .avatar-studio-root, .video-studio-root {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* ----- 庭审 workspace：单列 ----- */
+  .workspace { display: block !important; }
+  .sidebar { padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px)); border-right: 0; border-bottom: 1px solid rgba(255,255,255,.13); }
+  .sidebar h1 { font-size: 24px; margin-top: 12px; }
+  .main-stage { padding: 20px 14px calc(90px + env(safe-area-inset-bottom, 0px)); }
+  .scene-card { height: 52vh; min-height: 320px; }
+  .below-grid { grid-template-columns: 1fr; }
+  .interaction-grid { grid-template-columns: 1fr !important; }
+  .phase-list { grid-template-columns: repeat(2, 1fr); }
+  .bench-selection__grid { max-height: 50vh; }
+
+  /* ----- 入口大厅：双列卡片 ----- */
+  .room-entry { padding: 18px 14px calc(90px + env(safe-area-inset-bottom, 0px)); }
+  .room-hero { margin: 50px auto 30px; }
+  .room-hero h1 { font-size: clamp(34px, 9vw, 54px); }
+  .room-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+  .room-card { min-height: 150px; padding: 14px 12px; }
+  .room-icon { font-size: 26px; margin-bottom: 14px; }
+  .room-card-copy strong { font-size: 15px; }
+  .room-nav { gap: 12px; }
+
+  /* ----- 广场 3D 顶栏 ----- */
+  .plaza-3d-topbar { top: env(safe-area-inset-top, 0px) !important; padding: 8px 12px !important; }
+  .plaza-3d-hint { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; font-size: 11px; }
+  .plaza-3d-discuss { bottom: calc(130px + env(safe-area-inset-bottom, 0px)) !important; right: 12px !important; min-height: 44px; }
+
+  /* ----- 我的页 ----- */
+  .my-page-root { padding: 16px 14px calc(90px + env(safe-area-inset-bottom, 0px)); }
+
+  /* ----- 案卷库 ----- */
+  .archive-page-content { padding: 40px 14px calc(90px + env(safe-area-inset-bottom, 0px)); }
+  .archive-page-grid { grid-template-columns: 1fr !important; }
+  .archive-toolbar { flex-wrap: wrap; }
+  .archive-search { width: 100%; margin-left: 0; }
+  .archive-case-card-main { padding: 14px 12px 16px; }
+
+  /* ----- 通用：放大触控目标 ----- */
+  .primary-button, .secondary-button, .send-button, .appeal-button, .listen-button,
+  .archive-ghost-button, .archive-primary-button, .share-button,
+  .plaza-publish__polish-btn, .polish-button, .tts-play-button {
+    min-height: 44px; min-width: 44px;
+  }
+  .phase-item, .evidence-chip button, .trial-evidence-list span button { min-height: 44px; min-width: 44px; }
+  .support-buttons button { min-height: 44px; }
+  .bench-selection__card { padding: 12px; }
+
+  /* ----- 模态/抽屉：小屏全宽 ----- */
+  .archive-drawer { width: 100%; }
+  .appeal-modal, .cert-backdrop .certificate { width: 100%; max-width: 100%; }
+
+  /* 隐藏桌面端装饰元素 */
+  .stage-tools .scene-tag, .topnav__status { display: none !important; }
+}
+
+/* ========== 超小屏 (<=380px) ========== */
+@media (max-width: 380px) {
+  .room-grid { grid-template-columns: 1fr; }
+  .phase-list { grid-template-columns: 1fr; }
+  .topnav__link { font-size: 9px; }
+}
