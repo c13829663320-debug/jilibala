@@ -1,7 +1,7 @@
-import { Component, Suspense, useMemo, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
-import { Box3, Vector3 } from 'three'
+import { Box3, DoubleSide, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
 
 /**
@@ -63,22 +63,175 @@ function CourtroomEnvironmentModel() {
   return <primitive object={normalized} />
 }
 
-function CourtroomCharacter({ character }: { character: Celebrity }) {
-  if (!character.model) return null
-  const fallback = null
+/** Flat glowing ring on the seat. Pulses brighter while the member speaks. */
+function SeatRing({ active }: { active: boolean }) {
+  const mat = useRef<MeshStandardMaterial | null>(null)
+  useFrame(({ clock }) => {
+    if (!mat.current) return
+    const t = clock.getElapsedTime()
+    mat.current.emissiveIntensity = active ? 2.2 + Math.sin(t * 4) * 1.1 : 0.35
+  })
   return (
-    <group position={[-1.83, 0.62, -1.5]}>
-      <CourtroomModelErrorBoundary fallback={fallback}>
-        <Suspense fallback={fallback}>
-          <NormalizedCourtroomModel url={character.model} />
-          <Text position={[0, 1.72, 0.06]} fontSize={0.2} color="#f4ecff" anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor="#160f24">{character.name}</Text>
-        </Suspense>
-      </CourtroomModelErrorBoundary>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+      <ringGeometry args={[0.5, 0.66, 48]} />
+      <meshStandardMaterial
+        ref={mat}
+        color={active ? '#ffd06a' : '#5a4326'}
+        emissive={active ? '#ffb340' : '#3a2a12'}
+        emissiveIntensity={active ? 2.2 : 0.35}
+        transparent
+        opacity={active ? 1 : 0.55}
+        side={DoubleSide}
+      />
+    </mesh>
+  )
+}
+
+/** Warm spotlight hanging above the currently speaking member. */
+function SpeakerSpotlight() {
+  const light = useMemo(() => {
+    const l = new SpotLight('#ffce86', 60, 12, Math.PI / 5.5, 0.55, 1.6)
+    return l
+  }, [])
+  const target = useMemo(() => new Object3D(), [])
+  useLayoutEffect(() => {
+    light.target = target
+  }, [light, target])
+  return (
+    <>
+      <primitive object={light} position={[0, 4.6, 0]} />
+      <primitive object={target} position={[0, 0.9, 0]} />
+    </>
+  )
+}
+
+/** Simple geometry placeholder shown when a member's GLB is missing or fails. */
+function MemberPlaceholder({ name, active }: { name: string; active: boolean }) {
+  return (
+    <group>
+      <mesh castShadow position={[0, 0.85, 0]}>
+        <cylinderGeometry args={[0.22, 0.3, 1.3, 16]} />
+        <meshStandardMaterial color={active ? '#e8b25a' : '#5b4a8a'} />
+      </mesh>
+      <mesh castShadow position={[0, 1.72, 0]}>
+        <sphereGeometry args={[0.18, 16, 16]} />
+        <meshStandardMaterial color={active ? '#f2d39a' : '#8a7cc0'} />
+      </mesh>
+      <Text
+        position={[0, 2.05, 0.06]}
+        fontSize={active ? 0.26 : 0.18}
+        color="#fff4e0"
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={active ? 0.025 : 0.01}
+        outlineColor="#7a4a10"
+      >
+        {name}
+      </Text>
     </group>
   )
 }
 
-function Courtroom({ character }: { character: Celebrity | null }) {
+interface SeatSlot {
+  celebrity: Celebrity
+  position: [number, number, number]
+  active: boolean
+}
+
+function BenchSeat({ celebrity, position, active }: SeatSlot) {
+  const fallback = (
+    <group position={[0, 0, 0]}>
+      <MemberPlaceholder name={celebrity.name} active={active} />
+    </group>
+  )
+  return (
+    <group position={position}>
+      <SeatRing active={active} />
+      {active && <SpeakerSpotlight />}
+      {celebrity.model ? (
+        <CourtroomModelErrorBoundary fallback={fallback}>
+          <Suspense fallback={null}>
+            <NormalizedCourtroomModel url={celebrity.model} />
+          </Suspense>
+        </CourtroomModelErrorBoundary>
+      ) : (
+        fallback
+      )}
+      <Text
+        position={[0, active ? 2.0 : 1.78, 0.06]}
+        fontSize={active ? 0.26 : 0.18}
+        color={active ? '#ffe6a8' : '#f4ecff'}
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={active ? 0.028 : 0.012}
+        outlineColor={active ? '#a45a00' : '#160f24'}
+      >
+        {active ? `${celebrity.name} · 发言中` : celebrity.name}
+      </Text>
+    </group>
+  )
+}
+
+/**
+ * Smoothly pans the OrbitControls target (and the camera that orbits it)
+ * toward the currently speaking seat. User drag still works because we only
+ * lerp the target + preserve the camera's current offset from it.
+ */
+function CameraRig({
+  activeSeat,
+  children,
+}: {
+  activeSeat: [number, number, number] | null
+  children: ReactNode
+}) {
+  const controls = useRef<{ target: Vector3; update: () => void } | null>(null)
+  const camera = useThree((s) => s.camera)
+  const desiredTarget = useMemo(() => new Vector3(0, 1.2, -0.8), [])
+  const desiredCamera = useMemo(() => new Vector3(), [])
+  const offset = useMemo(() => new Vector3(), [])
+
+  useFrame((_, delta) => {
+    const c = controls.current
+    if (!c) return
+    if (activeSeat) desiredTarget.set(activeSeat[0], 1.1, activeSeat[2])
+    else desiredTarget.set(0, 1.2, -0.8)
+    // frame-rate independent lerp
+    const k = 1 - Math.pow(0.0015, Math.min(delta, 0.1))
+    c.target.lerp(desiredTarget, k)
+    // keep camera roughly over the speaker without fighting user zoom/polar
+    offset.subVectors(camera.position, c.target)
+    desiredCamera.copy(desiredTarget).add(offset)
+    camera.position.lerp(desiredCamera, k)
+    c.update()
+  })
+
+  return (
+    <>
+      {children}
+      <OrbitControls
+        ref={controls as never}
+        enablePan={false}
+        target={[0, 1.2, -0.8]}
+        minDistance={2}
+        maxDistance={6.4}
+        maxPolarAngle={Math.PI / 2.05}
+      />
+    </>
+  )
+}
+const SEAT_LAYOUTS: Record<number, [number, number, number][]> = {
+  3: [[-2.2, 0.62, -1.5], [0, 0.62, -2.0], [2.2, 0.62, -1.5]],
+  4: [[-2.8, 0.62, -1.3], [-0.9, 0.62, -1.8], [0.9, 0.62, -1.8], [2.8, 0.62, -1.3]],
+  5: [[-3.0, 0.62, -1.2], [-1.5, 0.62, -1.7], [0, 0.62, -2.0], [1.5, 0.62, -1.7], [3.0, 0.62, -1.2]],
+}
+
+function Courtroom({
+  celebrities,
+  activeSpeakerId,
+}: {
+  celebrities: Celebrity[]
+  activeSpeakerId: string | null
+}) {
   const sconceLights: Array<[number, number, number]> = [
     [-3.3, 2.4, -4.0], [-1.53, 2.4, -4.0], [1.53, 2.4, -4.0], [3.3, 2.4, -4.0],
     [-5.2, 2.3, -2.1], [5.2, 2.3, -2.1],
@@ -86,6 +239,12 @@ function Courtroom({ character }: { character: Celebrity | null }) {
   const ceilingLights: Array<[number, number, number]> = [
     [0, 4.0, -2.6],
   ]
+  const layout = SEAT_LAYOUTS[Math.max(3, Math.min(5, celebrities.length))] ?? SEAT_LAYOUTS[3]
+  const activeSeat: [number, number, number] | null = (() => {
+    const idx = celebrities.findIndex((c) => c.id === activeSpeakerId)
+    return idx >= 0 ? layout[idx] : null
+  })()
+
   return (
     <group>
       <color attach="background" args={['#160d08']} />
@@ -107,7 +266,10 @@ function Courtroom({ character }: { character: Celebrity | null }) {
       <Suspense fallback={null}>
         <CourtroomEnvironmentModel />
       </Suspense>
-      {character?.model && <CourtroomCharacter character={character} />}
+      {celebrities.slice(0, layout.length).map((c, i) => (
+        <BenchSeat key={c.id} celebrity={c} position={layout[i]} active={c.id === activeSpeakerId} />
+      ))}
+      <CameraRig activeSeat={activeSeat}>{null}</CameraRig>
     </group>
   )
 }
@@ -116,11 +278,16 @@ function Courtroom({ character }: { character: Celebrity | null }) {
  * The full 3D courtroom view (Canvas + scene). Extracted as a lazily-loaded
  * chunk so three/r3f only download when the user actually enters the courtroom.
  */
-export default function CourtroomView({ character }: { character: Celebrity | null }) {
+export default function CourtroomView({
+  celebrities,
+  activeSpeakerId,
+}: {
+  celebrities: Celebrity[]
+  activeSpeakerId: string | null
+}) {
   return (
     <Canvas shadows camera={{ position: [0, 2.1, 3.7], fov: 45 }} dpr={[1, 2]}>
-      <Courtroom character={character} />
-      <OrbitControls enablePan={false} target={[0, 1.2, -0.8]} minDistance={2} maxDistance={6.4} maxPolarAngle={Math.PI / 2.05} />
+      <Courtroom celebrities={celebrities} activeSpeakerId={activeSpeakerId} />
     </Canvas>
   )
 }

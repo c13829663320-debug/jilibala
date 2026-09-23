@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity } from "@balabala/shared";
+import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective } from "@balabala/shared";
+import { runBenchTrial } from "./bench-orchestrator.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -192,6 +193,7 @@ app.delete('/api/cases/:id', async (req, reply) => {
   return { ok: true, id };
 });
 app.delete('/api/archives', async () => { cases.clear(); await persistCases(); return { ok: true }; });
+// ===== legacy：旧的一次性 generateHearing SSE 端点，保留以确保 M1-M5 不回归 =====
 app.get('/api/cases/:id/trial/stream', async (req, reply) => {
   const id=(req.params as {id:string}).id, c=cases.get(id); if(!c) return reply.code(404).send({message:'案件不存在'});
   reply.hijack(); const res=reply.raw; res.writeHead(200,{ 'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache','Connection':'keep-alive','Access-Control-Allow-Origin':'*' });
@@ -203,6 +205,104 @@ app.get('/api/cases/:id/trial/stream', async (req, reply) => {
   const verdict=generated.verdict; c.verdict=verdict; c.updatedAt=new Date().toISOString(); await persistCases(); send({type:'verdict',verdict}); await wait(80); res.end();
 });
 
+
+// ===== 合议庭 Bench (M6)：多名人实时编排 =====
+// benchSessions 在 SSE 连接期间暂存用户互动；key 为 caseId。
+const benchSessions = new Map<string, { interactions: BenchInteraction[] }>();
+
+// POST + SSE：前端用 fetch + ReadableStream 读取（EventSource 仅支持 GET）。
+app.post('/api/cases/:id/bench/stream', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const c = cases.get(id);
+  if (!c) return reply.code(404).send({ message: '案件不存在' });
+
+  const body = (req.body ?? {}) as Partial<BenchStartRequest>;
+  const perspective: Perspective = body.perspective === 'plaintiff' || body.perspective === 'defendant' || body.perspective === 'audience'
+    ? body.perspective
+    : 'audience';
+  const celebrityIds = Array.isArray(body.celebrityIds) ? body.celebrityIds.filter((x): x is string => typeof x === 'string') : [];
+  const benchSize = typeof body.benchSize === 'number' ? body.benchSize : 3;
+
+  // 若已有进行中的会话，先清理（避免旧连接泄漏）。
+  benchSessions.delete(id);
+  benchSessions.set(id, { interactions: [] });
+
+  reply.hijack();
+  const res = reply.raw;
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+  const send = (event: unknown): void => { res.write(`data: ${JSON.stringify(event)}\n\n`); };
+
+  let benchResult: Awaited<ReturnType<typeof runBenchTrial>> | undefined;
+  try {
+    benchResult = await runBenchTrial({
+      caseId: id,
+      input: c.input,
+      celebrityIds,
+      perspective,
+      benchSize,
+      chat: chatWithProviders,
+      fallbackVerdict: fallback,
+      onEvent: (event) => send(event),
+      getPendingInteractions: () => benchSessions.get(id)?.interactions ?? [],
+      markInteractionHandled: (interactionId) => {
+        const session = benchSessions.get(id);
+        if (session) session.interactions = session.interactions.filter((it) => it.id !== interactionId);
+      },
+    });
+  } catch (error) {
+    req.log.error(error, 'bench trial failed');
+    send({ type: 'error', message: '合议庭审理中断，请稍后重试。' });
+  }
+
+  // 持久化合议庭结果。
+  const record = cases.get(id);
+  if (record) {
+    if (benchResult) {
+      record.verdict = benchResult.verdict;
+      record.benchMembers = benchResult.members;
+      record.benchTranscript = benchResult.transcript;
+      record.benchVotes = benchResult.votes;
+    }
+    record.perspective = perspective;
+    record.updatedAt = new Date().toISOString();
+  }
+  await persistCases();
+  benchSessions.delete(id);
+  res.end();
+});
+
+// 非阻塞：用户互动入队，立即返回。
+app.post('/api/cases/:id/bench/interact', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const c = cases.get(id);
+  if (!c) return reply.code(404).send({ message: '案件不存在' });
+  const session = benchSessions.get(id);
+  if (!session) return reply.code(409).send({ message: '没有进行中的合议庭会话。' });
+
+  const body = (req.body ?? {}) as { kind?: BenchInteractionKind; text?: string; targetCelebrityId?: string; evidenceName?: string; vote?: 'plaintiff' | 'defendant' };
+  const kind = body.kind;
+  if (!kind) return reply.code(400).send({ message: '缺少互动类型 kind。' });
+  if (kind === 'call' && !body.targetCelebrityId) return reply.code(400).send({ message: 'call 需要 targetCelebrityId。' });
+
+  const interaction: BenchInteraction = {
+    id: randomUUID(),
+    kind,
+    text: body.text,
+    targetCelebrityId: body.targetCelebrityId,
+    evidenceName: body.evidenceName,
+    vote: body.vote,
+    perspective: c.perspective ?? 'audience',
+    createdAt: new Date().toISOString(),
+  };
+  session.interactions.push(interaction);
+  return { interactionId: interaction.id, ok: true };
+});
 app.post('/api/tripo/tasks', async (req, reply) => {
   try {
     const body = (req.body ?? {}) as { type?: 'text_to_model'|'image_to_model'; prompt?: string; imageUrl?: string; modelVersion?: string; faceLimit?: number };

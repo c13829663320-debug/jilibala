@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
-import type { Verdict } from "@balabala/shared";
+import type { Verdict, BenchMember, BenchSpeech, Perspective } from "@balabala/shared";
 
 /** The subset of a case that is persisted between API restarts. */
 export type StoredCase = {
@@ -12,6 +12,11 @@ export type StoredCase = {
   /** ISO timestamps are optional to keep old data files readable. */
   createdAt?: string;
   updatedAt?: string;
+  // ===== 合议庭 Bench (M6) =====
+  benchMembers?: BenchMember[];
+  benchTranscript?: BenchSpeech[];
+  benchVotes?: { plaintiff: number; defendant: number };
+  perspective?: Perspective;
 };
 
 type StorageDocument = {
