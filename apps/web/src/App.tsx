@@ -8,6 +8,7 @@ import ArchivePage, { type ArchiveRecord } from './ArchivePage'
 import AvatarStudio from './AvatarStudio'
 import CharacterHall, { type Character } from './CharacterHall'
 import SceneDetail from './SceneDetail'
+import { Plaza } from './Plaza'
 
 type Phase = {
   id: string
@@ -240,6 +241,7 @@ function App() {
   const [courtCharacter, setCourtCharacter] = useState<Character | null>(null)
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [characterHallOpen, setCharacterHallOpen] = useState(false)
+  const [plazaOpen, setPlazaOpen] = useState(false)
   const [caseText, setCaseText] = useState('泡泡借走了阿布的彩虹伞，但下雨后伞变成了会唱歌的蘑菇。')
   const [hearingMode, setHearingMode] = useState<HearingMode>('quick')
   const [perspective, setPerspective] = useState<Perspective>('plaintiff')
@@ -325,7 +327,9 @@ function App() {
   if (avatarOpen) return <AvatarStudio onBack={() => setAvatarOpen(false)} onEnterCourt={() => { setAvatarOpen(false); setEnteredCourt(true) }} />
   if (characterHallOpen) return <CharacterHall onBack={() => setCharacterHallOpen(false)} onEnterCourt={(character) => { setCharacterHallOpen(false); setCourtCharacter(character ?? null); setEnteredCourt(true) }} />
   if (sceneDetailOpen) return <SceneDetail onBack={() => setSceneDetailOpen(false)} onStartHearing={(mode) => { setHearingMode(mode ?? 'quick'); setSceneDetailOpen(false); setEnteredCourt(true) }} />
-  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onSceneDetail={() => setSceneDetailOpen(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} />
+  const plazaParam = new URLSearchParams(window.location.search).get('plaza');
+  if (plazaOpen || plazaParam === '1') return <Plaza onBack={() => { if (plazaParam === '1') window.location.href = '/'; else setPlazaOpen(false); }} />
+  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onSceneDetail={() => setSceneDetailOpen(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} />
 
 
   const generateAvatar = async () => {
@@ -429,6 +433,24 @@ function App() {
       else { await navigator.clipboard.writeText(`${data.title ?? '叽里呱啦趣味法庭判决'}\n${data.quote ?? ''}\n${shareUrl}`); setShareStatus('分享链接已复制') }
     } catch (error) { setShareStatus(error instanceof Error ? error.message : '分享失败') }
     window.setTimeout(() => setShareStatus(''), 2800)
+  }
+
+  const publishCourt = async () => {
+    setShareStatus('正在发布到广场…')
+    try {
+      const latest = archives[0]
+      if (!latest?.id) throw new Error('请先完成一次庭审')
+      const response = await fetch(`/api/cases/${latest.id}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await response.json() as { content?: unknown; message?: string }
+      if (!response.ok || !data.content) throw new Error(data.message ?? '发布失败')
+      setShareStatus('已发布到广场')
+      setPlazaOpen(true)
+    } catch (error) { setShareStatus(error instanceof Error ? error.message : '发布失败') }
+    window.setTimeout(() => setShareStatus(''), 1600)
   }
 
   const submitTrialMessage = () => {
@@ -548,7 +570,7 @@ function App() {
         <div className="scene-card"><Canvas shadows camera={{ position: [7, 5.2, 8], fov: 38 }} dpr={[1, 2]}><Courtroom character={courtCharacter} /><OrbitControls enablePan={false} minDistance={6} maxDistance={12} maxPolarAngle={Math.PI / 2.1} /></Canvas><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': courtCharacter.accent } as React.CSSProperties}><div className="scene-character-avatar"><span>{courtCharacter.emoji}</span></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.assetUrl && <a href={courtCharacter.assetUrl} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
         <div className="below-grid">
           <div className="dialogue-card"><div className="card-heading"><div><span className="micro-label">当前发言</span><h3>{displayedSpeaker}</h3></div><button className="listen-button"><Mic2 size={15} /> 播放台词</button></div><div className={`quote quote-${currentPhase.tone}`}>{liveQuote ? displayedQuote : <><span className="quote-mark">“</span>{displayedQuote}<span className="quote-mark end">”</span></>}</div><div className="stepper">{phases.map((item, i) => <button aria-label={item.label} key={item.id} className={`step ${i === phase ? 'current' : ''} ${i < phase ? 'passed' : ''}`} onClick={() => setPhase(i)} />)}</div></div>
-          <div className="verdict-card"><div className="verdict-top"><div className="verdict-icon"><Gavel size={18} /></div><div><span className="micro-label">AI 判决书 · 草稿</span><h3>{verdictTitle || (phase === phases.length - 1 ? '友谊大于输赢' : '等待全部证词')}</h3></div><span className="draft-tag">{(verdictTitle || phase === phases.length - 1) ? '已生成' : '进行中'}</span></div><p>{verdictSummary || (phase === phases.length - 1 ? '双方各获得一枚“会唱歌的蘑菇”纪念章，彩虹伞由两人轮流使用。' : '完成四个庭审阶段后，这里会出现一份温柔又好玩的判决。')}</p><div className="verdict-progress"><span style={{ width: `${((phase + 1) / phases.length) * 100}%` }} /></div>{verdictTitle && <button className="share-button" onClick={shareVerdict}>分享判决</button>}{shareStatus && <div className="share-status">{shareStatus}</div>}</div>
+          <div className="verdict-card"><div className="verdict-top"><div className="verdict-icon"><Gavel size={18} /></div><div><span className="micro-label">AI 判决书 · 草稿</span><h3>{verdictTitle || (phase === phases.length - 1 ? '友谊大于输赢' : '等待全部证词')}</h3></div><span className="draft-tag">{(verdictTitle || phase === phases.length - 1) ? '已生成' : '进行中'}</span></div><p>{verdictSummary || (phase === phases.length - 1 ? '双方各获得一枚“会唱歌的蘑菇”纪念章，彩虹伞由两人轮流使用。' : '完成四个庭审阶段后，这里会出现一份温柔又好玩的判决。')}</p><div className="verdict-progress"><span style={{ width: `${((phase + 1) / phases.length) * 100}%` }} /></div>{verdictTitle && <div className="verdict-card__buttons"><button className="share-button" onClick={shareVerdict}>分享判决</button><button className="share-button share-button--plaza" onClick={publishCourt}>发布到广场</button></div>}{shareStatus && <div className="share-status">{shareStatus}</div>}</div>
         </div>
         <section className="trial-interaction" aria-label="庭审互动">
           <div className="interaction-head"><div><span className="micro-label">LIVE PARTICIPATION</span><h3>庭上互动</h3></div><span className="interaction-role">{perspective === 'audience' ? '观众模式' : perspective === 'plaintiff' ? '原告席' : '被告席'}</span></div>

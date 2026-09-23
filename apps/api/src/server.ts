@@ -1,11 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole } from "@balabala/shared";
+import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId } from "@balabala/shared";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createImageTask, createTextTask, findAssetUrl, getTask, TripoError, uploadImageUrl } from './tripo.js';
 import { loadCases as loadStoredCases, saveCases as saveStoredCases, type StoredCase } from './storage.js';
+import { loadContents, saveContents, makeSeedContents } from './content-storage.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
 for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
@@ -22,6 +23,11 @@ type CaseRecord = StoredCase & { createdAt: string; shareToken?: string };
 const cases = new Map<string, CaseRecord>();
 for (const item of await loadStoredCases()) {
   cases.set(item.id, { ...item, createdAt: item.createdAt ?? new Date(0).toISOString() });
+}
+let contents: PlazaContent[] = await loadContents();
+if (contents.length === 0) {
+  contents = makeSeedContents();
+  await saveContents(contents);
 }
 // Queue snapshots so concurrent case creation/verdict completion cannot make
 // a later write get overwritten by an earlier one.
@@ -58,7 +64,7 @@ const moderateInput = (value: string): { ok: true; value: string } | { ok: false
 
 const fallback = (input:string): Verdict => ({
   caseNo: `(2026) 巴拉民初字第 ${String(Math.floor(Math.random()*9000)+1000)} 号`,
-  title: `${input.slice(0, 18)}案`, charge: "生活小事过度认真罪", sentence: "判处今日完成一件对自己有益的小事，并在 23:00 前放下手机。",
+  title: `${(input.split(/[，。！？,!?\n]/)[0].trim() || input).slice(0, 16)}案`, charge: "生活小事过度认真罪", sentence: "判处今日完成一件对自己有益的小事，并在 23:00 前放下手机。",
   facts: `经审理查明，被告确实经历了“${input}”，且在做出决定前进行了充分的脑内辩论。`,
   plaintiffClaim: "原告请求法庭承认这件事确实值得被认真对待。",
   defense: "被告辩称：我只是当时有一点点身不由己。",
@@ -245,6 +251,137 @@ app.get('/api/avatars/tasks/:taskId', async (req, reply) => {
     if (error instanceof TripoError) return reply.code(error.statusCode).send({ message: error.message, details: error.details });
     req.log.error(error); return reply.code(500).send({ message: '查询 3D 任务失败。' });
   }
+});
+
+// ===== 广场 Plaza =====
+const hotScore = (c: PlazaContent) => c.likes + c.dislikes + c.comments.length * 3;
+const recScore = (c: PlazaContent) => c.likes * 1.5 + c.comments.length * 2 + c.views * 0.05;
+const sortContents = (list: PlazaContent[], sort: ContentSort): PlazaContent[] => {
+  const byTime = (a: PlazaContent, b: PlazaContent) => b.createdAt.localeCompare(a.createdAt);
+  const copy = [...list];
+  if (sort === 'latest') copy.sort(byTime);
+  else if (sort === 'hot') copy.sort((a, b) => hotScore(b) - hotScore(a) || byTime(a, b));
+  else copy.sort((a, b) => recScore(b) - recScore(a) || byTime(a, b));
+  return copy;
+};
+
+app.get('/api/contents', async (req) => {
+  const query = req.query as { sort?: string; scene?: string; topic?: string };
+  const sort = (query.sort === 'hot' || query.sort === 'latest' ? query.sort : 'recommended') as ContentSort;
+  let list = contents;
+  if (query.scene && query.scene !== 'all') list = list.filter((c) => c.scene === query.scene);
+  const topic = query.topic;
+  if (topic) list = list.filter((c) => c.topics.includes(topic));
+  const result = sortContents(list, sort);
+  return { contents: result, total: result.length };
+});
+
+app.get('/api/topics', async () => {
+  const counts = new Map<string, number>();
+  for (const c of contents) for (const t of c.topics) counts.set(t, (counts.get(t) ?? 0) + 1);
+  const topics = [...counts.entries()]
+    .map(([topic, count]) => ({ topic, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  return { topics };
+});
+
+app.get('/api/contents/:id', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const content = contents.find((c) => c.id === id);
+  if (!content) return reply.code(404).send({ message: '内容不存在' });
+  content.views += 1;
+  await saveContents(contents);
+  return { content };
+});
+
+app.post('/api/contents', async (req, reply) => {
+  const body = (req.body ?? {}) as { title?: string; body?: string; topics?: string[]; scene?: string; author?: string };
+  const title = body.title?.trim();
+  const text = body.body?.trim();
+  if (!title || !text) return reply.code(400).send({ message: '标题和正文不能为空' });
+  const content: PlazaContent = {
+    id: randomUUID(),
+    type: 'text',
+    scene: (body.scene as SceneId | "all") ?? "all",
+    author: body.author?.trim() || '我',
+    createdAt: new Date().toISOString(),
+    topics: (body.topics ?? []).map((t) => t.trim()).filter(Boolean),
+    title,
+    body: text,
+    likes: 0,
+    dislikes: 0,
+    views: 0,
+    comments: [],
+  };
+  contents.unshift(content);
+  await saveContents(contents);
+  return reply.code(201).send({ content });
+});
+
+app.post('/api/cases/:id/publish', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const body = (req.body ?? {}) as { topics?: string[]; author?: string; participants?: number };
+  const record = cases.get(id);
+  if (!record) return reply.code(404).send({ message: '案件不存在' });
+  if (!record.verdict) return reply.code(409).send({ message: '判决尚未生成，暂时不能发布' });
+  const existing = contents.find((c) => c.type === 'closed_court' && c.caseId === id);
+  if (existing) return { content: existing };
+  const v = record.verdict;
+  const closedAt = record.updatedAt ?? record.createdAt ?? new Date().toISOString();
+  const content: PlazaContent = {
+    id: randomUUID(),
+    type: 'closed_court',
+    scene: 'court',
+    author: body.author?.trim() || '我',
+    createdAt: closedAt,
+    topics: body.topics ?? [],
+    title: v.title,
+    caseId: id,
+    likes: 0,
+    dislikes: 0,
+    views: 0,
+    comments: [],
+    court: {
+      caseNo: v.caseNo,
+      title: v.title,
+      plaintiffClaim: v.plaintiffClaim,
+      defendantClaim: v.defense,
+      evidence: v.facts,
+      verdict: v.sentence,
+      judgeNote: v.judgeNote,
+      participants: body.participants ?? 4,
+      closedAt,
+    },
+  };
+  contents.unshift(content);
+  await saveContents(contents);
+  return reply.code(201).send({ content });
+});
+
+app.post('/api/contents/:id/react', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const body = (req.body ?? {}) as { reaction?: string };
+  const content = contents.find((c) => c.id === id);
+  if (!content) return reply.code(404).send({ message: '内容不存在' });
+  if (body.reaction === 'like') content.likes += 1;
+  else if (body.reaction === 'dislike') content.dislikes += 1;
+  else return reply.code(400).send({ message: 'reaction 必须是 like 或 dislike' });
+  await saveContents(contents);
+  return { likes: content.likes, dislikes: content.dislikes };
+});
+
+app.post('/api/contents/:id/comments', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const body = (req.body ?? {}) as { text?: string; author?: string };
+  const content = contents.find((c) => c.id === id);
+  if (!content) return reply.code(404).send({ message: '内容不存在' });
+  const text = body.text?.trim();
+  if (!text) return reply.code(400).send({ message: '评论内容不能为空' });
+  const newComment = { id: randomUUID(), author: body.author?.trim() || '我', text, createdAt: new Date().toISOString() };
+  content.comments.push(newComment);
+  await saveContents(contents);
+  return reply.code(201).send({ comment: newComment });
 });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});

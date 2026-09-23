@@ -10,9 +10,10 @@ export type RoomEntryProps = {
   onArchive: () => void
   onAvatar: () => void
   onCharacters?: () => void
+  onPlaza?: () => void
 }
 
-type Mode = 'characters' | 'scenes' | 'community'
+type Mode = 'characters' | 'scenes'
 type Item = { id: string; label: string; eyebrow: string; hint: string; color: string; locked?: boolean }
 
 const CHARACTERS: Item[] = [
@@ -61,7 +62,7 @@ function OrbScene({ items, activeId, onActivate, onHover }: { items: Item[]; act
   </Canvas>
 }
 
-export default function RoomEntry({ onEnter, onSceneDetail, onArchive, onAvatar, onCharacters }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onSceneDetail, onArchive, onAvatar, onCharacters, onPlaza }: RoomEntryProps) {
   const [mode, setMode] = useState<Mode>('scenes')
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
@@ -79,13 +80,13 @@ export default function RoomEntry({ onEnter, onSceneDetail, onArchive, onAvatar,
       <nav className="main-home__nav" aria-label="平台模块导航">
         <button type="button" className={mode === 'characters' ? 'is-active' : ''} onClick={() => { setMode('characters'); setActiveId(CHARACTERS[0].id) }}>角色档案</button>
         <button type="button" className={mode === 'scenes' ? 'is-active' : ''} onClick={() => { setMode('scenes'); setActiveId('court') }}>场景</button>
-        <button type="button" className={mode === 'community' ? 'is-active' : ''} onClick={() => { setMode('community'); setNotice('社区广场正在准备中'); }}>社区</button>
+        <button type="button" onClick={() => onPlaza?.()}>广场</button>
       </nav>
       <div className="main-home__account"><span>Lv.7</span><b>WY</b></div>
     </header>
-    <section className="main-home__hero"><span className="main-home__kicker">BALA BALA SOCIAL WORLD</span><h1>{mode === 'characters' ? '认识你的角色，' : mode === 'scenes' ? '选择一个场景，' : '来到社区，'}<em>{mode === 'characters' ? '开始一段关系。' : mode === 'scenes' ? '开始你的故事。' : '看看大家的故事。'}</em></h1><p>{mode === 'characters' ? '浏览人物、创建分身，再把喜欢的角色带进任何场景。' : mode === 'scenes' ? '趣味法庭已上线，更多互动空间正在解锁。' : '分享判决、认识角色，和更多玩家一起玩。'}</p></section>
-    {mode !== 'community' ? <><section className="main-home__scene" aria-label={mode === 'characters' ? '人物档案空间' : '场景空间'}><OrbScene items={items} activeId={activeId} onActivate={activate} onHover={(item) => setActiveId(item.id)} /><div className="main-home__scene-caption"><span>当前选择</span><strong style={{ color: active.color }}>{active.label}</strong><small>{active.hint}</small></div></section><section className="main-home__modules" aria-label="可选模块">{items.map((item) => <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} style={{ '--module-color': item.color } as CSSProperties} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => activate(item)}><span>{item.eyebrow}</span><b>{item.label}</b><small>{item.hint}</small><i>{item.locked ? '🔒' : '↗'}</i></button>)}</section></> : <section className="main-home__community"><span>COMMUNITY · 社区</span><h2>这里会出现大家正在进行的庭审、角色和判决。</h2><p>社区功能将在趣味法庭和人物馆稳定后开放。</p><button type="button" onClick={() => setMode('scenes')}>返回场景</button></section>}
+    <section className="main-home__hero"><span className="main-home__kicker">BALA BALA SOCIAL WORLD</span><h1>{mode === 'characters' ? '认识你的角色，' : '选择一个场景，'}<em>{mode === 'characters' ? '开始一段关系。' : '开始你的故事。'}</em></h1><p>{mode === 'characters' ? '浏览人物、创建分身，再把喜欢的角色带进任何场景。' : '趣味法庭已上线，更多互动空间正在解锁。'}</p></section>
+    <section className="main-home__scene" aria-label={mode === 'characters' ? '人物档案空间' : '场景空间'}><OrbScene items={items} activeId={activeId} onActivate={activate} onHover={(item) => setActiveId(item.id)} /><div className="main-home__scene-caption"><span>当前选择</span><strong style={{ color: active.color }}>{active.label}</strong><small>{active.hint}</small></div></section><section className="main-home__modules" aria-label="可选模块">{items.map((item) => <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} style={{ '--module-color': item.color } as CSSProperties} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => activate(item)}><span>{item.eyebrow}</span><b>{item.label}</b><small>{item.hint}</small><i>{item.locked ? '🔒' : '↗'}</i></button>)}</section>
     {notice && <button type="button" className="main-home__notice" onClick={() => setNotice('')}>{notice}<span>×</span></button>}
-    <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>{mode === 'scenes' ? '1 / 6 个场景已解锁' : mode === 'characters' ? '人物档案 · 6 个精选角色' : '社区即将开放'}</span></footer>
+    <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>{mode === 'scenes' ? '1 / 6 个场景已解锁' : '人物档案 · 6 个精选角色'}</span></footer>
   </main>
 }

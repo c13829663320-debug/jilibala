@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/archivepage.tsx","./src/avatarstudio.tsx","./src/characterhall.tsx","./src/roomentry.tsx","./src/scenedetail.tsx","./src/tripomodelpreview.tsx","./src/main.tsx","./src/tripo-assets.ts"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/ArchivePage.tsx","./src/AvatarStudio.tsx","./src/CharacterHall.tsx","./src/ContentCard.tsx","./src/ContentDetail.tsx","./src/Plaza.tsx","./src/PublishForm.tsx","./src/RoomEntry.tsx","./src/SceneDetail.tsx","./src/TripoModelPreview.tsx","./src/main.tsx","./src/tripo-assets.ts"],"version":"5.9.3"}
