@@ -36,7 +36,7 @@ export default function TopNav({ currentView, onNavigate, inCourtroom, onReset }
     <header className="topnav">
       <div className="topnav__brand" onClick={() => onNavigate('court')} role="button" tabIndex={0}
         onKeyDown={(event) => { if (event.key === 'Enter') onNavigate('court') }}>
-        <img className="topnav__mark" src="/brand/balabala-mark-dark.jpg" alt="BalaBala" />
+        <img className="topnav__mark" src="/brand/balabala-mark.jpg" alt="BalaBala" />
         <div className="topnav__brand-text">
           <div className="topnav__brand-name">叽里呱啦</div>
           <div className="topnav__brand-sub">BALA BALA</div>

@@ -661,7 +661,7 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, 
             </div>
 
             <div className="profile-about">
-              <img src="/brand/balabala-mark-dark.jpg" alt="叽里呱啦" />
+              <img src="/brand/balabala-mark.jpg" alt="叽里呱啦" />
               <div>
                 <b>叽里呱啦 · BalaBala</b>
                 <small>版本 0.4.0 · SOCIAL COURT</small>

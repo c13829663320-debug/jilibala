@@ -236,7 +236,7 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, o
         <button className="live-topbar__back" onClick={onExit} aria-label="退出法庭">
           <ArrowLeft size={18} />
         </button>
-        <img src="/brand/balabala-mark-dark.jpg" alt="叽里呱啦" className="court-brand-mark" />
+        <img src="/brand/balabala-mark.jpg" alt="叽里呱啦" className="court-brand-mark" />
         <span className="live-topbar__case">⚖ {courtCase.title}</span>
         <span className="live-topbar__spacer" />
         <span className="live-topbar__meta">

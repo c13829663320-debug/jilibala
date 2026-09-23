@@ -39,9 +39,9 @@ export interface CameraConfig {
  *   关键：运行时相机就位后不再每帧拉回；发言者只靠 SeatRing/聚光/名牌高亮。
  */
 export const TRIAL_CAMERA = {
-  position: [0, 4.3, 4.5] as Vec3,
-  target: [0, 0.9, -1.3] as Vec3,
-  fov: 60,
+  position: [0, 2.9, 4.0] as Vec3,
+  target: [0, 1.0, -1.4] as Vec3,
+  fov: 52,
   minDistance: 1.5,
   maxDistance: 9.0,
   maxPolarAngle: Math.PI / 2.05,

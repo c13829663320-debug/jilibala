@@ -25,3 +25,17 @@ tripo-results.json
 _archive/
 _inspect_court.mjs
 _clean_court.mjs
+
+# 3D排查/截图临时产物
+.m13-screenshots/
+.tmp-court-3d/
+
+# 一次性法庭排查脚本（celebrities-3d.mts 保留入库）
+scripts/court-*.mts
+
+# 其他一次性测量脚本 / 打包产物
+apps/web/measure-*.mjs
+*.tar.gz
+
+# 建模/品牌参考素材（本地工作用，最终资产在 apps/web/public）
+reference/
