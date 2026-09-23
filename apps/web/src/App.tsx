@@ -5,6 +5,7 @@ import RoomEntry from './RoomEntry'
 import ArchivePage, { type ArchiveRecord } from './ArchivePage'
 import AvatarStudio from './AvatarStudio'
 import type { Celebrity } from '@balabala/shared'
+import MyPage from './MyPage'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
@@ -79,6 +80,7 @@ function App() {
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [characterHallOpen, setCharacterHallOpen] = useState(false)
   const [plazaOpen, setPlazaOpen] = useState(false)
+  const [myPageOpen, setMyPageOpen] = useState(false)
   const [caseText, setCaseText] = useState('泡泡借走了阿布的彩虹伞，但下雨后伞变成了会唱歌的蘑菇。')
   const [hearingMode, setHearingMode] = useState<HearingMode>('quick')
   const [perspective, setPerspective] = useState<Perspective>('plaintiff')
@@ -164,8 +166,9 @@ function App() {
   if (avatarOpen) return <AvatarStudio onBack={() => setAvatarOpen(false)} onEnterCourt={() => { setAvatarOpen(false); setEnteredCourt(true) }} />
   if (characterHallOpen) return <Suspense fallback={null}><CharacterHall onBack={() => setCharacterHallOpen(false)} onEnterCourt={(character) => { setCharacterHallOpen(false); setCourtCharacter(character ?? null); setEnteredCourt(true) }} onPlaza={() => { setCharacterHallOpen(false); setPlazaOpen(true) }} /></Suspense>
   const plazaParam = new URLSearchParams(window.location.search).get('plaza');
+  if (myPageOpen) return <MyPage onBack={() => setMyPageOpen(false)} onCourt={(input) => { setMyPageOpen(false); if (input) setCaseText(input); setEnteredCourt(true) }} onPlaza={() => { setMyPageOpen(false); setPlazaOpen(true) }} />
   if (plazaOpen || plazaParam === '1') return <Suspense fallback={null}><Plaza3D onBack={() => { if (plazaParam === '1') window.location.href = '/'; else setPlazaOpen(false); }} onEnterCourt={() => { setPlazaOpen(false); setEnteredCourt(true); }} /></Suspense>
-  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} />
+  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} onMyPage={() => setMyPageOpen(true)} />
 
 
   const generateAvatar = async () => {

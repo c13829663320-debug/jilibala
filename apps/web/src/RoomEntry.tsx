@@ -11,6 +11,7 @@ export type RoomEntryProps = {
   onAvatar: () => void
   onCharacters?: () => void
   onPlaza?: () => void
+  onMyPage?: () => void
 }
 
 type Item = { id: string; label: string; eyebrow: string; hint: string; color: string; locked?: boolean }
@@ -124,7 +125,7 @@ function ScenesCarousel({ activeId, onSelect, onOpen }: CarouselProps) {
   )
 }
 
-export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza, onMyPage }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
@@ -140,6 +141,7 @@ export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, 
         <button type="button" onClick={() => onCharacters?.()}>角色档案</button>
         <button type="button" className="is-active" onClick={() => { setActiveId('court') }}>场景</button>
         <button type="button" onClick={() => onPlaza?.()}>广场</button>
+        <button type="button" onClick={() => onMyPage?.()}>我的</button>
       </nav>
       <div className="main-home__account"><span>Lv.7</span><b>WY</b></div>
     </header>
