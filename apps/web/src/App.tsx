@@ -1,6 +1,6 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, ContactShadows, Environment, Float, Text, useGLTF } from '@react-three/drei'
+import { OrbitControls, ContactShadows, Environment, Lightformer, Float, Text, useGLTF } from '@react-three/drei'
 import { Box3, Vector3 } from 'three'
 import { Gavel, Sparkles, Play, RotateCcw, Mic2, Scale, WandSparkles, Users, Clock3, ChevronRight, Check, Volume2, Upload, FileText, Bot, Eye } from 'lucide-react'
 import RoomEntry from './RoomEntry'
@@ -8,7 +8,6 @@ import ArchivePage, { type ArchiveRecord } from './ArchivePage'
 import AvatarStudio from './AvatarStudio'
 import CharacterHall from './CharacterHall'
 import type { Celebrity } from '@balabala/shared'
-import SceneDetail from './SceneDetail'
 import { Plaza } from './Plaza'
 
 type Phase = {
@@ -82,6 +81,7 @@ function CourtroomEnvironmentModel() {
       child.castShadow = true
       child.receiveShadow = true
     })
+    const ws = size.clone().multiplyScalar(scale)
     return clone
   }, [scene])
   return <primitive object={normalized} />
@@ -102,79 +102,52 @@ function FullCourtEnvironment() {
 
 function CourtroomCharacter({ character }: { character: Celebrity }) {
   if (!character.model) return null
-  const fallback = <Avatar position={[0, 0.55, 0]} body="#7a5ed9" head="#ffd1b3" accent="#f7e0a5" name={character.name} />
-  return <group position={[-2.6, 1, -0.1]}>
-    <CourtroomModelErrorBoundary fallback={fallback}>
-      <Suspense fallback={fallback}>
-        <NormalizedCourtroomModel url={character.model} />
-        <Text position={[0, 1.82, 0]} fontSize={0.18} color="#f7efff" anchorX="center" anchorY="middle">{character.name}</Text>
-      </Suspense>
-    </CourtroomModelErrorBoundary>
-  </group>
-}
-
-function Courtroom({ character }: CourtroomProps) {
-  const jury = [
-    [-3.7, 0.32, 2.15], [-2.45, 0.32, 2.15], [-1.2, 0.32, 2.15], [1.2, 0.32, 2.15], [2.45, 0.32, 2.15], [3.7, 0.32, 2.15],
-    [-3.7, 0.32, 3.65], [-2.45, 0.32, 3.65], [-1.2, 0.32, 3.65], [1.2, 0.32, 3.65], [2.45, 0.32, 3.65], [3.7, 0.32, 3.65],
-  ] as Array<[number, number, number]>
+  const fallback = null
   return (
-    <group>
-      <color attach="background" args={['#21150f']} />
-      <fog attach="fog" args={['#21150f', 8, 18]} />
-      <ambientLight intensity={1.15} color="#ffe0b0" />
-      <directionalLight position={[0, 8, 3]} intensity={4.2} color="#fff0cf" castShadow shadow-mapSize={[2048, 2048]} />
-      <pointLight position={[-4.5, 4.5, -1.5]} intensity={20} distance={11} color="#ffc16e" />
-      <pointLight position={[4.5, 4.5, -1.5]} intensity={20} distance={11} color="#ffc16e" />
-      <Environment preset="apartment" />
-
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[20, 16]} />
-        <meshStandardMaterial color="#6e321b" roughness={0.72} metalness={0.05} />
-      </mesh>
-      <mesh position={[0, 3.6, -3.7]} receiveShadow>
-        <boxGeometry args={[10, 7, 0.3]} />
-        <meshStandardMaterial color="#d7b28b" roughness={0.86} />
-      </mesh>
-      <mesh position={[0, 1.45, -3.48]}>
-        <boxGeometry args={[10, 2.2, 0.22]} />
-        <meshStandardMaterial color="#4a1f13" roughness={0.56} />
-      </mesh>
-      <WallPanel position={[0, 2.65, -3.3]} size={[4.7, 3.1, 0.14]} />
-      <Text position={[0, 3.2, -3.19]} fontSize={0.34} color="#ffe3a6" anchorX="center" anchorY="middle" outlineWidth={0.008} outlineColor="#7e3b1e">BALA BALA &amp; ASSOCIATES</Text>
-      <mesh position={[0, 4.85, -3.38]} rotation={[0, 0, Math.PI / 4]}>
-        <torusGeometry args={[0.43, 0.07, 12, 32]} />
-        <meshStandardMaterial color="#d89a3d" emissive="#8e4d1a" emissiveIntensity={0.35} metalness={0.72} roughness={0.28} />
-      </mesh>
-      <mesh position={[0, 4.85, -3.36]} rotation={[0, 0, Math.PI / 4]}>
-        <coneGeometry args={[0.28, 0.28, 5]} />
-        <meshStandardMaterial color="#f0bc5b" emissive="#8e4d1a" emissiveIntensity={0.3} metalness={0.6} />
-      </mesh>
-      <WoodBeam position={[-4.7, 3.2, -3.2]} />
-      <WoodBeam position={[4.7, 3.2, -3.2]} />
-      <HangingLamp position={[-3.8, 4.55, -2.6]} />
-      <HangingLamp position={[3.8, 4.55, -2.6]} />
-
-      <JudgeBench position={[0, 1.15, -2.55]} />
-      <Desk position={[-2.65, 0.74, -0.05]} color="#76351f" label="原告席" />
-      <Desk position={[2.65, 0.74, -0.05]} color="#76351f" label="被告席" />
-      <Avatar position={[0, 1.95, -2.38]} body="#ec9fca" head="#ffcba7" accent="#f4e0a5" name="Luna" />
-      {character?.model ? <CourtroomCharacter character={character} /> : <Avatar position={[-2.6, 1.55, -0.1]} body="#7a5ed9" head="#ffd1b3" accent="#74f1de" name="泡泡" />}
-      <Avatar position={[2.6, 1.55, -0.1]} body="#3c9ea4" head="#f1b68e" accent="#ffcf71" name="阿布" />
-      {jury.map(([x, y, z], index) => <JuryBench key={`${x}-${z}`} position={[x, y, z]} />)}
-      <Avatar position={[-3.7, 1.05, 2.02]} body="#e67c4d" head="#b9613e" accent="#f2c65c" name="陪审" scale={0.68} />
-      <Avatar position={[3.7, 1.05, 2.02]} body="#52b7bf" head="#efb590" accent="#f2c65c" name="陪审" scale={0.68} />
-      <Float speed={2.6} rotationIntensity={0.18} floatIntensity={0.2}>
-        <mesh position={[0, 2.25, -2.98]} rotation={[0, 0, Math.PI / 8]}>
-          <boxGeometry args={[0.72, 0.18, 0.18]} />
-          <meshStandardMaterial color="#e6a43f" emissive="#a4511b" emissiveIntensity={0.45} metalness={0.7} roughness={0.26} />
-        </mesh>
-      </Float>
-      <ContactShadows position={[0, 0.02, 0]} opacity={0.58} scale={13} blur={2.8} far={8} color="#2b120a" />
+    <group position={[-1.83, 0.62, -1.5]}>
+      <CourtroomModelErrorBoundary fallback={fallback}>
+        <Suspense fallback={fallback}>
+          <NormalizedCourtroomModel url={character.model} />
+          <Text position={[0, 1.72, 0.06]} fontSize={0.2} color="#f4ecff" anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor="#160f24">{character.name}</Text>
+        </Suspense>
+      </CourtroomModelErrorBoundary>
     </group>
   )
 }
 
+function Courtroom({ character }: CourtroomProps) {
+  const sconceLights: Array<[number, number, number]> = [
+    [-3.3, 2.4, -4.0], [-1.53, 2.4, -4.0], [1.53, 2.4, -4.0], [3.3, 2.4, -4.0],
+    [-5.2, 2.3, -2.1], [5.2, 2.3, -2.1],
+  ]
+  const ceilingLights: Array<[number, number, number]> = [
+    [0, 4.0, -2.6],
+  ]
+  return (
+    <group>
+      <color attach="background" args={['#160d08']} />
+      <ambientLight intensity={0.42} color="#ffe2b4" />
+      <directionalLight position={[5, 9, 6]} intensity={2.3} color="#fff1d2" castShadow shadow-mapSize={[1024, 1024]} />
+      <Environment resolution={128}>
+        <Lightformer intensity={1.4} color="#ffdcb0" position={[0, 5, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[10, 10, 1]} />
+        <Lightformer intensity={0.7} color="#dfe8ff" position={[-6, 2, 0]} rotation={[0, Math.PI / 2, 0]} scale={[8, 4, 1]} />
+        <Lightformer intensity={0.7} color="#dfe8ff" position={[6, 2, 0]} rotation={[0, -Math.PI / 2, 0]} scale={[8, 4, 1]} />
+        <Lightformer intensity={1.1} color="#ffe8c8" position={[0, 2, 6]} scale={[10, 4, 1]} />
+        <Lightformer intensity={0.5} color="#ffcf96" position={[0, 2, -6]} scale={[10, 4, 1]} />
+      </Environment>
+      {sconceLights.map((p, i) => (
+        <pointLight key={`sconce-${i}`} position={p} intensity={13} distance={7} decay={2} color="#ffb066" />
+      ))}
+      {ceilingLights.map((p, i) => (
+        <pointLight key={`ceil-${i}`} position={p} intensity={11} distance={7} decay={2} color="#ffe3b8" />
+      ))}
+      <Suspense fallback={null}>
+        <CourtroomEnvironmentModel />
+      </Suspense>
+      {character?.model && <CourtroomCharacter character={character} />}
+    </group>
+  )
+}
 type HearingMode = 'quick' | 'evidence'
 type Perspective = 'plaintiff' | 'defendant' | 'audience'
 type EvidenceMeta = { name: string; size: number; type: string }
@@ -190,55 +163,8 @@ type SpeechRecognitionLike = {
   onend: (() => void) | null
 }
 
-function WallPanel({ position, size }: { position: [number, number, number]; size: [number, number, number] }) {
-  return <mesh position={position} castShadow><boxGeometry args={size} /><meshStandardMaterial color="#7b3a21" roughness={0.6} /></mesh>
-}
-
-function WoodBeam({ position }: { position: [number, number, number] }) {
-  return <mesh position={position} rotation={[0, 0, 0.06]} castShadow><boxGeometry args={[0.28, 6.1, 0.3]} /><meshStandardMaterial color="#4a1e12" roughness={0.54} /></mesh>
-}
-
-function HangingLamp({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh position={[0, 0.42, 0]}><cylinderGeometry args={[0.018, 0.018, 0.8, 8]} /><meshStandardMaterial color="#9a642d" /></mesh><mesh position={[0, 0, 0]}><sphereGeometry args={[0.2, 16, 12]} /><meshStandardMaterial color="#ffe3a7" emissive="#ffb84f" emissiveIntensity={1.4} /></mesh><pointLight color="#ffbe68" intensity={5} distance={4} /></group>
-}
-
-function JudgeBench({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh castShadow><boxGeometry args={[4.2, 1.5, 1.1]} /><meshStandardMaterial color="#75331e" roughness={0.5} /></mesh><mesh position={[0, 0.82, 0]} castShadow><boxGeometry args={[4.6, 0.25, 1.3]} /><meshStandardMaterial color="#b85b2b" roughness={0.38} /></mesh><mesh position={[0, 1.5, 0.3]} castShadow><boxGeometry args={[2.9, 1.8, 0.22]} /><meshStandardMaterial color="#4b2014" roughness={0.6} /></mesh></group>
-}
-
-function JuryBench({ position }: { position: [number, number, number] }) {
-  return <group position={position}><mesh castShadow><boxGeometry args={[2.2, 0.42, 0.72]} /><meshStandardMaterial color="#7b371f" roughness={0.58} /></mesh><mesh position={[0, 0.46, 0.18]} castShadow><boxGeometry args={[2.28, 0.14, 0.82]} /><meshStandardMaterial color="#a24c27" roughness={0.48} /></mesh></group>
-}
-
-function Bench({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
-  return <group position={position} scale={scale}>
-    <mesh castShadow><boxGeometry args={[3.9, 1.5, 0.8]} /><meshStandardMaterial color="#6b3f57" roughness={0.48} /></mesh>
-    <mesh position={[0, 0.84, 0]} castShadow><boxGeometry args={[4.35, 0.22, 1]} /><meshStandardMaterial color="#f1c05f" emissive="#79502a" emissiveIntensity={0.15} /></mesh>
-  </group>
-}
-
-function Desk({ position, color, label, scale = 1 }: { position: [number, number, number]; color: string; label: string; scale?: number }) {
-  return <group position={position} scale={scale}>
-    <mesh castShadow><boxGeometry args={[2.35, 0.34, 1.35]} /><meshStandardMaterial color="#e4b273" roughness={0.55} /></mesh>
-    <mesh position={[0, -0.65, 0]} castShadow><boxGeometry args={[1.85, 1.05, 0.92]} /><meshStandardMaterial color={color} roughness={0.68} /></mesh>
-    <Text position={[0, 0.23, 0.7]} rotation={[-0.16, 0, 0]} fontSize={0.2} color="#ffe5b3" anchorX="center" anchorY="middle">{label}</Text>
-  </group>
-}
-
-function Avatar({ position, body, head, accent, name, scale = 1 }: { position: [number, number, number]; body: string; head: string; accent: string; name: string; scale?: number }) {
-  return <group position={position} scale={scale}>
-    <mesh position={[0, 0.18, 0]} castShadow><capsuleGeometry args={[0.34, 0.75, 8, 16]} /><meshStandardMaterial color={body} roughness={0.45} /></mesh>
-    <mesh position={[0, 0.83, 0]} castShadow><sphereGeometry args={[0.37, 24, 20]} /><meshStandardMaterial color={head} roughness={0.52} /></mesh>
-    <mesh position={[0, 0.98, -0.03]} castShadow><sphereGeometry args={[0.39, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.54]} /><meshStandardMaterial color={accent} roughness={0.5} /></mesh>
-    <mesh position={[-0.12, 0.84, -0.34]}><sphereGeometry args={[0.035, 10, 10]} /><meshStandardMaterial color="#2a2042" /></mesh>
-    <mesh position={[0.12, 0.84, -0.34]}><sphereGeometry args={[0.035, 10, 10]} /><meshStandardMaterial color="#2a2042" /></mesh>
-    <Text position={[0, 1.4, 0]} fontSize={0.18} color="#f7efff" anchorX="center" anchorY="middle">{name}</Text>
-  </group>
-}
-
 function App() {
   const [enteredCourt, setEnteredCourt] = useState(false)
-  const [sceneDetailOpen, setSceneDetailOpen] = useState(false)
   const [courtCharacter, setCourtCharacter] = useState<Celebrity | null>(null)
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [characterHallOpen, setCharacterHallOpen] = useState(false)
@@ -327,10 +253,9 @@ function App() {
   if (showArchivePage) return <ArchivePage archives={archives} loading={archiveLoading} error={archiveError} onBack={() => { setShowArchivePage(false); setEnteredCourt(false) }} onCourt={() => { setShowArchivePage(false); setEnteredCourt(true) }} onRefresh={() => { void fetchArchives() }} onOpenCase={(record) => { setCaseText(record.input); setShowArchivePage(false); setEnteredCourt(true) }} onDelete={async (record) => { try { await fetch(`/api/cases/${encodeURIComponent(record.id)}`, { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('删除案卷失败') } }} onClear={async () => { try { await fetch('/api/archives', { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('清空案卷失败') } }} />
   if (avatarOpen) return <AvatarStudio onBack={() => setAvatarOpen(false)} onEnterCourt={() => { setAvatarOpen(false); setEnteredCourt(true) }} />
   if (characterHallOpen) return <CharacterHall onBack={() => setCharacterHallOpen(false)} onEnterCourt={(character) => { setCharacterHallOpen(false); setCourtCharacter(character ?? null); setEnteredCourt(true) }} />
-  if (sceneDetailOpen) return <SceneDetail onBack={() => setSceneDetailOpen(false)} onStartHearing={(mode) => { setHearingMode(mode ?? 'quick'); setSceneDetailOpen(false); setEnteredCourt(true) }} />
   const plazaParam = new URLSearchParams(window.location.search).get('plaza');
   if (plazaOpen || plazaParam === '1') return <Plaza onBack={() => { if (plazaParam === '1') window.location.href = '/'; else setPlazaOpen(false); }} />
-  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onSceneDetail={() => setSceneDetailOpen(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} />
+  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onSceneDetail={() => setEnteredCourt(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} />
 
 
   const generateAvatar = async () => {
@@ -521,7 +446,7 @@ function App() {
 
   return <main className="app-shell">
     <header className="topbar">
-      <div className="brand-lockup"><div className="brand-mark"><Gavel size={19} strokeWidth={2.7} /></div><div><div className="brand-name">叽里呱啦</div><div className="brand-sub">BALA BALA · SOCIAL COURT</div></div></div>
+      <div className="brand-lockup"><img className="brand-mark" src="/brand/balabala-mark-clean.jpg" alt="BalaBala" /><div><div className="brand-name">叽里呱啦</div><div className="brand-sub">BALA BALA · SOCIAL COURT</div></div></div>
       <div className="top-actions"><span className="status-dot"><span className="dot" /> 房间 #0317 在线</span><button className="archive-button" onClick={loadArchives}>案卷库</button><button className="icon-button" title="重置体验" onClick={reset}><RotateCcw size={17} /></button><div className="avatar-chip">林<span>△</span></div></div>
     </header>
     <div className="workspace">
@@ -568,7 +493,7 @@ function App() {
       </aside>
       <section className="main-stage">
         <div className="stage-header"><div><div className="stage-kicker"><span className="tiny-dot" /> 正在进行 · {currentPhase.label}</div><h2>{generatedTitle}</h2><div className="case-meta"><span>{hearingMode === 'evidence' ? '带证据开庭' : '快速开庭'}</span><span>·</span><span>{perspective === 'audience' ? '观众视角' : perspective === 'plaintiff' ? '原告视角' : '被告视角'}</span>{evidenceFiles.length > 0 && <><span>·</span><span>{evidenceFiles.length} 份证据</span></>}</div></div><div className="stage-tools"><span className="scene-tag">3D 场景 · 趣味法庭</span><button className="round-button" title="语音模式"><Volume2 size={17} /></button></div></div>
-        <div className="scene-card"><Canvas shadows camera={{ position: [7, 5.2, 8], fov: 38 }} dpr={[1, 2]}><Courtroom character={courtCharacter} /><OrbitControls enablePan={false} minDistance={6} maxDistance={12} maxPolarAngle={Math.PI / 2.1} /></Canvas><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': '#7a5ed9' } as React.CSSProperties}><div className="scene-character-avatar"><img src={courtCharacter.portrait} alt={courtCharacter.name} /></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.model && <a href={courtCharacter.model} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
+        <div className="scene-card"><Canvas shadows camera={{ position: [0, 2.1, 3.7], fov: 45 }} dpr={[1, 2]}><Courtroom character={courtCharacter} /><OrbitControls enablePan={false} target={[0, 1.2, -0.8]} minDistance={2} maxDistance={6.4} maxPolarAngle={Math.PI / 2.05} /></Canvas><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': '#7a5ed9' } as React.CSSProperties}><div className="scene-character-avatar"><img src={courtCharacter.portrait} alt={courtCharacter.name} /></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.model && <a href={courtCharacter.model} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
         <div className="below-grid">
           <div className="dialogue-card"><div className="card-heading"><div><span className="micro-label">当前发言</span><h3>{displayedSpeaker}</h3></div><button className="listen-button"><Mic2 size={15} /> 播放台词</button></div><div className={`quote quote-${currentPhase.tone}`}>{liveQuote ? displayedQuote : <><span className="quote-mark">“</span>{displayedQuote}<span className="quote-mark end">”</span></>}</div><div className="stepper">{phases.map((item, i) => <button aria-label={item.label} key={item.id} className={`step ${i === phase ? 'current' : ''} ${i < phase ? 'passed' : ''}`} onClick={() => setPhase(i)} />)}</div></div>
           <div className="verdict-card"><div className="verdict-top"><div className="verdict-icon"><Gavel size={18} /></div><div><span className="micro-label">AI 判决书 · 草稿</span><h3>{verdictTitle || (phase === phases.length - 1 ? '友谊大于输赢' : '等待全部证词')}</h3></div><span className="draft-tag">{(verdictTitle || phase === phases.length - 1) ? '已生成' : '进行中'}</span></div><p>{verdictSummary || (phase === phases.length - 1 ? '双方各获得一枚“会唱歌的蘑菇”纪念章，彩虹伞由两人轮流使用。' : '完成四个庭审阶段后，这里会出现一份温柔又好玩的判决。')}</p><div className="verdict-progress"><span style={{ width: `${((phase + 1) / phases.length) * 100}%` }} /></div>{verdictTitle && <div className="verdict-card__buttons"><button className="share-button" onClick={shareVerdict}>分享判决</button><button className="share-button share-button--plaza" onClick={publishCourt}>发布到广场</button></div>}{shareStatus && <div className="share-status">{shareStatus}</div>}</div>

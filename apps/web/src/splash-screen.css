@@ -1,0 +1,98 @@
+/* ---------- 开屏 · 大字消散（极简版） ---------- */
+:root{
+  --sp-white:#F5F5F5;
+  --sp-ink-3:rgba(245,245,245,.55);
+
+  --sp-font-en:"Anton","Archivo Black","Impact","Haettenschweiler",sans-serif;
+  --sp-font-cn:"Smiley Sans","得意黑","Alibaba PuHuiTi 3.0 Heavy","Source Han Sans SC Heavy","Noto Sans SC","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  --sp-font-cn-body:"HarmonyOS Sans SC","PingFang SC","Source Han Sans SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+
+.splash{
+  position:fixed;inset:0;z-index:90;
+  /* 半透明黑底：透出下层场景页，消散交叉淡出更自然 */
+  background:rgba(8,8,8,.82);
+  -webkit-backdrop-filter:blur(16px) saturate(130%);
+  backdrop-filter:blur(16px) saturate(130%);
+  color:var(--sp-white);
+  font-family:var(--sp-font-cn-body);
+  overflow:hidden;-webkit-font-smoothing:antialiased;
+  cursor:pointer;user-select:none;
+  transition:opacity .5s ease;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.splash.is-gone{opacity:0;pointer-events:none}
+
+/* 噪点纹理：纯黑上最克制的"不闷"手段，不引入任何色相 */
+.splash::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity:.04;mix-blend-mode:screen;
+}
+
+/* HERO 大字 —— 居中、放大，画面唯一主角 */
+.splash__hero{
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;
+}
+.splash__mega{
+  font-family:var(--sp-font-en);
+  font-size:clamp(88px,24vw,360px);
+  line-height:.82;letter-spacing:-.035em;font-weight:400;
+  display:flex;flex-wrap:nowrap;white-space:nowrap;text-transform:uppercase;
+  margin:0;
+}
+.splash__mega span[data-i]{display:inline-block;will-change:transform,filter,opacity;
+  opacity:0;
+  animation:sp-enter .72s cubic-bezier(.22,.7,.24,1) forwards;
+  animation-delay:calc(var(--i) * 70ms)}
+.splash__mega .sp-bob{display:inline-block;will-change:transform;
+  animation:sp-bob 6s ease-in-out infinite;
+  animation-delay:calc(var(--i) * 220ms)}
+.splash__mega .sp{width:.28em}
+.splash__mega em{font-style:normal}
+/* 入场：从下方弹入，带轻微模糊收敛 */
+@keyframes sp-enter{
+  0%{opacity:0;transform:translateY(46px) scale(.92);filter:blur(10px)}
+  100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}
+}
+/* 持续：极轻微的上下呼吸，错相位避免同步 */
+@keyframes sp-bob{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-9px)}
+}
+.splash__cnsub{
+  margin-top:.5em;font-family:var(--sp-font-cn);font-weight:900;
+  font-size:clamp(28px,5.4vw,80px);letter-spacing:.26em;text-indent:.26em;color:var(--sp-white);
+}
+.splash__cnsub i{font-style:normal}
+
+/* 提示 —— 克制，只一行中文 */
+.splash__hint{
+  position:absolute;bottom:9%;left:50%;transform:translateX(-50%);z-index:2;
+  font-size:13px;letter-spacing:.1em;color:var(--sp-ink-3);
+  animation:sp-pulse 2.6s ease-in-out infinite;white-space:nowrap;
+}
+@keyframes sp-pulse{0%,100%{opacity:.4}50%{opacity:.9}}
+
+/* 消散 */
+.splash__mega span.out{animation:sp-vanish .8s cubic-bezier(.32,.72,.42,1) forwards}
+.splash__mega span.out .sp-bob{animation:none}
+@keyframes sp-vanish{
+  0%{opacity:1;filter:blur(0);transform:translateY(0) scale(1)}
+  100%{opacity:0;filter:blur(6px);transform:translateY(-18px) scale(1.02)}
+}
+.splash__cnsub,.splash__hint{
+  transition:opacity .4s ease,transform .5s cubic-bezier(.22,.7,.24,1);
+}
+.splash.is-leaving .splash__cnsub{opacity:0;transform:translateY(14px)}
+.splash.is-leaving .splash__hint{opacity:0;transform:translateX(-50%) translateY(-14px)}
+
+@media(max-width:640px){
+  .splash__mega{font-size:clamp(64px,26vw,140px)}
+  .splash__cnsub{font-size:clamp(22px,8vw,44px)}
+}
+@media(prefers-reduced-motion:reduce){
+  .splash__mega span,.splash__hint{animation-duration:.01ms!important;animation-iteration-count:1!important}
+}

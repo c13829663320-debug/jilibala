@@ -7,3 +7,8 @@ dist/
 **/data/
 .dev-logs/
 *.log
+
+# 临时/中间产物
+temp-models/
+tripo-log.txt
+*.tsbuildinfo
