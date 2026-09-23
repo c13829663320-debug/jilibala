@@ -68,7 +68,7 @@ function NormalizedCourtroomModel({ url }: { url: string }) {
 }
 
 function CourtroomEnvironmentModel() {
-  const { scene } = useGLTF('/models/balabala_courtroom.glb')
+  const { scene } = useGLTF('/models/balabala_courtroom.glb', false, true)
   const normalized = useMemo(() => {
     const clone = scene.clone(true)
     const bounds = new Box3().setFromObject(clone)
