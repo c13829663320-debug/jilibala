@@ -13,3 +13,6 @@ temp-models/
 tripo-log.txt
 tripo-results.json
 *.tsbuildinfo
+
+tripo-batch.mjs
+tripo-results.json
