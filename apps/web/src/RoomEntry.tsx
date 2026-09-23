@@ -78,7 +78,7 @@ export default function RoomEntry({ onEnter, onSceneDetail, onArchive, onAvatar,
     <header className="main-home__topbar">
       <button type="button" className="main-home__brand" onClick={() => setMode('scenes')}><span className="main-home__brand-mark" /><b>BalaBala</b></button>
       <nav className="main-home__nav" aria-label="平台模块导航">
-        <button type="button" className={mode === 'characters' ? 'is-active' : ''} onClick={() => { setMode('characters'); setActiveId(CHARACTERS[0].id) }}>角色档案</button>
+        <button type="button" onClick={() => onCharacters?.()}>角色档案</button>
         <button type="button" className={mode === 'scenes' ? 'is-active' : ''} onClick={() => { setMode('scenes'); setActiveId('court') }}>场景</button>
         <button type="button" onClick={() => onPlaza?.()}>广场</button>
       </nav>

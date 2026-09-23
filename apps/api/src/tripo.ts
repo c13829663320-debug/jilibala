@@ -136,6 +136,18 @@ export async function uploadImageUrl(imageUrl: string): Promise<string> {
   return token;
 }
 
+/** Upload raw image bytes to Tripo and return its file token. */
+export async function uploadImageBuffer(data: ArrayBuffer | Uint8Array, contentType = 'image/jpeg', filename = 'upload.jpg'): Promise<string> {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  const part = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  const form = new FormData();
+  form.append('file', new Blob([part], { type: contentType }), filename);
+  const uploaded = await tripoFetch('/upload/sts', { method: 'POST', body: form });
+  const token = uploaded.image_token ?? uploaded.file_token;
+  if (typeof token !== 'string' || !token) throw new TripoError('Tripo 上传成功但未返回图片 token。', 502, uploaded);
+  return token;
+}
+
 export async function createImageTask(fileToken: string, options: { modelVersion?: string; faceLimit?: number } = {}): Promise<TripoTask> {
   const body: Record<string, unknown> = { type: 'image_to_model', file: { type: 'image', file_token: fileToken } };
   if (options.modelVersion) body.model_version = options.modelVersion;

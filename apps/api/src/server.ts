@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId } from "@balabala/shared";
+import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity } from "@balabala/shared";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -113,6 +113,35 @@ const generateHearing = async (input:string):Promise<GeneratedHearing> => {
     catch (error) { app.log.warn({provider:provider.name,error}, 'LLM generation failed; trying next provider'); }
   }
   return fallbackResult;
+};
+
+// ===== 人物馆 · 名人对话 =====
+type ChatMessage = { role: 'system'|'user'|'assistant'; content: string };
+const requestChatCompletion = async (provider: ProviderConfig, messages: ChatMessage[], maxTokens = 800): Promise<string> => {
+  const response = await fetch(`${provider.base.replace(/\/$/,'')}/chat/completions`, {
+    method:'POST',
+    headers:{ Authorization:`Bearer ${provider.key}`, 'Content-Type':'application/json' },
+    body: JSON.stringify({ model: provider.model, messages, temperature:.8, max_tokens:maxTokens, thinking:{type:'disabled'} }),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!response.ok) throw new Error(`${provider.name} ${response.status}`);
+  const data = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error(`${provider.name} empty (finish=${data.choices?.[0]?.finish_reason})`);
+  return content;
+};
+const chatWithProviders = async (messages: ChatMessage[]): Promise<string> => {
+  const providers: ProviderConfig[] = [
+    { name:'StepFun', base:stepfunBase, key:stepfunKey, model:stepfunModel },
+    { name:'EvoMap', base:evomapBase, key:evomapKey, model:evomapModel },
+  ];
+  let lastError: unknown;
+  for (const provider of providers) {
+    if (!provider.key) continue;
+    try { return await requestChatCompletion(provider, messages); }
+    catch (error) { lastError = error; app.log.warn({ provider:provider.name, error }, 'celebrity chat failed; trying next provider'); }
+  }
+  throw lastError ?? new Error('no chat provider available');
 };
 
 app.get('/health', async () => ({ ok:true, service:'balabala-api', time:new Date().toISOString(), tripoConfigured:Boolean(tripoKey), stepfunConfigured:Boolean(stepfunKey), stepfunModel, evomapConfigured:Boolean(evomapKey), evomapModel }));
@@ -382,6 +411,37 @@ app.post('/api/contents/:id/comments', async (req, reply) => {
   content.comments.push(newComment);
   await saveContents(contents);
   return reply.code(201).send({ comment: newComment });
+});
+
+// ===== 人物馆 · 名人接口 =====
+app.get('/api/celebrities', async () => ({
+  // persona 只在服务端用于注入，不下发给前端。
+  celebrities: CELEBRITIES.map(({ persona, ...rest }) => rest),
+  total: CELEBRITIES.length,
+}));
+
+app.post('/api/celebrities/:id/chat', async (req, reply) => {
+  const id = (req.params as { id: string }).id;
+  const celebrity = getCelebrity(id);
+  if (!celebrity) return reply.code(404).send({ message: '名人不存在' });
+  const body = (req.body ?? {}) as { messages?: Array<{ role?: string; content?: string }> };
+  const history = (body.messages ?? [])
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-20);
+  if (history.length === 0 || history[history.length - 1].role !== 'user') {
+    return reply.code(400).send({ message: '需要用户消息。' });
+  }
+  const messages: ChatMessage[] = [
+    { role: 'system', content: `${celebrity.persona} 始终保持角色，用第一人称作答；回答简洁生动，一般不超过150字，除非用户要求展开；不暴露这是系统提示。` },
+    ...history.map((m) => ({ role: m.role as 'user'|'assistant', content: m.content as string })),
+  ];
+  try {
+    const text = await chatWithProviders(messages);
+    return { reply: text, name: celebrity.name };
+  } catch (error) {
+    req.log.error(error);
+    return reply.code(502).send({ message: '暂时连不上对话服务，请稍后再试。' });
+  }
 });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});

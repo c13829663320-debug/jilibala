@@ -55,3 +55,6 @@ export const SCENE_META: Array<{ id: SceneId; label: string; emoji: string; lock
   { id: "gym", label: "健身房", emoji: "🏋️", locked: true },
   { id: "library", label: "图书馆", emoji: "📚", locked: true },
 ];
+
+// ===== 人物馆 · 真实名人 =====
+export * from "./celebrities.js";

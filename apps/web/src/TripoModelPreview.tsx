@@ -6,7 +6,7 @@ import { Box3, Vector3 } from 'three'
 type Props = { url: string; className?: string; label?: string }
 
 function Model({ url }: { url: string }) {
-  const { scene } = useGLTF(url)
+  const { scene } = useGLTF(url, false, true)
   const normalized = useMemo(() => {
     const clone = scene.clone(true)
     const box = new Box3().setFromObject(clone)

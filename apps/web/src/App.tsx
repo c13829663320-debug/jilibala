@@ -6,7 +6,8 @@ import { Gavel, Sparkles, Play, RotateCcw, Mic2, Scale, WandSparkles, Users, Clo
 import RoomEntry from './RoomEntry'
 import ArchivePage, { type ArchiveRecord } from './ArchivePage'
 import AvatarStudio from './AvatarStudio'
-import CharacterHall, { type Character } from './CharacterHall'
+import CharacterHall from './CharacterHall'
+import type { Celebrity } from '@balabala/shared'
 import SceneDetail from './SceneDetail'
 import { Plaza } from './Plaza'
 
@@ -25,7 +26,7 @@ const phases: Phase[] = [
   { id: 'verdict', label: '趣味宣判', speaker: '小法官 · Luna', quote: '“本庭判定：给彼此一个拥抱，再一起修好它。”', tone: 'pink' },
 ]
 
-type CourtroomProps = { character?: Character | null }
+type CourtroomProps = { character?: Celebrity | null }
 
 /**
  * Keep a bad/expired Tripo URL from taking down the whole R3F canvas. The
@@ -45,7 +46,7 @@ class CourtroomModelErrorBoundary extends Component<{ children: ReactNode; fallb
 }
 
 function NormalizedCourtroomModel({ url }: { url: string }) {
-  const { scene } = useGLTF(url)
+  const { scene } = useGLTF(url, false, true)
   const normalized = useMemo(() => {
     const clone = scene.clone(true)
     const bounds = new Box3().setFromObject(clone)
@@ -99,13 +100,13 @@ function FullCourtEnvironment() {
   </>
 }
 
-function CourtroomCharacter({ character }: { character: Character }) {
-  if (!character.assetUrl) return null
-  const fallback = <Avatar position={[0, 0.55, 0]} body={character.accent} head="#ffd1b3" accent="#f7e0a5" name={character.name} />
+function CourtroomCharacter({ character }: { character: Celebrity }) {
+  if (!character.model) return null
+  const fallback = <Avatar position={[0, 0.55, 0]} body="#7a5ed9" head="#ffd1b3" accent="#f7e0a5" name={character.name} />
   return <group position={[-2.6, 1, -0.1]}>
     <CourtroomModelErrorBoundary fallback={fallback}>
       <Suspense fallback={fallback}>
-        <NormalizedCourtroomModel url={character.assetUrl} />
+        <NormalizedCourtroomModel url={character.model} />
         <Text position={[0, 1.82, 0]} fontSize={0.18} color="#f7efff" anchorX="center" anchorY="middle">{character.name}</Text>
       </Suspense>
     </CourtroomModelErrorBoundary>
@@ -158,7 +159,7 @@ function Courtroom({ character }: CourtroomProps) {
       <Desk position={[-2.65, 0.74, -0.05]} color="#76351f" label="原告席" />
       <Desk position={[2.65, 0.74, -0.05]} color="#76351f" label="被告席" />
       <Avatar position={[0, 1.95, -2.38]} body="#ec9fca" head="#ffcba7" accent="#f4e0a5" name="Luna" />
-      {character?.assetUrl ? <CourtroomCharacter character={character} /> : <Avatar position={[-2.6, 1.55, -0.1]} body="#7a5ed9" head="#ffd1b3" accent="#74f1de" name="泡泡" />}
+      {character?.model ? <CourtroomCharacter character={character} /> : <Avatar position={[-2.6, 1.55, -0.1]} body="#7a5ed9" head="#ffd1b3" accent="#74f1de" name="泡泡" />}
       <Avatar position={[2.6, 1.55, -0.1]} body="#3c9ea4" head="#f1b68e" accent="#ffcf71" name="阿布" />
       {jury.map(([x, y, z], index) => <JuryBench key={`${x}-${z}`} position={[x, y, z]} />)}
       <Avatar position={[-3.7, 1.05, 2.02]} body="#e67c4d" head="#b9613e" accent="#f2c65c" name="陪审" scale={0.68} />
@@ -238,7 +239,7 @@ function Avatar({ position, body, head, accent, name, scale = 1 }: { position: [
 function App() {
   const [enteredCourt, setEnteredCourt] = useState(false)
   const [sceneDetailOpen, setSceneDetailOpen] = useState(false)
-  const [courtCharacter, setCourtCharacter] = useState<Character | null>(null)
+  const [courtCharacter, setCourtCharacter] = useState<Celebrity | null>(null)
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [characterHallOpen, setCharacterHallOpen] = useState(false)
   const [plazaOpen, setPlazaOpen] = useState(false)
@@ -567,7 +568,7 @@ function App() {
       </aside>
       <section className="main-stage">
         <div className="stage-header"><div><div className="stage-kicker"><span className="tiny-dot" /> 正在进行 · {currentPhase.label}</div><h2>{generatedTitle}</h2><div className="case-meta"><span>{hearingMode === 'evidence' ? '带证据开庭' : '快速开庭'}</span><span>·</span><span>{perspective === 'audience' ? '观众视角' : perspective === 'plaintiff' ? '原告视角' : '被告视角'}</span>{evidenceFiles.length > 0 && <><span>·</span><span>{evidenceFiles.length} 份证据</span></>}</div></div><div className="stage-tools"><span className="scene-tag">3D 场景 · 趣味法庭</span><button className="round-button" title="语音模式"><Volume2 size={17} /></button></div></div>
-        <div className="scene-card"><Canvas shadows camera={{ position: [7, 5.2, 8], fov: 38 }} dpr={[1, 2]}><Courtroom character={courtCharacter} /><OrbitControls enablePan={false} minDistance={6} maxDistance={12} maxPolarAngle={Math.PI / 2.1} /></Canvas><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': courtCharacter.accent } as React.CSSProperties}><div className="scene-character-avatar"><span>{courtCharacter.emoji}</span></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.assetUrl && <a href={courtCharacter.assetUrl} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
+        <div className="scene-card"><Canvas shadows camera={{ position: [7, 5.2, 8], fov: 38 }} dpr={[1, 2]}><Courtroom character={courtCharacter} /><OrbitControls enablePan={false} minDistance={6} maxDistance={12} maxPolarAngle={Math.PI / 2.1} /></Canvas><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': '#7a5ed9' } as React.CSSProperties}><div className="scene-character-avatar"><img src={courtCharacter.portrait} alt={courtCharacter.name} /></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.model && <a href={courtCharacter.model} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
         <div className="below-grid">
           <div className="dialogue-card"><div className="card-heading"><div><span className="micro-label">当前发言</span><h3>{displayedSpeaker}</h3></div><button className="listen-button"><Mic2 size={15} /> 播放台词</button></div><div className={`quote quote-${currentPhase.tone}`}>{liveQuote ? displayedQuote : <><span className="quote-mark">“</span>{displayedQuote}<span className="quote-mark end">”</span></>}</div><div className="stepper">{phases.map((item, i) => <button aria-label={item.label} key={item.id} className={`step ${i === phase ? 'current' : ''} ${i < phase ? 'passed' : ''}`} onClick={() => setPhase(i)} />)}</div></div>
           <div className="verdict-card"><div className="verdict-top"><div className="verdict-icon"><Gavel size={18} /></div><div><span className="micro-label">AI 判决书 · 草稿</span><h3>{verdictTitle || (phase === phases.length - 1 ? '友谊大于输赢' : '等待全部证词')}</h3></div><span className="draft-tag">{(verdictTitle || phase === phases.length - 1) ? '已生成' : '进行中'}</span></div><p>{verdictSummary || (phase === phases.length - 1 ? '双方各获得一枚“会唱歌的蘑菇”纪念章，彩虹伞由两人轮流使用。' : '完成四个庭审阶段后，这里会出现一份温柔又好玩的判决。')}</p><div className="verdict-progress"><span style={{ width: `${((phase + 1) / phases.length) * 100}%` }} /></div>{verdictTitle && <div className="verdict-card__buttons"><button className="share-button" onClick={shareVerdict}>分享判决</button><button className="share-button share-button--plaza" onClick={publishCourt}>发布到广场</button></div>}{shareStatus && <div className="share-status">{shareStatus}</div>}</div>
