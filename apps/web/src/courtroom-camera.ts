@@ -4,7 +4,14 @@
  * 所有机位基于实测 GLB bounds：
  *   房间整体 x/z ∈ [-5.4, 5.4]，y ∈ [0, 10.8]；
  *   可用室内约 x/z ∈ [-4.5, 4.5]，天花板 y ≈ 6~7；
- *   旁听席阶梯长椅在 z ≈ 2~5（旧初始机位 z=3.7 正好埋入）。
+ *   旁听席阶梯长椅在 z ≈ 2~5（相机主全景机位 z=1.6 在其前方过道，不穿模）。
+ *
+ * 第四轮视觉修复：从根上解决"角色贴脸、看不到法庭"。
+ *   - fov 45 → 55，主全景机位作为默认（开庭 / 法官发言 / 无人突出都用）。
+ *   - 发言者切换时 camera position 保持主全景不动，仅 target 轻微移向发言者
+ *     （单轴偏移 ≤ 0.5），配合 SeatRing 金色脉冲 + SpeakerSpotlight 聚光 +
+ *     名牌高亮来突出，而不是把相机怼到发言者脸上。
+ *   - maxDistance 7 → 9，手势宽限 4 → 7 秒。
  */
 
 export type CameraMode = 'trial' | 'wizard' | 'bench'
@@ -24,13 +31,16 @@ export interface CameraConfig {
   followSeats: boolean
 }
 
-/** 庭审 / 旧 bench 合议庭共用机位：中轴过道、略俯视，不穿旁听席。 */
+/** 主全景机位（默认：开庭、法官发言、无人突出都用它）。
+ *  camera [0,4.0,1.6] → target [0,1.3,-0.8]。
+ *  z=1.6 在旁听席(z≈2.0)前的过道，不穿模；略俯视，把法官(桌后)、原被告(两侧)、
+ *  辩护人、法庭纵深同时收进画面。 */
 export const TRIAL_CAMERA = {
-  position: [0, 2.4, 1.2] as Vec3,
-  target: [0, 1.0, -0.8] as Vec3,
-  fov: 45,
+  position: [0, 4.0, 1.6] as Vec3,
+  target: [0, 1.3, -0.8] as Vec3,
+  fov: 55,
   minDistance: 1.5,
-  maxDistance: 7.0,
+  maxDistance: 9.0,
   maxPolarAngle: Math.PI / 2.05,
 }
 
@@ -38,7 +48,7 @@ export const TRIAL_CAMERA = {
 export const WIZARD_CAMERA = {
   position: [0, 3.2, 3.8] as Vec3,
   target: [0, 1.5, -1.0] as Vec3,
-  fov: 45,
+  fov: 55,
 }
 
 /** 相机活动范围 clamp，防止穿出外墙 / 穿地 / 穿天花板。 */
@@ -60,7 +70,7 @@ export function clampCameraPosition(pos: Vec3): Vec3 {
   ]
 }
 
-/** 按模式取完整相机配置。bench 沿用 trial 机位（弧形席位 z=-1.2~-2.0 仍完整入画）。 */
+/** 按模式取完整相机配置。bench 沿用 trial 机位（弧形席位 z=-1.2~-2.0 在广角全景中完整入画）。 */
 export function getCameraForMode(mode: CameraMode): CameraConfig {
   if (mode === 'wizard') {
     return {
@@ -75,7 +85,7 @@ export function getCameraForMode(mode: CameraMode): CameraConfig {
       followSeats: false,
     }
   }
-  // trial 与 bench 共用机位
+  // trial 与 bench 共用主全景机位
   return {
     position: TRIAL_CAMERA.position,
     target: TRIAL_CAMERA.target,
@@ -90,12 +100,48 @@ export function getCameraForMode(mode: CameraMode): CameraConfig {
 }
 
 /* ==========================================================================
- * M13 修复 B：按席位角色固定的"发言者机位"。
+ * 屏幕占比纯函数（用于测试断言机位不贴脸）。
  *
- * 旧逻辑：发言者切换后相机保持用户当前 offset，距离不变，容易贴脸。
- * 新逻辑：每个发言角色有一组固定的 (target, camera position)，确保全身
- * 入画且距离 >= 2.5，同时周围法庭仍可见。所有坐标必须落在 ROOM_CLAMP 内。
+ * 透视相机下，高度 objectHeight 的物体在距离 distance 处、垂直视场角 fovDeg 时，
+ * 占据画面垂直方向的比例：
+ *
+ *      visibleHeightAtDistance = 2 * distance * tan(fovDeg/2 · π/180)
+ *      ratio = objectHeight / visibleHeightAtDistance
+ *
+ *  fov=55 时 tan(27.5°) ≈ 0.5206，可见高度 ≈ 1.041 × distance。
+ *  主全景要求人物占比 ≤ 0.35（全身 + 周围法庭同时可见）；
+ *  即便未来加发言者特写，也要求占比 ≤ 0.45（不贴脸）。
  * ========================================================================== */
+export function verticalScreenRatio(distance: number, fovDeg: number, objectHeight: number): number {
+  const halfRad = (fovDeg / 2) * (Math.PI / 180)
+  return objectHeight / (2 * distance * Math.tan(halfRad))
+}
+
+/* ==========================================================================
+ * M13 第四轮：发言者机位策略。
+ *
+ * 旧逻辑：发言者切换后 lerp 到一组固定近景机位，导致角色贴脸、看不到法庭。
+ * 新逻辑：camera position 永远等于主全景机位 TRIAL_CAMERA.position（不动机位），
+ * 只把 target 从主全景 target 向发言者位置轻微偏移（单轴 ≤ TARGET_NUDGE），
+ * 配合 SeatRing + SpeakerSpotlight + 名牌高亮突出发言者。
+ * ========================================================================== */
+
+/** 发言者 target 相对主全景 target 的最大单轴偏移。 */
+export const TARGET_NUDGE = 0.5
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v))
+}
+
+/** 把主全景 target 向发言者位置轻微靠拢（单轴偏移 ≤ TARGET_NUDGE）。 */
+export function nudgeTarget(speaker: Vec3): Vec3 {
+  const [tx, ty, tz] = TRIAL_CAMERA.target
+  return [
+    tx + clamp(speaker[0] - tx, -TARGET_NUDGE, TARGET_NUDGE),
+    ty + clamp(speaker[1] - ty, -TARGET_NUDGE, TARGET_NUDGE),
+    tz + clamp(speaker[2] - tz, -TARGET_NUDGE, TARGET_NUDGE),
+  ]
+}
 
 export interface SpeakerCamera {
   id: 'idle' | 'judge' | 'plaintiff' | 'defendant' | 'defender-left' | 'defender-right'
@@ -103,35 +149,32 @@ export interface SpeakerCamera {
   position: Vec3
 }
 
-/** 无人发言 / 法官开场：完整法庭全景（法官 + 原被告 + 辩护人都入画）。 */
+/** 无人发言 / 法官开场：完整法庭主全景。 */
 export const SPEAKER_CAM_IDLE: SpeakerCamera = {
   id: 'idle',
-  target: [0, 1.0, -0.8],
-  position: [0, 2.4, 1.2],
+  target: [...TRIAL_CAMERA.target] as Vec3,
+  position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
-/** 法官：略俯视，法官全身 + 前方原被告入画，距离 ~2.9。
- *  法官席位高位 y=1.0，人脚落在 world y=1.0、头顶 ~2.78；target 取躯干中线 ~1.6
- *  才能把全身（脚 1.0 → 头 2.78）收进画面，而不是只对着膝盖。 */
+/** 法官席位在 [0,1.0,-2.9]（法官桌后方、高背椅前）。target 仅向其轻微偏移。 */
 export const SPEAKER_CAM_JUDGE: SpeakerCamera = {
   id: 'judge',
-  target: [0, 1.6, -2.0],
-  position: [0, 2.8, 0.6],
+  target: nudgeTarget([0, 1.0, -2.9]),
+  position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
-/** 原告：从中央偏右看原告，原告全身 + 法官 + 被告入画。
- *  原告席位 y=0.62，人脚 world y=0.62、头顶 ~2.3；target 取 ~1.4 收全身。 */
+/** 原告席位 [-2.7,0.62,-0.4]。 */
 export const SPEAKER_CAM_PLAINTIFF: SpeakerCamera = {
   id: 'plaintiff',
-  target: [-2.7, 1.4, -0.4],
-  position: [-0.6, 2.3, 1.0],
+  target: nudgeTarget([-2.7, 0.62, -0.4]),
+  position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
 /** 被告：原告机位的镜像。 */
 export const SPEAKER_CAM_DEFENDANT: SpeakerCamera = {
   id: 'defendant',
-  target: [2.7, 1.4, -0.4],
-  position: [0.6, 2.3, 1.0],
+  target: nudgeTarget([2.7, 0.62, -0.4]),
+  position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
 /** 所有静态发言者机位（辩护人机位按席位 x 动态计算，见 pickSpeakerCamera）。 */
@@ -150,32 +193,29 @@ export interface ActiveSpeakerInfo {
 }
 
 /**
- * 按发言者角色 + 位置选固定机位。
- * 辩护人机位：原告方（左侧，x<0）从 x+1.8 拍，被告方（右侧，x>0）从 x-1.8 拍，
- * 保证相机从法庭中央侧看辩护人而不是贴在辩护人脸上。
+ * 按发言者角色 + 位置选机位。
+ * 核心：camera position 永远是主全景机位（不贴脸），只把 target 轻微移向发言者。
  */
 export function pickSpeakerCamera(info: ActiveSpeakerInfo): SpeakerCamera {
-  if (info.role === 'judge') return SPEAKER_CAM_JUDGE
-  if (info.role === 'plaintiff') return SPEAKER_CAM_PLAINTIFF
-  if (info.role === 'defendant') return SPEAKER_CAM_DEFENDANT
-  const x = info.position[0]
-  const z = info.position[2]
-  if (info.side === 'plaintiff') {
-    return {
-      id: 'defender-left',
-      target: [x, 1.4, z],
-      position: [x + 1.8, 2.1, 1.6],
-    }
+  const position = [...TRIAL_CAMERA.position] as Vec3
+  if (info.role === 'judge') {
+    return { id: 'judge', target: nudgeTarget(info.position), position }
+  }
+  if (info.role === 'plaintiff') {
+    return { id: 'plaintiff', target: nudgeTarget(info.position), position }
+  }
+  if (info.role === 'defendant') {
+    return { id: 'defendant', target: nudgeTarget(info.position), position }
   }
   return {
-    id: 'defender-right',
-    target: [x, 1.4, z],
-    position: [x - 1.8, 2.1, 1.6],
+    id: info.side === 'plaintiff' ? 'defender-left' : 'defender-right',
+    target: nudgeTarget(info.position),
+    position,
   }
 }
 
-/** 用户最近一次手动拖拽/缩放后，相机自动跟随暂停多少秒。 */
-export const USER_INTERACTION_GRACE_SECONDS = 4
+/** 用户最近一次手动拖拽/缩放后，相机自动跟随暂停多少秒（第四轮：4 → 7）。 */
+export const USER_INTERACTION_GRACE_SECONDS = 7
 
 /**
  * 纯逻辑：距上次用户交互 >= grace 秒时才允许自动跟随发言者机位。
@@ -185,7 +225,7 @@ export function shouldFollow(lastInteraction: number, now: number, graceSeconds:
   return now - lastInteraction >= graceSeconds
 }
 
-/** 两点间欧氏距离（用于测试机位不贴脸）。 */
+/** 两点间欧氏距离（用于测试机位不贴脸 / 占比反推）。 */
 export function cameraDistance(a: Vec3, b: Vec3): number {
   const dx = a[0] - b[0]
   const dy = a[1] - b[1]

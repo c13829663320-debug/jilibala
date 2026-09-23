@@ -258,7 +258,7 @@ export default function CourtroomM13({
     const seatList: CourtSeat[] = [
       {
         id: 'judge', name: '法官', role: 'judge',
-        position: [0, 1.0, -2.4],
+        position: [0, 1.0, -2.9],
         active: latestTurn?.speaker === 'judge',
       },
       {

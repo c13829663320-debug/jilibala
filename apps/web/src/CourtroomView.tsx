@@ -204,11 +204,15 @@ function BenchSeat({ celebrity, position, active }: SeatSlot) {
 
 /** M13: a generic seat (judge / party / defender) rendered from a CourtSeat descriptor. */
 function GenericSeat({ seat }: { seat: CourtSeat }) {
+  // 法官 / 原告 / 被告坐在各自桌后（坐姿人台，头高 local ≈1.3）；
+  // 辩护人用真实名人 GLB 模型（站姿，头高 ≈1.7）。
+  const seated = seat.role !== 'defender'
   const fallback = (
     <NeutralMannequin
       name={seat.name}
       active={seat.active}
       variant={seat.role === 'judge' ? 'judge' : 'party'}
+      seated={seated}
     />
   )
   return (
@@ -224,8 +228,9 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
       ) : (
         fallback
       )}
+      {/* 名牌：坐姿头高 ≈1.3 → 名牌 local ≈1.55；站姿头高 ≈1.7 → 名牌 local ≈1.78。 */}
       <Text
-        position={[0, seat.active ? 2.0 : 1.78, 0.06]}
+        position={[0, seat.active ? (seated ? 1.78 : 2.0) : (seated ? 1.55 : 1.78), 0.06]}
         fontSize={seat.active ? 0.26 : 0.18}
         color={seat.active ? '#ffe6a8' : '#f4ecff'}
         anchorX="center"
@@ -240,12 +245,12 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
 }
 
 /**
- * M13 修复 B：按发言者角色固定机位，不再"保持用户 offset 导致贴脸"。
+ * M13 第四轮：主全景机位默认，发言者不贴脸。
  *
- *  - trial/bench: 发言者切换时 lerp (target, camera.position) 一起移到
- *    SPEAKER_CAMERAS 对应机位，保证全身入画且距离 >= 2.5。
- *  - 用户拖拽/缩放后 4 秒内跳过自动跟随（只 clamp），尊重用户视角；
- *    4 秒后平滑回到当前发言者机位。
+ *  - trial/bench: 发言者切换时 camera position 保持主全景（不动机位），
+ *    仅 target 轻微移向发言者（单轴 ≤0.5），配合 SeatRing+聚光+名牌高亮突出。
+ *  - 用户拖拽/缩放后 7 秒内跳过自动跟随（只 clamp），尊重用户视角；
+ *    7 秒后平滑回到主全景机位。
  *  - wizard: 维持全景 autoRotate，不跟席位。
  *  - mode 切换（wizard→trial）保留 1.2s 平滑过渡。
  *  - 每帧仍 clampCameraPosition，相机永不穿墙/穿地/穿天花板。
@@ -306,7 +311,7 @@ function CameraRig({
       const cam = activeSpeaker ? pickSpeakerCamera(activeSpeaker) : SPEAKER_CAM_IDLE
       desiredTarget.set(cam.target[0], cam.target[1], cam.target[2])
       desiredCamera.set(cam.position[0], cam.position[1], cam.position[2])
-      // 用户正在手势中，或刚松手 4 秒内：暂停自动跟随，只走下面的 clamp，不抢视角
+      // 用户正在手势中，或刚松手 7 秒内：暂停自动跟随，只走下面的 clamp，不抢视角
       const inGrace = userInteracting.current || !shouldFollow(lastUserInteraction.current, now)
       if (transitioning || !inGrace) {
         c.target.lerp(desiredTarget, k)
@@ -337,7 +342,7 @@ function CameraRig({
           userInteracting.current = true
         }}
         onEnd={() => {
-          // 用户松手：从这一刻起再保留 4 秒宽限期，然后平滑回到当前发言者机位
+          // 用户松手：从这一刻起再保留 7 秒宽限期，然后平滑回到主全景机位
           userInteracting.current = false
           lastUserInteraction.current = clockNow.current
         }}
