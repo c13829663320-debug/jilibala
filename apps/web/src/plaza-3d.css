@@ -1,6 +1,7 @@
 .plaza-3d-root {
   position: fixed;
   inset: 0;
+  z-index: 40;
   background: #0a0a0a;
   overflow: hidden;
   font-family: 'Manrope', 'Noto Sans SC', sans-serif;
@@ -28,13 +29,13 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  border: 1px solid rgba(255,214,0,0.4);
+  border: 1px solid rgba(79,179,165,0.4);
   background: rgba(20,20,20,0.8);
-  color: #FFD600;
+  color: #4fb3a5;
   cursor: pointer;
   transition: background .15s;
 }
-.plaza-3d-back:hover { background: rgba(255,214,0,0.18); }
+.plaza-3d-back:hover { background: rgba(79,179,165,0.18); }
 .plaza-3d-title {
   font-size: 16px;
   font-weight: 800;
@@ -69,12 +70,12 @@
   padding: 12px 20px;
   border-radius: 12px;
   border: none;
-  background: #FFD600;
+  background: #4fb3a5;
   color: #000;
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(255,214,0,0.3);
+  box-shadow: 0 4px 20px rgba(79,179,165,0.3);
   z-index: 10;
   transition: background .15s;
 }
@@ -86,9 +87,9 @@
   transform: translateX(-50%);
   padding: 10px 20px;
   border-radius: 10px;
-  border: 1px solid #FFD600;
+  border: 1px solid #4fb3a5;
   background: rgba(0,0,0,0.88);
-  color: #FFD600;
+  color: #4fb3a5;
   font-size: 13px;
   font-weight: 600;
   z-index: 20;

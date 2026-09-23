@@ -29,7 +29,7 @@ for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), ".
   }
 }
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, bodyLimit: 20 * 1024 * 1024 });
 await app.register(cors, { origin: true });
 await app.register(import('@fastify/websocket'));
 registerWebSocket(app);

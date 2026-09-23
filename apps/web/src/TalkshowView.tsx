@@ -1,12 +1,13 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
 import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
 import { useSceneCleanup } from './useSceneCleanup'
 
 /** 明黄主题色。 */
-const YELLOW = '#FFD600'
+const YELLOW = '#4fb3a5'
 
 /** 模型加载失败时不拖垮整个 Canvas。 */
 class TalkshowModelErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
@@ -323,8 +324,8 @@ export default function TalkshowView({
   activeSpeakerId: string | null
 }) {
   return (
-    <Canvas shadows camera={{ position: [0, 1.9, 5.6], fov: 45 }} dpr={[1, 2]}>
+    <SafeCanvas shadows camera={{ position: [0, 1.9, 5.6], fov: 45 }} dpr={[1, 2]}>
       <Talkshow celebrities={celebrities} activeSpeakerId={activeSpeakerId} />
-    </Canvas>
+    </SafeCanvas>
   )
 }

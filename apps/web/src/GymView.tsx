@@ -2,7 +2,8 @@
 // 明亮运动风室内健身房：drei 基础几何体拼接器械，不加载外部模型 / 外部 HDR。
 // 灯光复用内联 Environment + Lightformer（参考 LibraryView）。
 import { useRef, useState, type ReactNode } from 'react'
-import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Billboard, Environment, Lightformer, OrbitControls, Text } from '@react-three/drei'
 import { Color, DoubleSide, Group, MeshStandardMaterial, type Group as TGroup } from 'three'
 import type { GymEquipmentId } from '@balabala/shared'
@@ -498,8 +499,8 @@ export default function GymView({
   cheers: GymCheer[]
 }) {
   return (
-    <Canvas shadows camera={{ position: [0, 4.2, 7.5], fov: 48 }} dpr={[1, 2]}>
+    <SafeCanvas shadows camera={{ position: [0, 4.2, 7.5], fov: 48 }} dpr={[1, 2]}>
       <GymScene onSelect={onSelect} players={players} cheers={cheers} />
-    </Canvas>
+    </SafeCanvas>
   )
 }

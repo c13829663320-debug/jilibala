@@ -92,7 +92,7 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
         maxWidth: 480, width: '100%', color: '#f4f2ec', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#FFD600', fontSize: 13, fontWeight: 600, letterSpacing: 2, marginBottom: 8 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#4fb3a5', fontSize: 13, fontWeight: 600, letterSpacing: 2, marginBottom: 8 }}>
             <Sparkles size={14} /> WELCOME TO BALA BALA
           </div>
           <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>创建你的身份</h2>
@@ -129,9 +129,9 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
                 onClick={() => setAvatarType(opt.id)}
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: 8, cursor: 'pointer',
-                  border: avatarType === opt.id ? '1px solid #FFD600' : '1px solid #444',
-                  background: avatarType === opt.id ? 'rgba(255,214,0,0.08)' : '#0d0d0d',
-                  color: avatarType === opt.id ? '#FFD600' : '#9a9c92', fontSize: 14, fontWeight: 600,
+                  border: avatarType === opt.id ? '1px solid #4fb3a5' : '1px solid #444',
+                  background: avatarType === opt.id ? 'rgba(79,179,165,0.08)' : '#0d0d0d',
+                  color: avatarType === opt.id ? '#4fb3a5' : '#9a9c92', fontSize: 14, fontWeight: 600,
                 }}
               >
                 {opt.label}
@@ -167,7 +167,7 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 10px',
                   borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
-                  background: celebrityId === c.id ? 'rgba(255,214,0,0.1)' : 'transparent',
+                  background: celebrityId === c.id ? 'rgba(79,179,165,0.1)' : 'transparent',
                   color: '#f4f2ec', marginBottom: 2,
                 }}
               >
@@ -198,14 +198,14 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 10px',
                       borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
-                      background: customCharId === c.id ? 'rgba(255,214,0,0.1)' : 'transparent',
+                      background: customCharId === c.id ? 'rgba(79,179,165,0.1)' : 'transparent',
                       color: '#f4f2ec', marginBottom: 2,
                     }}
                   >
                     {c.portrait ? (
                       <img src={c.portrait} alt={c.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
                     ) : (
-                      <span style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', background: '#3a2f5a', fontSize: 13, color: '#FFD600' }}>{c.name[0]}</span>
+                      <span style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', background: '#3a2f5a', fontSize: 13, color: '#4fb3a5' }}>{c.name[0]}</span>
                     )}
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
@@ -239,7 +239,7 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
           disabled={submitting}
           style={{
             width: '100%', padding: '12px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: submitting ? '#555' : '#FFD600', color: '#1a1a1a', fontSize: 15, fontWeight: 700,
+            background: submitting ? '#555' : '#4fb3a5', color: '#1a1a1a', fontSize: 15, fontWeight: 700,
           }}
         >
           {submitting ? '创建中…' : '进入广场'}

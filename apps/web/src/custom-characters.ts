@@ -101,7 +101,11 @@ export async function fetchMyCharacters(userId: string): Promise<UiCharacter[]> 
     const r = await fetch(`/api/custom-characters/mine?userId=${encodeURIComponent(userId)}`)
     if (!r.ok) return []
     const d = (await r.json()) as { characters?: CustomCharacterApi[] }
-    return (d.characters ?? []).map(customToUi)
+    // 最近创建/更新的排最前（人物馆 C 位默认取 mine[0]）。
+    const sorted = [...(d.characters ?? [])].sort((a, b) =>
+      (b.updatedAt ?? b.createdAt ?? '').localeCompare(a.updatedAt ?? a.createdAt ?? ''),
+    )
+    return sorted.map(customToUi)
   } catch {
     return []
   }
@@ -113,7 +117,11 @@ export async function fetchPublicCharacters(): Promise<UiCharacter[]> {
     const r = await fetch('/api/custom-characters/public')
     if (!r.ok) return []
     const d = (await r.json()) as { characters?: CustomCharacterApi[] }
-    return (d.characters ?? []).map(customToUi)
+    // 最近创建/更新的排最前（人物馆 C 位默认取 mine[0]）。
+    const sorted = [...(d.characters ?? [])].sort((a, b) =>
+      (b.updatedAt ?? b.createdAt ?? '').localeCompare(a.updatedAt ?? a.createdAt ?? ''),
+    )
+    return sorted.map(customToUi)
   } catch {
     return []
   }

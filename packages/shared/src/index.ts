@@ -329,7 +329,7 @@ export const SCENE_META: Array<{ id: SceneId; label: string; emoji: string; lock
 export interface User {
   userId: string;
   nickname: string;
-  avatarType: 'capsule' | 'celebrity' | 'custom';
+  avatarType: 'capsule' | 'celebrity' | 'custom' | 'photo';
   avatarRef: string;
   createdAt: string;
 }

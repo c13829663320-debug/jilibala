@@ -128,6 +128,17 @@ function fallbackAnalyze(userInput: string): AnalyzeResult {
  * AI 分析案件：一次 LLM 调用生成 title/facts/dispute_points/roles/KBs。
  * 写库并 status -> GENERATED。
  */
+/** 给 Promise 加硬超时；超时 reject（用于有本地兜底、不应长时间阻塞用户的调用）。 */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
 export async function analyzeCase(caseId: string, chat: ChatFn): Promise<CourtCase> {
   const full = getCourtCase(caseId);
   if (!full) throw new Error(`案件不存在: ${caseId}`);
@@ -143,21 +154,25 @@ export async function analyzeCase(caseId: string, chat: ChatFn): Promise<CourtCa
 
 请分析并返回 JSON，字段：
 - title: 案件标题（10字以内）
-- facts: 5-8条结构化事实，每条 {content, source, disputed}
-- dispute_points: 2-4个争议点
-- plaintiff_role: {name, stance, persona}（原告方角色，persona 是一段人设描述）
+- facts: 3-5条结构化事实，每条 {content, source, disputed}
+- dispute_points: 2-3个争议点
+- plaintiff_role: {name, stance, persona}（原告方角色，persona 是一段简短人设）
 - defendant_role: {name, stance, persona}（被告方角色）
-- plaintiff_kb: {facts:[], evidence:[], claims:[], arguments:[], assumptions:[], opponent_arguments:[], user_additions:[]}
-- defendant_kb: 同上结构`;
+- plaintiff_kb: {facts:[], evidence:[], claims:[], arguments:[], assumptions:[], opponent_arguments:[], user_additions:[]}，每个数组最多 2-3 条、每条 20 字以内，没有内容就留空数组
+- defendant_kb: 同上结构，同样精简`;
 
   let result: AnalyzeResult;
   try {
-    const raw = await chat(
-      [
-        { role: "system", content: ANALYZE_SYSTEM },
-        { role: "user", content: userPrompt },
-      ],
-      2000,
+    const raw = await withTimeout(
+      chat(
+        [
+          { role: "system", content: ANALYZE_SYSTEM },
+          { role: "user", content: userPrompt },
+        ],
+        3000,
+      ),
+      38_000,
+      "analyze",
     );
     const parsed = extractJson(raw) as Partial<AnalyzeResult>;
     result = {

@@ -13,6 +13,7 @@ import LiveTranscript from './LiveTranscript'
 import TrialInteraction, { type TrialInteractPayload } from './TrialInteraction'
 import VerdictCard from './VerdictCard'
 import CourtroomM13 from './CourtroomM13'
+import CourtFlow from './court/CourtFlow'
 import { playTts, stopTts } from './tts'
 import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
 
@@ -44,11 +45,13 @@ export type CourtroomShellProps = {
   roomId?: string
   /** M13: 返回大厅（入口页）。缺省时回到入口页。 */
   onExitToEntry?: () => void
+  /** M13 上传流程:打开案卷库视图。 */
+  onOpenArchive?: () => void
 }
 
 export default function CourtroomShell({
   caseText, onCaseTextChange, hearingMode, onHearingModeChange, perspective, onPerspectiveChange,
-  evidenceFiles, onEvidenceFilesChange, onOpenAvatarStudio, onPublishToPlaza, roomId, onExitToEntry,
+  evidenceFiles, onEvidenceFilesChange, onOpenAvatarStudio, onPublishToPlaza, roomId, onExitToEntry, onOpenArchive,
 }: CourtroomShellProps) {
   const { user } = useIdentity()
   // M13 默认全屏 3D 模式；旧名人合议庭模式作为可选入口。
@@ -359,13 +362,13 @@ export default function CourtroomShell({
 
   // ===== M13 全屏 3D 模式（默认） =====
   if (m13Mode) {
+    // M13 大合并:上传版上传 UI(CourtFlow 5 屏)+ 当前工程真实后端(HttpCourtEngine)。
+    // 保留旧 CourtroomM13 文件与下方 bench 模式入口(m13Mode=false)。
     return (
-      <CourtroomM13
-        caseText={caseText}
-        roomId={roomId}
-        onBack={onExitToEntry ?? (() => window.location.assign('/'))}
+      <CourtFlow
+        onExit={onExitToEntry ?? (() => window.location.assign('/'))}
+        onOpenArchive={onOpenArchive ?? (() => window.location.assign('/'))}
         onSwitchToBench={() => setM13Mode(false)}
-        onPublishToPlaza={onPublishToPlaza}
       />
     )
   }
@@ -373,7 +376,7 @@ export default function CourtroomShell({
   return (
     <div className="workspace">
       {wsStatusLabel(wsStatus, wsRetryCount) && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998, background: '#FFD600', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998, background: '#4fb3a5', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
           {wsStatusLabel(wsStatus, wsRetryCount)}
         </div>
       )}
@@ -489,7 +492,7 @@ export default function CourtroomShell({
           <div className="stage-tools">
             <span className="scene-tag">3D 场景 · 趣味法庭</span>
             <VoiceToggleButton className="secondary-button" style={{ fontSize: 12, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 }} />
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(255,214,0,0.12)', color: '#FFD600', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(79,179,165,0.12)', color: '#4fb3a5', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>
               <Users size={12} /> {wsOnlineCount} 人在线
             </span>
             {isGuest && (
@@ -527,8 +530,8 @@ export default function CourtroomShell({
               <TrialInteraction perspective={perspective} members={members} disabled={isStreaming === false} votes={votes} onInteract={sendInteraction} />
             </div>
             {userSpeeches.length > 0 && (
-              <div className="user-speeches-panel" style={{ marginTop: 12, background: 'rgba(255,214,0,0.05)', border: '1px solid rgba(255,214,0,0.2)', borderRadius: 10, padding: 12 }}>
-                <div style={{ fontSize: 12, color: '#FFD600', fontWeight: 600, marginBottom: 8, letterSpacing: 1 }}>观众发言</div>
+              <div className="user-speeches-panel" style={{ marginTop: 12, background: 'rgba(79,179,165,0.05)', border: '1px solid rgba(79,179,165,0.2)', borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, color: '#4fb3a5', fontWeight: 600, marginBottom: 8, letterSpacing: 1 }}>观众发言</div>
                 {userSpeeches.map((us) => (
                   <div key={us.id} style={{ marginBottom: 6, fontSize: 13, color: '#c8c8c0' }}>
                     <b style={{ color: '#f4f2ec' }}>{us.nickname}</b>：{us.text}

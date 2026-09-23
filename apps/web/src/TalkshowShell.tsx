@@ -7,7 +7,7 @@ import { getVoiceEnabled } from './voice-settings'
 
 const TalkshowView = lazy(() => import('./TalkshowView'))
 
-const YELLOW = '#FFD600'
+const ACCENT = '#4fb3a5'
 
 /** 反应标签 → emoji 映射。 */
 const REACTION_EMOJI: Record<string, string> = {
@@ -253,12 +253,12 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
   }
 
   const panel: React.CSSProperties = {
-    background: 'rgba(12,12,14,0.82)', border: '1px solid rgba(255,214,0,0.25)',
+    background: '#141414', border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: 14, padding: 14, backdropFilter: 'blur(8px)',
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#050505', color: '#f4f2ec', fontFamily: 'inherit' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#0A0A0A', color: '#EDEDF0', fontFamily: 'inherit' }}>
       {/* 3D 背景占满全屏 */}
       <div style={{ position: 'absolute', inset: 0 }}>
         <Suspense fallback={null}>
@@ -268,20 +268,20 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
 
       {/* 顶栏 */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', zIndex: 10 }}>
-        <button onClick={onBack} style={{ ...btn, background: 'rgba(12,12,14,0.8)', border: '1px solid rgba(255,214,0,0.3)', color: YELLOW }}>
+        <button onClick={onBack} style={{ ...btn, background: '#141414', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(237,237,240,0.7)' }}>
           <ArrowLeft size={15} /> 返回
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ ...pill }}><Mic size={13} /> OPEN MIC 剧场</span>
-          <span style={{ ...pill, color: YELLOW }}><Users size={13} /> {onlineCount} 人在线</span>
-          {onPlaza && <button onClick={onPlaza} style={{ ...btn, background: YELLOW, color: '#111', fontWeight: 700 }}>去广场</button>}
+          <span style={{ ...pill }}><Users size={13} /> {onlineCount} 人在线</span>
+          {onPlaza && <button onClick={onPlaza} style={{ ...btn, background: '#EDEDF0', color: '#0A0A0A', fontWeight: 700 }}>去广场</button>}
         </div>
       </div>
 
       {/* 左侧：表演控制台 */}
       <div style={{ position: 'absolute', left: 16, top: 64, bottom: 16, width: 340, overflowY: 'auto', zIndex: 10, ...panel }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 18, color: YELLOW }}>🎤 上台讲一段</h2>
-        <p style={{ margin: '0 0 10px', fontSize: 12, color: '#9a9c92' }}>讲个段子，AI 虚拟观众现场打分。</p>
+        <h2 style={{ margin: '0 0 4px', fontSize: 18, color: '#EDEDF0' }}>🎤 上台讲一段</h2>
+        <p style={{ margin: '0 0 10px', fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>讲个段子，AI 虚拟观众现场打分。</p>
 
         <textarea
           value={inputText}
@@ -292,45 +292,45 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
           style={textarea}
         />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <button onClick={() => void perform()} disabled={!inputText.trim() || performing} style={{ ...btn, background: YELLOW, color: '#111', fontWeight: 700, flex: 1 }}>
+          <button onClick={() => void perform()} disabled={!inputText.trim() || performing} style={{ ...btn, background: '#EDEDF0', color: '#0A0A0A', fontWeight: 700, flex: 1 }}>
             <Mic size={15} /> {performing ? '观众笑…' : '上台讲'}
           </button>
-          <label style={{ fontSize: 12, color: '#9a9c92', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <label style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <input type="checkbox" checked={ttsOn} onChange={(e) => setTtsOn(e.target.checked)} /> TTS 朗读
           </label>
         </div>
 
         {/* 观众评分 */}
         {lastResult && (
-          <div style={{ margin: '8px 0', padding: 10, background: 'rgba(255,214,0,0.06)', borderRadius: 10, border: '1px solid rgba(255,214,0,0.2)' }}>
+          <div style={{ margin: '8px 0', padding: 10, background: 'rgba(79,179,165,0.13)', borderRadius: 10, border: '1px solid rgba(79,179,165,0.42)' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 40, fontWeight: 800, color: YELLOW, lineHeight: 1 }}>{lastResult.score}</span>
-              <span style={{ fontSize: 12, color: '#9a9c92' }}>/ 100</span>
+              <span style={{ fontSize: 40, fontWeight: 800, color: ACCENT, lineHeight: 1 }}>{lastResult.score}</span>
+              <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>/ 100</span>
             </div>
             <div style={{ margin: '6px 0', fontSize: 18 }}>
               {lastResult.reactions.map((r) => <span key={r} style={{ marginRight: 6 }}>{REACTION_EMOJI[r] ?? r} {r}</span>)}
             </div>
-            {lastResult.comment && <p style={{ margin: 0, fontSize: 13, color: '#c8c8c0' }}>观众：“{lastResult.comment}”</p>}
+            {lastResult.comment && <p style={{ margin: 0, fontSize: 13, color: 'rgba(237,237,240,0.7)' }}>观众：“{lastResult.comment}”</p>}
             <button onClick={() => void publishToPlaza()} disabled={!!publishStatus} style={{ ...btn, marginTop: 8, width: '100%', justifyContent: 'center' }}>
               <Upload size={14} /> {publishStatus || '发布精彩片段到广场'}
             </button>
           </div>
         )}
 
-        <div style={{ borderTop: '1px solid rgba(255,214,0,0.15)', margin: '12px 0' }} />
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
 
         {/* AI 帮写 */}
-        <div style={{ fontSize: 13, fontWeight: 700, color: YELLOW, marginBottom: 6 }}><Sparkles size={13} /> AI 帮写段子</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#EDEDF0', marginBottom: 6 }}><Sparkles size={13} /> AI 帮写段子</div>
         <input value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="主题，例如：加班、相亲、养猫" style={input} />
         <input value={aiStyle} onChange={(e) => setAiStyle(e.target.value)} placeholder="风格（可选），例如：自嘲、谐音梗" style={{ ...input, marginTop: 6 }} />
         <button onClick={() => void aiWrite()} disabled={!aiTopic.trim() || aiWriting} style={{ ...btn, marginTop: 6, width: '100%', justifyContent: 'center' }}>
           <Sparkles size={14} /> {aiWriting ? '编剧中…' : '生成段子'}
         </button>
 
-        <div style={{ borderTop: '1px solid rgba(255,214,0,0.15)', margin: '12px 0' }} />
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
 
         {/* 名人 open-mic */}
-        <div style={{ fontSize: 13, fontWeight: 700, color: YELLOW, marginBottom: 6 }}><Crown size={13} /> 名人 open-mic</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#EDEDF0', marginBottom: 6 }}><Crown size={13} /> 名人 open-mic</div>
         <select value={celebrityId} onChange={(e) => setCelebrityId(e.target.value)} style={input}>
           {CELEBRITIES.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.title}</option>)}
         </select>
@@ -341,25 +341,25 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
 
       {/* 右侧：现场 transcript + 聊天 */}
       <div style={{ position: 'absolute', right: 16, top: 64, bottom: 16, width: 360, display: 'flex', flexDirection: 'column', zIndex: 10, ...panel }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: YELLOW, marginBottom: 8 }}>🎬 现场记录</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#EDEDF0', marginBottom: 8 }}>🎬 现场记录</div>
         <div style={{ flex: 1, overflowY: 'auto', marginBottom: 8 }}>
-          {transcript.length === 0 && <p style={{ fontSize: 12, color: '#6a6d64' }}>还没有人上台，你先来开个场吧。</p>}
+          {transcript.length === 0 && <p style={{ fontSize: 12, color: 'rgba(237,237,240,0.3)' }}>还没有人上台，你先来开个场吧。</p>}
           {transcript.map((t) => (
-            <div key={t.id} style={{ marginBottom: 10, padding: 8, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+            <div key={t.id} style={{ marginBottom: 10, padding: 8, background: '#0F0F0F', borderRadius: 8 }}>
               {t.kind === 'performance' && (
                 <>
-                  <div style={{ fontSize: 13 }}><b style={{ color: YELLOW }}>{t.performer}</b> <span style={{ color: YELLOW, fontWeight: 700 }}>{t.score}分</span> {t.reactions.map((r) => <span key={r}>{REACTION_EMOJI[r] ?? ''}</span>)}</div>
-                  <div style={{ fontSize: 13, color: '#c8c8c0', marginTop: 2 }}>{t.text}</div>
+                  <div style={{ fontSize: 13 }}><b style={{ color: '#EDEDF0' }}>{t.performer}</b> <span style={{ color: 'rgba(237,237,240,0.7)', fontWeight: 700 }}>{t.score}分</span> {t.reactions.map((r) => <span key={r}>{REACTION_EMOJI[r] ?? ''}</span>)}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(237,237,240,0.7)', marginTop: 2 }}>{t.text}</div>
                 </>
               )}
               {t.kind === 'celebrity' && (
                 <>
-                  <div style={{ fontSize: 13 }}><b style={{ color: YELLOW }}>🌟 {t.name}</b> <span style={{ color: YELLOW }}>{t.score}分</span></div>
-                  {t.jokes.map((j, i) => <div key={i} style={{ fontSize: 13, color: '#c8c8c0', marginTop: 2 }}>“{j}”</div>)}
+                  <div style={{ fontSize: 13 }}><b style={{ color: '#EDEDF0' }}>🌟 {t.name}</b> <span style={{ color: 'rgba(237,237,240,0.7)' }}>{t.score}分</span></div>
+                  {t.jokes.map((j, i) => <div key={i} style={{ fontSize: 13, color: 'rgba(237,237,240,0.7)', marginTop: 2 }}>“{j}”</div>)}
                 </>
               )}
               {t.kind === 'chat' && (
-                <div style={{ fontSize: 13, color: '#c8c8c0' }}><b>{t.nickname}</b>：{t.text}</div>
+                <div style={{ fontSize: 13, color: 'rgba(237,237,240,0.7)' }}><b>{t.nickname}</b>：{t.text}</div>
               )}
             </div>
           ))}
@@ -371,7 +371,7 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
       </div>
 
       {/* 底部提示 */}
-      <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, fontSize: 12, color: '#6a6d64', background: 'rgba(0,0,0,0.5)', padding: '4px 14px', borderRadius: 20 }}>
+      <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, fontSize: 12, color: 'rgba(237,237,240,0.3)', background: '#141414', padding: '4px 14px', borderRadius: 20 }}>
         拖动旋转 · 滚轮缩放 · 享受今晚的开放麦
       </div>
     </div>
@@ -385,8 +385,8 @@ const btn: React.CSSProperties = {
 }
 const pill: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 5,
-  background: 'rgba(12,12,14,0.8)', border: '1px solid rgba(255,214,0,0.25)',
-  borderRadius: 20, padding: '4px 12px', fontSize: 12, color: '#c8c8c0',
+  background: 'rgba(12,12,14,0.8)', border: '1px solid rgba(79,179,165,0.25)',
+  borderRadius: 20, padding: '4px 12px', fontSize: 12, color: 'rgba(237,237,240,0.7)',
 }
 const input: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8,

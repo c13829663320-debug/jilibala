@@ -10,7 +10,10 @@ export default defineConfig({
       includeAssets: [
         'balabala-logo.jpg',
         'balabala-mark-clean.jpg',
-        'balabala-mark.jpg',
+        'icons/icon-192.jpg',
+        'icons/icon-512.jpg',
+        'icons/maskable-192.jpg',
+        'icons/maskable-512.jpg',
       ],
       manifest: {
         name: '叽里呱啦 · BalaBala',
@@ -24,28 +27,28 @@ export default defineConfig({
         lang: 'zh-CN',
         icons: [
           {
-            src: 'balabala-logo.jpg',
+            src: 'icons/icon-192.jpg',
             sizes: '192x192',
             type: 'image/jpeg',
             purpose: 'any',
           },
           {
-            src: 'balabala-logo.jpg',
+            src: 'icons/icon-512.jpg',
             sizes: '512x512',
             type: 'image/jpeg',
             purpose: 'any',
           },
           {
-            src: 'balabala-mark-clean.jpg',
+            src: 'icons/maskable-192.jpg',
             sizes: '192x192',
             type: 'image/jpeg',
-            purpose: 'any maskable',
+            purpose: 'maskable',
           },
           {
-            src: 'balabala-mark-clean.jpg',
+            src: 'icons/maskable-512.jpg',
             sizes: '512x512',
             type: 'image/jpeg',
-            purpose: 'any maskable',
+            purpose: 'maskable',
           },
         ],
       },

@@ -20,3 +20,8 @@ tripo-results.json
 
 tripo-batch.mjs
 tripo-results.json
+
+# 本地排查产物 / 模型备份（不入库）
+_archive/
+_inspect_court.mjs
+_clean_court.mjs

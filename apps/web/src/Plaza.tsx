@@ -75,7 +75,7 @@ export function Plaza({ onBack, author }: { onBack: () => void; author?: string 
           <ArrowLeft size={15} /> 返回
         </button>
         <div className="plaza-modal-bar__title">广场讨论区</div>
-        <button type="button" className="archive-primary-button" onClick={() => setShowPublish(true)}>
+        <button type="button" className="plaza-publish-btn" onClick={() => setShowPublish(true)}>
           <PenLine size={14} /> 发布
         </button>
       </div>
@@ -130,7 +130,7 @@ export function Plaza({ onBack, author }: { onBack: () => void; author?: string 
             ) : contents.length === 0 ? (
               <div className="plaza-status plaza-empty">
                 <p>这里还没有内容</p>
-                <button type="button" className="archive-primary-button" onClick={() => setShowPublish(true)}>
+                <button type="button" className="plaza-publish-btn" onClick={() => setShowPublish(true)}>
                   <PenLine size={14} /> 发布第一个观点
                 </button>
               </div>

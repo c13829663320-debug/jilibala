@@ -1,12 +1,13 @@
 import { Component, Suspense, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
 import { Box3, DoubleSide, Group, MeshStandardMaterial, Vector3 } from 'three'
 import { getCelebrity, type WerewolfPlayerSnapshot, type WerewolfPublicPlayer } from '@balabala/shared'
 import { useSceneCleanup } from './useSceneCleanup'
 
 const RED_NEON = '#ff2a3a'
-const SPEAKER_YELLOW = '#FFD600'
+const SPEAKER_YELLOW = '#4fb3a5'
 const WOLF_RED = '#ff2233'
 const TABLE_RADIUS = 2.8
 const CHAIR_RADIUS = 3.4
@@ -325,8 +326,8 @@ function WerewolfScene({ snapshot }: { snapshot: WerewolfPlayerSnapshot | null }
  */
 export default function WerewolfView({ snapshot }: { snapshot: WerewolfPlayerSnapshot | null }) {
   return (
-    <Canvas shadows camera={{ position: [0, 6.5, 8.5], fov: 45 }} dpr={[1, 1.5]}>
+    <SafeCanvas shadows camera={{ position: [0, 6.5, 8.5], fov: 45 }} dpr={[1, 1.5]}>
       <WerewolfScene snapshot={snapshot} />
-    </Canvas>
+    </SafeCanvas>
   )
 }

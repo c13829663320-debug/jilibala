@@ -10,7 +10,7 @@ export default function LoadingFallback({ label = '加载中…' }: { label?: st
     }}>
       <span style={{
         width: 36, height: 36, borderRadius: '50%',
-        border: '3px solid rgba(255,214,0,0.18)', borderTopColor: '#FFD600',
+        border: '3px solid rgba(79,179,165,0.18)', borderTopColor: '#4fb3a5',
         animation: 'bb-spin 0.9s linear infinite',
       }} />
       <span style={{ color: '#999', fontSize: 13, letterSpacing: '.04em' }}>{label}</span>

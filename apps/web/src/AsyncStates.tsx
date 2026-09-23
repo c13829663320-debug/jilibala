@@ -8,7 +8,7 @@ export function LoadingState({ label = '加载中…' }: { label?: string }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       gap: 12, padding: '40px 16px', color: '#999',
     }}>
-      <Loader size={22} color="#FFD600" className="bb-spin" style={{ animation: 'bb-spin 0.9s linear infinite' }} />
+      <Loader size={22} color="#4fb3a5" className="bb-spin" style={{ animation: 'bb-spin 0.9s linear infinite' }} />
       <span style={{ fontSize: 13 }}>{label}</span>
       <style>{`@keyframes bb-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -28,7 +28,7 @@ export function EmptyState({ title = '暂无内容', hint, action }: {
     }}>
       <div style={{
         display: 'grid', placeItems: 'center', width: 56, height: 56, borderRadius: 16,
-        background: 'rgba(255,214,0,0.08)', color: '#FFD600',
+        background: 'rgba(79,179,165,0.08)', color: '#4fb3a5',
       }}>
         <Inbox size={26} />
       </div>
@@ -65,7 +65,7 @@ export function ErrorState({ title = '加载失败', message, onRetry }: {
           style={{
             marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6,
             minHeight: 44, padding: '10px 18px', border: 0, borderRadius: 10,
-            background: '#FFD600', color: '#111', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            background: '#4fb3a5', color: '#111', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}
         >
           <RefreshCw size={14} /> 重试

@@ -352,7 +352,7 @@ export default function CourtroomM13({
       {phase === 'wizard' && <div className="cr-vignette" />}
 
       {wsStatusLabel(wsStatus, wsRetryCount) && (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99998, background: '#FFD600', color: '#1a1a1a', padding: '6px 16px', fontSize: 12, fontWeight: 600, textAlign: 'center' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99998, background: '#4fb3a5', color: '#1a1a1a', padding: '6px 16px', fontSize: 12, fontWeight: 600, textAlign: 'center' }}>
           {wsStatusLabel(wsStatus, wsRetryCount)}
         </div>
       )}

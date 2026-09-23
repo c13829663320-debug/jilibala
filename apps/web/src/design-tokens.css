@@ -1,0 +1,75 @@
+/* ============================================================
+ * BalaBala · M13 Design Tokens
+ * 最高设计准则见 ui-rules-reference.md
+ * 分层：UI 严格黑白灰，层级靠明度 100/70/48/30；
+ *       色彩只出现在 World（角色/物件/内容）与 ≤1 个 accent。
+ * ========================================================== */
+
+:root {
+  /* ---- 背景 ---- */
+  --bg: #0A0A0A;
+
+  /* ---- 高程（白色叠加层推导，不用投影） ---- */
+  --s1: #0F0F0F; /* 5%  */
+  --s2: #141414; /* 8%  */
+  --s3: #1A1A1A; /* 11% */
+  --s4: #212121; /* 16% */
+
+  /* ---- 墨色四档（标题正文同色，只差透明度） ---- */
+  --ink: #EDEDF0;
+  --ink-100: rgba(237, 237, 240, 1);
+  --ink-70: rgba(237, 237, 240, .70);
+  --ink-48: rgba(237, 237, 240, .48);
+  --ink-30: rgba(237, 237, 240, .30);
+
+  /* ---- 结构线 ---- */
+  --hair: rgba(255, 255, 255, .08);
+  --hair-2: rgba(255, 255, 255, .14);
+
+  /* ---- accent 青绿（全局唯一主 accent，替换原明黄 #FFD60A） ---- */
+  --accent: #4fb3a5;
+  --accent-soft: rgba(79, 179, 165, .13);
+  --accent-line: rgba(79, 179, 165, .42);
+
+  /* ---- 玻璃三档 ---- */
+  --glass-hairline: blur(18px) saturate(140%);
+  --glass-hairline-bg: rgba(255, 255, 255, .05);
+  --glass-frost: blur(30px) saturate(160%);
+  --glass-frost-bg: rgba(255, 255, 255, .07);
+  --solid: #141414;
+
+  /* ---- 圆角（≤5 档） ---- */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+}
+
+/* ---- 玻璃通用类（缺一不可：1px 白边 + inset 顶部高光） ---- */
+.glass-hairline {
+  backdrop-filter: var(--glass-hairline);
+  -webkit-backdrop-filter: var(--glass-hairline);
+  background: var(--glass-hairline-bg);
+  border: 1px solid var(--hair);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.glass-frost {
+  backdrop-filter: var(--glass-frost);
+  -webkit-backdrop-filter: var(--glass-frost);
+  background: var(--glass-frost-bg);
+  border: 1px solid var(--hair);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.glass-solid {
+  background: var(--solid);
+  border: 1px solid var(--hair);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-hairline,
+  .glass-frost {
+    background: var(--solid);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

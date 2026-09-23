@@ -53,14 +53,14 @@ export default class ErrorBoundary extends Component<Props, State> {
         textAlign: 'center',
       }}>
         <div style={{ fontSize: 40, lineHeight: 1 }}>⚠️</div>
-        <h1 style={{ margin: 0, fontSize: 20, color: '#FFD600' }}>{title}</h1>
+        <h1 style={{ margin: 0, fontSize: 20, color: '#4fb3a5' }}>{title}</h1>
         <p style={{ margin: 0, maxWidth: 420, color: '#999', fontSize: 13, lineHeight: 1.7 }}>{hint}</p>
         <button
           type="button"
           onClick={this.handleReload}
           style={{
             marginTop: 6, minHeight: 44, minWidth: 140, padding: '10px 22px',
-            border: 0, borderRadius: 10, background: '#FFD600', color: '#111',
+            border: 0, borderRadius: 10, background: '#4fb3a5', color: '#111',
             fontSize: 14, fontWeight: 700, cursor: 'pointer',
           }}
         >

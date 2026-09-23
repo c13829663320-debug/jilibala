@@ -1,5 +1,6 @@
 import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Billboard, Environment, Lightformer, Text, useGLTF } from '@react-three/drei'
 import { Box3, Group, InstancedMesh, MathUtils, Matrix4, MeshStandardMaterial, Vector3 } from 'three'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -14,19 +15,26 @@ import {
 /* ==========================================================================
  * 3D 人物长廊：全身模型站在弧形展台上，横向拖拽/箭头/键盘切换并吸附，
  * 悬停点亮，点击聚焦再进对话。布局/吸附/领域色/问候语在 character-gallery.ts。
+ * 第七轮：人物放大、横排饱满居中、两侧近大远小退远不切边；自定义角色 C 位。
  * ======================================================================== */
 
-const CAMERA_BASE_Z = 6.2
-const CAMERA_FOCUS_Z = 4.3
+const CAMERA_BASE_Z = 3.8
+const CAMERA_FOCUS_Z = 2.7
 const CAMERA_Y = 1.55
-const CAMERA_LOOK_Y = 1.15
-const FOV = 50
-/** 仅加载当前 ±N 个展台的真实 GLB，其余用占位人形，控制首屏模型数。
- *  第六轮：2→4，覆盖首屏两侧 + 远处占位提前加载调暗过渡。 */
+const CAMERA_LOOK_Y = 1.2
+const FOV = 55
+/** 仅加载当前 ±N 个展台的真实 GLB，其余用占位人形，控制首屏模型数。 */
 const LOAD_NEARBY = 4
 const PLINTH_TOP = 0.14
-/** 人物整体放大倍数（参考 kims-room 物体占比），GLB 归一化身高 1.7→2.05。 */
-const FIGURE_SCALE = 2.05 / 1.7
+/** 人物整体归一化身高（第七轮 2.05→2.35，人物放大 ~1.15x，占画面中部）。 */
+const FIGURE_HEIGHT = 2.35
+const FIGURE_SCALE = FIGURE_HEIGHT / 1.7
+
+/** 按与居中位的距离计算人物缩放：C 位最大，两侧近大远小自然退远。 */
+function scaleForDist(dist: number): number {
+  const s = 1.38 - dist * 0.3
+  return Math.max(0.66, s)
+}
 
 /** 整个 3D 长廊渲染失败时（如模型解码失败）→ 通知父级回退 2D 平面视图。 */
 class GalleryErrorBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
@@ -39,15 +47,18 @@ class GalleryErrorBoundary extends Component<{ onError: () => void; children: Re
   render() { return this.state.failed ? null : this.props.children }
 }
 
-/** 全身 GLB 归一化到 2.05 高（第六轮 1.7→2.05，人物放大 1.2x）、脚落在 plinthTopY。 */
+/** 全身 GLB 归一化到 FIGURE_HEIGHT 高、脚落在 plinthTopY。 */
 function BoothModel({ url, plinthTopY }: { url: string; plinthTopY: number }) {
   const { scene } = useGLTF(url, false, true)
   const normalized = useMemo(() => {
     const clone = scene.clone(true)
+    // Tripo 导出的人物默认正面朝 +X，统一绕 Y 轴转 -90° 让正面朝 +Z（屏幕 / 相机）。
+    clone.rotation.y = -Math.PI / 2
+    clone.updateMatrixWorld(true)
     const bounds = new Box3().setFromObject(clone)
     const size = bounds.getSize(new Vector3())
     const center = bounds.getCenter(new Vector3())
-    const scale = (1.7 * FIGURE_SCALE) / Math.max(size.y, 0.001)
+    const scale = FIGURE_HEIGHT / Math.max(size.y, 0.001)
     clone.scale.setScalar(scale)
     clone.position.set(-center.x * scale, plinthTopY - bounds.min.y * scale, -center.z * scale)
     clone.traverse((child) => { child.castShadow = true })
@@ -59,6 +70,8 @@ function BoothModel({ url, plinthTopY }: { url: string; plinthTopY: number }) {
 type BoothProps = {
   entry: GalleryEntry
   index: number
+  /** 与当前居中索引的距离（绝对值）。 */
+  dist: number
   active: boolean
   hovered: boolean
   focused: boolean
@@ -67,10 +80,39 @@ type BoothProps = {
   onPick: (index: number, e: ThreeEvent<MouseEvent>) => void
 }
 
-function Booth({ entry, index, active, hovered, focused, near, onHover, onPick }: BoothProps) {
+/** 「创建我的人物」占位展台：青绿光环 + 悬浮 + 号门户，不渲染人形。 */
+function CreatePortal({ active }: { active: boolean }) {
+  const mat = useRef<MeshStandardMaterial | null>(null)
+  useFrame(({ clock }) => {
+    if (!mat.current) return
+    const t = clock.getElapsedTime()
+    mat.current.emissiveIntensity = MathUtils.lerp(
+      mat.current.emissiveIntensity,
+      active ? 2.4 + Math.sin(t * 3) * 0.6 : 1.1,
+      0.12,
+    )
+  })
+  return (
+    <group position={[0, PLINTH_TOP + 1.05, 0]}>
+      {/* 竖杠 */}
+      <mesh castShadow>
+        <boxGeometry args={[0.14, 0.62, 0.14]} />
+        <meshStandardMaterial ref={mat} color="#4fb3a5" emissive="#4fb3a5" emissiveIntensity={1.1} />
+      </mesh>
+      {/* 横杠 */}
+      <mesh castShadow position={[0, 0, 0]}>
+        <boxGeometry args={[0.62, 0.14, 0.14]} />
+        <meshStandardMaterial color="#4fb3a5" emissive="#4fb3a5" emissiveIntensity={1.1} />
+      </mesh>
+    </group>
+  )
+}
+
+function Booth({ entry, index, dist, active, hovered, focused, near, onHover, onPick }: BoothProps) {
   const ringMat = useRef<MeshStandardMaterial | null>(null)
   const modelGroup = useRef<Group>(null)
   const { booth, color } = entry
+  const isCreate = Boolean(entry.isCreateEntry)
   const lit = active || focused || hovered
 
   useFrame(({ clock }) => {
@@ -80,20 +122,22 @@ function Booth({ entry, index, active, hovered, focused, near, onHover, onPick }
     ringMat.current.emissiveIntensity = MathUtils.lerp(ringMat.current.emissiveIntensity, target, 0.15)
   })
 
-  // 角色轻微转向镜头 + 极轻呼吸浮动。
-  useFrame(({ clock }) => {
+  // 角色轻微转向镜头 + 极轻呼吸浮动 + 按距离缩放（C 位突出，两侧退远）。
+  useFrame(({ clock }, delta) => {
     if (!modelGroup.current) return
     const g = modelGroup.current
     const wantRot = booth.rotationY + (active ? Math.sin(clock.getElapsedTime() * 0.6) * 0.06 : 0)
     g.rotation.y = MathUtils.lerp(g.rotation.y, wantRot, 0.08)
     g.position.y = PLINTH_TOP + (active ? Math.sin(clock.getElapsedTime() * 1.4) * 0.015 : 0)
+    const wantScale = scaleForDist(dist)
+    g.scale.setScalar(MathUtils.damp(g.scale.x, wantScale, 6, delta))
   })
 
-  const hasModel = Boolean(entry.character.model) && near
+  const hasModel = Boolean(entry.character.model) && near && !isCreate
 
   return (
     <group position={[booth.x, 0, booth.z]}>
-      {/* 光环底座（可点） */}
+      {/* 光环底座（可点）——自定义/创建入口用青绿，其余用暖金 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, PLINTH_TOP + 0.005, 0]}
         onClick={(e) => onPick(index, e)}
         onPointerOver={(e) => { e.stopPropagation(); onHover(index) }}
@@ -101,17 +145,19 @@ function Booth({ entry, index, active, hovered, focused, near, onHover, onPick }
         <ringGeometry args={[0.62, 0.86, 48]} />
         <meshStandardMaterial
           ref={ringMat}
-          color={lit ? '#FFD60A' : '#3a3320'}
-          emissive={lit ? '#FFD60A' : '#2a2410'}
+          color={lit ? '#4fb3a5' : '#3a3320'}
+          emissive={lit ? '#4fb3a5' : '#2a2410'}
           emissiveIntensity={0.25}
           transparent opacity={lit ? 1 : 0.6}
           side={2}
         />
       </mesh>
 
-      {/* 人物：近处加载真实 GLB，远处/无模型用占位人形（占位人形同步放大到 FIGURE_SCALE） */}
+      {/* 人物：近处加载真实 GLB，远处/无模型用占位人形；创建入口渲染 + 号门户 */}
       <group ref={modelGroup} rotation={[0, booth.rotationY, 0]}>
-        {hasModel ? (
+        {isCreate ? (
+          <CreatePortal active={active} />
+        ) : hasModel ? (
           <Suspense fallback={<group position={[0, PLINTH_TOP, 0]} scale={FIGURE_SCALE}><NeutralMannequin active={active} /></group>}>
             <BoothModel url={entry.character.model!} plinthTopY={PLINTH_TOP} />
           </Suspense>
@@ -126,7 +172,7 @@ function Booth({ entry, index, active, hovered, focused, near, onHover, onPick }
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={lit ? 1.2 : 0.35} />
       </mesh>
 
-      {/* 名牌（始终面向相机；第六轮字号 0.16→0.23，随人物放大上移） */}
+      {/* 名牌（始终面向相机） */}
       <Billboard position={[0, PLINTH_TOP + 0.52, 1.12]}>
         <Text
           fontSize={0.23}
@@ -195,14 +241,16 @@ type GallerySceneProps = {
   onIndexChange: (i: number) => void
   onFocusToggle: () => void
   onEnter: (entry: GalleryEntry) => void
+  onRequestCreate: () => void
   onHover: (i: number | null) => void
   hovered: number | null
 }
 
-function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChange, onFocusToggle, onEnter, onHover, hovered }: GallerySceneProps) {
+function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChange, onFocusToggle, onEnter, onRequestCreate, onHover, hovered }: GallerySceneProps) {
   const { camera } = useThree()
-  const center = (entries.length - 1) / 2
-  const boothXAt = (floatIndex: number) => (floatIndex - center) * BOOTH_SPACING
+  // booth 已按 centerIndex 居中（booth[centerIndex].x=0），由 booth[0].x 反推布局中心索引。
+  const layoutCenter = entries.length > 0 ? -entries[0].booth.x / BOOTH_SPACING : 0
+  const boothXAt = (floatIndex: number) => (floatIndex - layoutCenter) * BOOTH_SPACING
 
   useFrame((_, delta) => {
     const targetX = boothXAt(liveIndexRef.current)
@@ -216,13 +264,16 @@ function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChan
 
   const handlePick = (index: number, e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
+    const entry = entries[index]
+    if (!entry) return
+    if (entry.isCreateEntry) { onRequestCreate(); return }
     if (index !== activeIndex) {
       liveIndexRef.current = index
       onIndexChange(index)
     } else if (!focused) {
       onFocusToggle()
     } else {
-      onEnter(entries[index])
+      onEnter(entry)
     }
   }
 
@@ -247,6 +298,7 @@ function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChan
             key={entry.character.id}
             entry={entry}
             index={i}
+            dist={Math.abs(i - activeIndex)}
             active={i === activeIndex}
             focused={focused && i === activeIndex}
             hovered={hovered === i}
@@ -271,9 +323,11 @@ export type CharacterGallery3DProps = {
   onIndexChange: (i: number) => void
   onEnter: (entry: GalleryEntry) => void
   onModelError: () => void
+  /** 点击「创建我的人物」占位入口时触发（跳分身工坊）。 */
+  onCreate?: () => void
 }
 
-export default function CharacterGallery3D({ entries, activeIndex, onIndexChange, onEnter, onModelError }: CharacterGallery3DProps) {
+export default function CharacterGallery3D({ entries, activeIndex, onIndexChange, onEnter, onModelError, onCreate }: CharacterGallery3DProps) {
   const [hovered, setHovered] = useState<number | null>(null)
   const [focused, setFocused] = useState(false)
   const liveIndexRef = useRef(activeIndex)
@@ -335,12 +389,13 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
   }
 
   const current = entries[activeIndex]
+  const currentIsCreate = Boolean(current?.isCreateEntry)
 
   return (
     <div className="gallery3d-root" ref={wrapRef}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
       <GalleryErrorBoundary onError={onModelError}>
-        <Canvas
+        <SafeCanvas
           camera={{ position: [0, CAMERA_Y, CAMERA_BASE_Z], fov: FOV, near: 0.1, far: 120 }}
           dpr={[1, 1.5]}
           gl={{ antialias: true, alpha: false }}
@@ -354,11 +409,12 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
               onIndexChange={onIndexChange}
               onFocusToggle={() => setFocused(true)}
               onEnter={onEnter}
+              onRequestCreate={() => onCreate?.()}
               onHover={setHovered}
               hovered={hovered}
             />
           </group>
-        </Canvas>
+        </SafeCanvas>
       </GalleryErrorBoundary>
 
       <button type="button" className="gallery3d__arrow gallery3d__arrow--left"
@@ -376,11 +432,17 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
           <div className="gallery3d__now-text">
             <b>{current.character.name}</b>
             <span>{current.character.title}</span>
-            <i>在线 · 可对话</i>
+            <i>{currentIsCreate ? '点击进入分身工坊' : '在线 · 可对话'}</i>
           </div>
-          <button type="button" className="gallery3d__talk" onClick={() => onEnter(current)}>
-            {focused ? '开始对话 ↗' : '对话'}
-          </button>
+          {currentIsCreate ? (
+            <button type="button" className="gallery3d__talk" onClick={() => onCreate?.()}>
+              去创建 ↗
+            </button>
+          ) : (
+            <button type="button" className="gallery3d__talk" onClick={() => onEnter(current)}>
+              {focused ? '开始对话 ↗' : '对话'}
+            </button>
+          )}
         </div>
       )}
       <div className="gallery3d__hint">拖拽滑动 · ←/→ 切换 · 点击聚焦 · 再点进入对话</div>

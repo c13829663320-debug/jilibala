@@ -499,7 +499,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
           <div className="ccs__nav-row">
             <button className="ccs__ghost" type="button" onClick={() => setStep(3)} disabled={saving}>← 上一步</button>
             <button className="ccs__primary ccs__primary--inline" type="button"
-              onClick={() => void saveCharacter} disabled={!canSave}>
+              onClick={() => { void saveCharacter() }} disabled={!canSave}>
               {saving ? '保存中…' : '保存人物'}
             </button>
           </div>

@@ -1,6 +1,7 @@
 // M8: 程序化 3D 酒吧室内（无外部 GLB 场景，全部用 three 基础几何体搭建）。
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
 import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
@@ -394,8 +395,8 @@ export default function BarView({
   activeSpeakerId: string | null
 }) {
   return (
-    <Canvas shadows camera={{ position: [3.6, 1.9, 3.8], fov: 45 }} dpr={[1, 2]}>
+    <SafeCanvas shadows camera={{ position: [3.6, 1.9, 3.8], fov: 45 }} dpr={[1, 2]}>
       <Bar celebrities={celebrities} activeSpeakerId={activeSpeakerId} />
-    </Canvas>
+    </SafeCanvas>
   )
 }

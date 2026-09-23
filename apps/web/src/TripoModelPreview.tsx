@@ -1,5 +1,5 @@
 import { Component, Suspense, useMemo, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { ContactShadows, Environment, Html, OrbitControls, useGLTF } from '@react-three/drei'
 import { Box3, Vector3 } from 'three'
 
@@ -40,7 +40,7 @@ export default function TripoModelPreview({ url, className = '', label = '模型
   if (!url) return null
   return <div className={`tripo-model-preview ${className}`} aria-label={label}>
     <PreviewErrorBoundary fallback={<div className="tripo-model-preview__fallback">模型暂时无法预览<br /><small>可以打开链接下载 GLB</small></div>}>
-      <Canvas shadows dpr={[1, 1.6]} camera={{ position: [2.8, 1.8, 3.2], fov: 34 }}>
+      <SafeCanvas shadows dpr={[1, 1.6]} camera={{ position: [2.8, 1.8, 3.2], fov: 34 }}>
         <color attach="background" args={['#111027']} />
         <ambientLight intensity={1.5} color="#d7c7ff" />
         <directionalLight position={[3, 5, 4]} intensity={3.2} color="#fff2db" castShadow />
@@ -49,7 +49,7 @@ export default function TripoModelPreview({ url, className = '', label = '模型
         <ContactShadows position={[0, -0.01, 0]} opacity={0.55} scale={4} blur={2.2} far={3.5} />
         <Environment preset="studio" />
         <OrbitControls enablePan={false} minDistance={1.8} maxDistance={5.5} minPolarAngle={0.45} maxPolarAngle={Math.PI / 2} autoRotate autoRotateSpeed={1.2} />
-      </Canvas>
+      </SafeCanvas>
     </PreviewErrorBoundary>
   </div>
 }

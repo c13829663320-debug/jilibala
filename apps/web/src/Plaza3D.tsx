@@ -1,5 +1,6 @@
 import { Suspense, useLayoutEffect, useEffect, useRef, useState, useCallback, type MutableRefObject } from 'react'
-import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Billboard, Text, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { ArrowLeft, MessagesSquare, Users } from 'lucide-react'
@@ -66,7 +67,7 @@ function RingMarker({ marker, onDone }: { marker: Marker; onDone: (id: number) =
   return (
     <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[marker.x, 0.03, marker.z]}>
       <ringGeometry args={[0.7, 1.0, 32]} />
-      <meshBasicMaterial ref={matRef} color="#FFD600" transparent opacity={1} side={THREE.DoubleSide} depthWrite={false} />
+      <meshBasicMaterial ref={matRef} color="#4fb3a5" transparent opacity={1} side={THREE.DoubleSide} depthWrite={false} />
     </mesh>
   )
 }
@@ -95,7 +96,7 @@ function RemoteAvatar({ userId, playersRef }: { userId: string; playersRef: Muta
       const celeb = getCelebrity(player.avatarRef)
       if (celeb) displayName = celeb.name
     }
-    avatarColor = player.avatarType === 'capsule' ? hashColor(player.userId) : '#FFD600'
+    avatarColor = player.avatarType === 'capsule' ? hashColor(player.userId) : '#4fb3a5'
   }
 
   useFrame(() => {
@@ -205,7 +206,7 @@ function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar
       </mesh>
       {BUILDINGS.map((b) => (
         <Billboard key={b.id} position={[b.x, 5, b.z]}>
-          <Text fontSize={hovered === b.id ? 0.95 : 0.75} color={hovered === b.id ? '#FFFFFF' : '#FFD600'} anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="#000000" raycast={() => null}>
+          <Text fontSize={hovered === b.id ? 0.95 : 0.75} color={hovered === b.id ? '#FFFFFF' : '#4fb3a5'} anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="#000000" raycast={() => null}>
             {b.name}
           </Text>
         </Billboard>
@@ -365,7 +366,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   return (
     <div className="plaza-3d-root"
       onPointerDown={(e) => { tapRef.current.downX = e.clientX; tapRef.current.downY = e.clientY; tapRef.current.downT = performance.now() }}>
-      <Canvas shadows camera={{ position: [0, CAMERA_Y, 22], fov: 50, near: 0.1, far: 200 }} dpr={[1, 1.5]}>
+      <SafeCanvas shadows camera={{ position: [0, CAMERA_Y, 22], fov: 50, near: 0.1, far: 200 }} dpr={[1, 1.5]}>
         <PlazaScene
           onEnterCourt={onEnterCourt}
           onEnterTalkshow={onEnterTalkshow ?? (() => toast('脱口秀剧场即将开放'))}
@@ -379,19 +380,19 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           onMove={handleMove}
           tapRef={tapRef}
         />
-      </Canvas>
+      </SafeCanvas>
       <div className="plaza-3d-topbar">
         <button className="plaza-3d-back" onClick={onBack} aria-label="返回">
           <ArrowLeft size={18} />
         </button>
         <div className="plaza-3d-title">广场</div>
-        <img className="plaza-3d-logo" src="/brand/balabala-mark-clean.jpg" alt="BalaBala" />
+        <img className="plaza-3d-logo" src="/brand/balabala-mark-dark.jpg" alt="BalaBala" />
       </div>
       <div className="plaza-3d-online" style={{
         position: 'absolute', top: 56, left: 16, zIndex: 10,
         display: 'flex', alignItems: 'center', gap: 6,
-        background: 'rgba(20,18,10,0.8)', border: '1px solid #FFD600', borderRadius: 20,
-        padding: '4px 12px', color: '#FFD600', fontSize: 12, fontWeight: 600,
+        background: 'rgba(20,18,10,0.8)', border: '1px solid #4fb3a5', borderRadius: 20,
+        padding: '4px 12px', color: '#4fb3a5', fontSize: 12, fontWeight: 600,
       }}>
         <Users size={13} /> 在线 {onlineCount} 人
       </div>

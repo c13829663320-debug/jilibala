@@ -20,13 +20,13 @@ type ChatRole = 'user' | 'assistant'
 const httpHeaders = { 'Content-Type': 'application/json' }
 
 const panel: React.CSSProperties = {
-  background: 'rgba(18,16,30,0.88)',
-  border: '1px solid rgba(216,184,120,0.18)',
+  background: '#141414',
+  border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: 14,
   padding: 14,
 }
-const accent = '#e2c078'
-const muted = '#8a86a0'
+const accent = '#4fb3a5'
+const muted = 'rgba(237,237,240,0.48)'
 
 function CelebrityPicker({ value, onChange, label }: { value: string; onChange: (id: string) => void; label?: string }) {
   const [field, setField] = useState<CelebrityField | '全部'>('全部')
@@ -56,16 +56,16 @@ function CelebrityPicker({ value, onChange, label }: { value: string; onChange: 
 
 const chipStyle = (active: boolean): React.CSSProperties => ({
   padding: '3px 10px', borderRadius: 10, fontSize: 12, cursor: 'pointer',
-  border: active ? `1px solid ${accent}` : '1px solid #3332',
-  background: active ? 'rgba(226,192,120,0.14)' : 'transparent',
-  color: active ? accent : '#b6b2c8',
+  border: active ? `1px solid ${accent}` : '1px solid rgba(255,255,255,0.08)',
+  background: active ? 'rgba(79,179,165,0.13)' : 'transparent',
+  color: active ? accent : 'rgba(237,237,240,0.7)',
 })
 const pickStyle = (active: boolean): React.CSSProperties => ({
   display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
   padding: '7px 9px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-  border: active ? `1px solid ${accent}` : '1px solid #2c2a3e',
-  background: active ? 'rgba(226,192,120,0.12)' : 'rgba(12,11,20,0.6)',
-  color: '#ece6d6',
+  border: active ? `1px solid ${accent}` : '1px solid rgba(255,255,255,0.08)',
+  background: active ? 'rgba(79,179,165,0.13)' : 'rgba(12,11,20,0.6)',
+  color: '#EDEDF0',
 })
 
 export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
@@ -282,15 +282,15 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
   ]
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#0a0a14', color: '#ece6d6' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#0A0A0A', color: '#EDEDF0' }}>
       {/* 顶栏 */}
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid rgba(216,184,120,0.15)', background: 'rgba(10,10,20,0.9)' }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#141414' }}>
         <button onClick={onBack} style={iconBtn}><ArrowLeft size={16} /></button>
         <LibraryIcon size={18} color={accent} />
         <strong style={{ letterSpacing: 1 }}>图书馆</strong>
         <span style={{ fontSize: 12, color: muted }}>安静 · 书卷气 · 与智者共读</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: accent, background: 'rgba(226,192,120,0.1)', borderRadius: 12, padding: '2px 10px' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: accent, background: 'rgba(79,179,165,0.13)', borderRadius: 12, padding: '2px 10px' }}>
             <Users size={12} /> {online} 人在线
           </span>
           <button onClick={() => setShowChat((v) => !v)} style={ghostBtn}><MessagesSquare size={13} /> 小声聊天</button>
@@ -300,7 +300,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* 左侧控制面板 */}
-        <aside style={{ width: 380, overflowY: 'auto', padding: 14, borderRight: '1px solid rgba(216,184,120,0.12)' }}>
+        <aside style={{ width: 380, overflowY: 'auto', padding: 14, borderRight: '1px solid rgba(255,255,255,0.08)' }}>
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
             {tabs.map((t) => (
@@ -321,7 +321,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
                 {rec && (
                   <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.6 }}>
                     <div style={{ color: accent, fontWeight: 600 }}>{rec.book} · {rec.author}</div>
-                    <div style={{ color: '#c8c2b0', marginTop: 4 }}>{rec.reason}</div>
+                    <div style={{ color: 'rgba(237,237,240,0.7)', marginTop: 4 }}>{rec.reason}</div>
                   </div>
                 )}
                 <button onClick={() => void startClub()} disabled={busy} style={{ ...primaryBtn, marginTop: 10 }}>
@@ -332,7 +332,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
               {opening && (
                 <div style={panel}>
                   <div style={{ fontSize: 12, color: accent, marginBottom: 6 }}>《{bookTitle}》读书会开场</div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7, color: '#e6e0cf' }}>{opening}</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.7, color: 'rgba(237,237,240,0.9)' }}>{opening}</div>
                   <button onClick={() => void publish({ title: `${getCelebrity(clubCelebId)?.name ?? ''} 的读书会：《${bookTitle}》`, answer: opening, celebrityId: clubCelebId, celebrityName: getCelebrity(clubCelebId)?.name, book: bookTitle, topics: ['图书馆', '读书会'] })} style={secBtn}>
                     <BookmarkPlus size={13} /> 发布开场到广场
                   </button>
@@ -344,7 +344,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
                 {clubLog.map((m, i) => (
                   <div key={i} style={{ marginBottom: 10, textAlign: m.role === 'user' ? 'right' : 'left' }}>
                     <span style={{ fontSize: 12, color: muted }}>{m.role === 'user' ? '我' : getCelebrity(clubCelebId)?.name}</span>
-                    <div style={{ display: 'inline-block', maxWidth: '92%', padding: '8px 11px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.65, background: m.role === 'user' ? 'rgba(90,110,160,0.25)' : 'rgba(226,192,120,0.1)', textAlign: 'left' }}>
+                    <div style={{ display: 'inline-block', maxWidth: '92%', padding: '8px 11px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.65, background: m.role === 'user' ? 'rgba(90,110,160,0.25)' : 'rgba(79,179,165,0.13)', textAlign: 'left' }}>
                       {m.content}
                     </div>
                   </div>
@@ -369,7 +369,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
                 {deepMsgs.map((m, i) => (
                   <div key={i} style={{ marginBottom: 10, textAlign: m.role === 'user' ? 'right' : 'left' }}>
                     <span style={{ fontSize: 12, color: muted }}>{m.role === 'user' ? '我' : getCelebrity(chatCelebId)?.name}</span>
-                    <div style={{ display: 'inline-block', maxWidth: '92%', padding: '8px 11px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.65, background: m.role === 'user' ? 'rgba(90,110,160,0.25)' : 'rgba(226,192,120,0.1)', textAlign: 'left' }}>
+                    <div style={{ display: 'inline-block', maxWidth: '92%', padding: '8px 11px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.65, background: m.role === 'user' ? 'rgba(90,110,160,0.25)' : 'rgba(79,179,165,0.13)', textAlign: 'left' }}>
                       {m.content}
                       {m.role === 'assistant' && (
                         <button onClick={() => void publish({ title: `${getCelebrity(chatCelebId)?.name ?? ''}的一段回答`, answer: m.content, celebrityId: chatCelebId, celebrityName: getCelebrity(chatCelebId)?.name, question: deepMsgs[i - 1]?.content, topics: ['图书馆', getCelebrity(chatCelebId)?.field ?? ''] })} style={{ ...secBtn, display: 'block', marginTop: 6, fontSize: 11 }}>
@@ -407,7 +407,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
               {libAnswer && (
                 <div style={panel}>
                   <div style={{ fontSize: 12, color: accent, marginBottom: 6 }}>AI 馆员 · {topic}</div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7, color: '#e6e0cf' }}>{libAnswer}</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.7, color: 'rgba(237,237,240,0.9)' }}>{libAnswer}</div>
                   <button onClick={() => void publish({ title: `馆员笔记：${topic}`, answer: libAnswer, question: libQuestion, topics: ['图书馆', topic] })} style={{ ...secBtn, marginTop: 10 }}>
                     <BookmarkPlus size={13} /> 发布笔记到广场
                   </button>
@@ -426,7 +426,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
             <Suspense fallback={<div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: muted }}>阅览室布置中…</div>}>
               <LibraryView celebrities={viewCelebrities} activeSpeakerId={activeSpeakerId} />
             </Suspense>
-            <div style={{ position: 'absolute', left: 14, bottom: 12, fontSize: 11, color: 'rgba(236,230,214,0.55)' }}>
+            <div style={{ position: 'absolute', left: 14, bottom: 12, fontSize: 11, color: 'rgba(237,237,240,0.3)' }}>
               拖动旋转 · 滚轮缩放 · 保持安静
             </div>
             {busy && <div style={{ position: 'absolute', right: 14, top: 12, fontSize: 12, color: accent }}>正在讲述…</div>}
@@ -434,11 +434,11 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
 
           {/* 阅览室动态（其他读者的问答同步） */}
           {feed.length > 0 && (
-            <div style={{ maxHeight: 120, overflowY: 'auto', borderTop: '1px solid rgba(216,184,120,0.12)', padding: '8px 14px', fontSize: 12 }}>
+            <div style={{ maxHeight: 120, overflowY: 'auto', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 14px', fontSize: 12 }}>
               <div style={{ color: accent, marginBottom: 4 }}>阅览室动态</div>
               {feed.slice(-6).map((f) => (
-                <div key={f.id} style={{ color: '#b6b2c8', marginBottom: 3 }}>
-                  <b style={{ color: '#e6e0cf' }}>{f.who}</b>：{f.text.slice(0, 80)}{f.text.length > 80 ? '…' : ''}
+                <div key={f.id} style={{ color: 'rgba(237,237,240,0.7)', marginBottom: 3 }}>
+                  <b style={{ color: 'rgba(237,237,240,0.9)' }}>{f.who}</b>：{f.text.slice(0, 80)}{f.text.length > 80 ? '…' : ''}
                 </div>
               ))}
             </div>
@@ -447,13 +447,13 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
 
         {/* 可折叠的安静聊天 */}
         {showChat && (
-          <aside style={{ width: 280, borderLeft: '1px solid rgba(216,184,120,0.12)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: 10, fontSize: 12, color: accent, borderBottom: '1px solid rgba(216,184,120,0.12)' }}>小声聊天（{chatMsgs.length}）</div>
+          <aside style={{ width: 280, borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: 10, fontSize: 12, color: accent, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>小声聊天（{chatMsgs.length}）</div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 10, fontSize: 12.5 }}>
               {chatMsgs.map((m) => (
                 <div key={m.id} style={{ marginBottom: 8 }}>
-                  <User size={11} style={{ display: 'inline', color: muted }} /> <b style={{ color: '#e6e0cf' }}>{m.nickname}</b>
-                  <div style={{ color: '#c8c2b0' }}>{m.text}</div>
+                  <User size={11} style={{ display: 'inline', color: muted }} /> <b style={{ color: 'rgba(237,237,240,0.9)' }}>{m.nickname}</b>
+                  <div style={{ color: 'rgba(237,237,240,0.7)' }}>{m.text}</div>
                 </div>
               ))}
               {chatMsgs.length === 0 && <div style={{ color: muted }}>还没有人说话，嘘…</div>}
@@ -475,7 +475,7 @@ function ChatComposer({ onSend }: { onSend: (text: string) => void }) {
     setText('')
   }
   return (
-    <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid rgba(216,184,120,0.12)' }}>
+    <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
       <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send() }}
         placeholder="轻声说一句…" style={{ ...inputStyle, flex: 1 }} />
       <button onClick={send} style={sendBtn}><Send size={13} /></button>
@@ -486,30 +486,30 @@ function ChatComposer({ onSend }: { onSend: (text: string) => void }) {
 const LIBRARY_TOPIC_FALLBACK = ['量子物理入门', '经济学思维', '哲学经典', '艺术史', '心理学']
 
 const iconBtn: React.CSSProperties = {
-  background: 'transparent', border: '1px solid #3332', color: '#d8d2c0', borderRadius: 8, padding: '5px 9px', cursor: 'pointer',
+  background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#EDEDF0', borderRadius: 8, padding: '5px 9px', cursor: 'pointer',
 }
 const ghostBtn: React.CSSProperties = {
-  ...iconBtn, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#b6b2c8',
+  ...iconBtn, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'rgba(237,237,240,0.7)',
 }
 const tabStyle = (active: boolean): React.CSSProperties => ({
   flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
   padding: '8px 4px', borderRadius: 9, cursor: 'pointer', fontSize: 12.5,
-  border: active ? `1px solid ${accent}` : '1px solid #2c2a3e',
-  background: active ? 'rgba(226,192,120,0.14)' : 'rgba(12,11,20,0.6)',
-  color: active ? accent : '#b6b2c8',
+  border: active ? `1px solid ${accent}` : '1px solid rgba(255,255,255,0.08)',
+  background: active ? 'rgba(79,179,165,0.13)' : 'rgba(12,11,20,0.6)',
+  color: active ? accent : 'rgba(237,237,240,0.7)',
 })
 const primaryBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 9, cursor: 'pointer',
-  border: 'none', background: accent, color: '#1a1408', fontSize: 13, fontWeight: 600,
+  border: 'none', background: '#EDEDF0', color: '#0A0A0A', fontSize: 13, fontWeight: 600,
 }
 const secBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
-  border: '1px solid rgba(226,192,120,0.4)', background: 'transparent', color: accent, fontSize: 12,
+  border: '1px solid rgba(79,179,165,0.42)', background: 'transparent', color: accent, fontSize: 12,
 }
 const sendBtn: React.CSSProperties = {
   ...primaryBtn, padding: '0 12px', borderRadius: 9,
 }
 const inputStyle: React.CSSProperties = {
-  flex: 1, padding: '9px 11px', borderRadius: 9, border: '1px solid #3332',
-  background: 'rgba(8,8,16,0.7)', color: '#ece6d6', fontSize: 13, outline: 'none',
+  flex: 1, padding: '9px 11px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)',
+  background: '#0F0F0F', color: '#EDEDF0', fontSize: 13, outline: 'none',
 }

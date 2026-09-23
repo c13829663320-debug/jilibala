@@ -1,5 +1,6 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
 import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
@@ -318,8 +319,8 @@ export default function LibraryView({
   activeSpeakerId: string | null
 }) {
   return (
-    <Canvas shadows camera={{ position: [0, 3.4, 5.8], fov: 45 }} dpr={[1, 2]}>
+    <SafeCanvas shadows camera={{ position: [0, 3.4, 5.8], fov: 45 }} dpr={[1, 2]}>
       <LibraryScene celebrities={celebrities} activeSpeakerId={activeSpeakerId} />
-    </Canvas>
+    </SafeCanvas>
   )
 }

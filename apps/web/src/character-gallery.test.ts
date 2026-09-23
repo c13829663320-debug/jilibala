@@ -100,3 +100,83 @@ describe('buildGalleryEntries 映射', () => {
     expect(entries[1].color).toBe(CUSTOM_FIELD_COLOR)
   })
 })
+
+
+// ===== M13 第七轮：横排饱满 + 自定义角色 C 位 =====
+import {
+  buildGallerySequence,
+  CREATE_ENTRY_ID,
+  makeCreateEntryCharacter,
+} from './character-gallery'
+
+describe('galleryLayout 自定义居中', () => {
+  it('传入 centerIndex 时把该索引放在 x=0', () => {
+    const lay = galleryLayout(5, 1)
+    expect(lay[1].x).toBeCloseTo(0)
+    expect(lay[1].z).toBeCloseTo(0)
+    // 其余相对它对称退远
+    expect(lay[0].x).toBeCloseTo(-BOOTH_SPACING)
+    expect(lay[2].x).toBeCloseTo(BOOTH_SPACING)
+  })
+})
+
+describe('buildGallerySequence all tab', () => {
+  it('有自定义人物时最近一个居中，名人分布两侧', () => {
+    const celebs = [makeUi({ id: 'c0', field: '科技' }), makeUi({ id: 'c1', field: '文学' }), makeUi({ id: 'c2', field: '艺术' })]
+    const mine = [makeUi({ id: 'mine-recent', isCustom: true }), makeUi({ id: 'mine-2', isCustom: true })]
+    const { entries, centerIndex } = buildGallerySequence({ tab: 'all', celebs, mine, plaza: [] })
+    expect(entries[centerIndex].character.id).toBe('mine-recent')
+    expect(entries[centerIndex].isCreateEntry).toBeFalsy()
+    // 居中展台 x=0
+    expect(entries[centerIndex].booth.x).toBeCloseTo(0)
+    // 名人在两侧
+    const ids = entries.map((e) => e.character.id)
+    expect(ids).toContain('c0'); expect(ids).toContain('c1'); expect(ids).toContain('c2')
+    // 左右都有名人
+    const leftHasCeleb = entries.slice(0, centerIndex).some((e) => !e.character.isCustom)
+    const rightHasCeleb = entries.slice(centerIndex + 1).some((e) => !e.character.isCustom)
+    expect(leftHasCeleb).toBe(true); expect(rightHasCeleb).toBe(true)
+  })
+
+  it('无自定义人物时 C 位放创建入口', () => {
+    const celebs = [makeUi({ id: 'c0' }), makeUi({ id: 'c1' })]
+    const { entries, centerIndex } = buildGallerySequence({ tab: 'all', celebs, mine: [], plaza: [] })
+    expect(entries[centerIndex].character.id).toBe(CREATE_ENTRY_ID)
+    expect(entries[centerIndex].isCreateEntry).toBe(true)
+    expect(entries[centerIndex].booth.x).toBeCloseTo(0)
+  })
+})
+
+describe('buildGallerySequence mine tab', () => {
+  it('仅自定义人物，最近创建居中', () => {
+    const mine = [makeUi({ id: 'm0', isCustom: true }), makeUi({ id: 'm1', isCustom: true })]
+    const { entries, centerIndex } = buildGallerySequence({ tab: 'mine', celebs: [], mine, plaza: [] })
+    expect(entries).toHaveLength(2)
+    expect(centerIndex).toBe(0)
+    expect(entries[0].character.id).toBe('m0')
+    expect(entries[0].booth.x).toBeCloseTo(0)
+  })
+  it('无自定义人物时只放创建入口', () => {
+    const { entries, centerIndex } = buildGallerySequence({ tab: 'mine', celebs: [], mine: [], plaza: [] })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].isCreateEntry).toBe(true)
+    expect(centerIndex).toBe(0)
+  })
+})
+
+describe('buildGallerySequence plaza tab', () => {
+  it('公开人物中点居中，不掺创建入口', () => {
+    const plaza = [makeUi({ id: 'p0' }), makeUi({ id: 'p1' }), makeUi({ id: 'p2' })]
+    const { entries, centerIndex } = buildGallerySequence({ tab: 'plaza', celebs: [], mine: [], plaza })
+    expect(entries[centerIndex].character.id).toBe('p1')
+    expect(entries.every((e) => !e.isCreateEntry)).toBe(true)
+  })
+})
+
+describe('makeCreateEntryCharacter', () => {
+  it('是自定义类型且 id 特殊', () => {
+    const c = makeCreateEntryCharacter()
+    expect(c.id).toBe(CREATE_ENTRY_ID)
+    expect(c.isCustom).toBe(true)
+  })
+})

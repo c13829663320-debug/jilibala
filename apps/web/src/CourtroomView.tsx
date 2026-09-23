@@ -1,5 +1,6 @@
 import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-three/drei'
 import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
@@ -55,7 +56,7 @@ function NormalizedCourtroomModel({ url, height = 1.7 }: { url: string; height?:
 }
 
 function CourtroomEnvironmentModel() {
-  const { scene } = useGLTF('/models/balabala_courtroom.glb', false, true)
+  const { scene } = useGLTF('/models/balabala_courtroom.glb?v=2', false, true)
   const normalized = useMemo(() => {
     const clone = scene.clone(true)
     const bounds = new Box3().setFromObject(clone)
@@ -466,8 +467,8 @@ export default function CourtroomView({
 }) {
   const init = getCameraForMode(cameraMode)
   return (
-    <Canvas shadows camera={{ position: init.position, fov: init.fov }} dpr={[1, 2]}>
+    <SafeCanvas shadows camera={{ position: init.position, fov: init.fov }} dpr={[1, 2]}>
       <Courtroom celebrities={celebrities ?? []} activeSpeakerId={activeSpeakerId ?? null} seats={seats} mode={cameraMode} />
-    </Canvas>
+    </SafeCanvas>
   )
 }

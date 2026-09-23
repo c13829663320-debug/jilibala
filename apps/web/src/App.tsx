@@ -128,6 +128,7 @@ function AppInner() {
       onCreateCharacter={() => setView('custom-studio')}
       onPlaza={() => setView('plaza')}
       onMyPage={() => setView('mypage')}
+      onReset={reset}
       onEnterTalkshow={() => setView('talkshow')}
       onEnterWerewolf={() => setView('werewolf')}
       onEnterBar={() => setView('bar')}
@@ -164,7 +165,7 @@ function AppInner() {
     return <>
       <TopNav {...navProps} currentView="characters" />
       <LazyScene component={CharacterHall} label="角色馆"
-        props={{ onBack: () => setView('entry'), onEnterCourt: () => setView('court'), onPlaza: () => setView('plaza') }} />
+        props={{ onBack: () => setView('entry'), onEnterCourt: () => setView('court'), onPlaza: () => setView('plaza'), onCreateCharacter: () => setView('custom-studio') }} />
     </>
   }
 
@@ -243,7 +244,7 @@ function AppInner() {
   if (view === 'mypage') {
     return <>
       <TopNav {...navProps} currentView="mypage" />
-      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} onEnterGym={() => setView('gym')} />
+      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} onEnterGym={() => setView('gym')} onCustomCharacter={() => setView('custom-studio')} onAvatarStudio={() => setView('avatar')} onArchive={openArchives} />
     </>
   }
 
@@ -269,6 +270,7 @@ function AppInner() {
         onPublishToPlaza={() => setView('plaza')}
         roomId={roomId ?? undefined}
         onExitToEntry={() => setView('entry')}
+        onOpenArchive={openArchives}
       />
     </main>
   )
@@ -299,7 +301,7 @@ function ApiHealthBanner() {
   if (!down) return null
   return createPortal(
     <div onClick={() => setRetryTick((n) => n + 1)}
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#FFD600', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#4fb3a5', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
       后端未连接，正在重连…（点击立即重试）
     </div>,
     document.body,

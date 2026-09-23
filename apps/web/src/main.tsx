@@ -1,6 +1,7 @@
 import { StrictMode, useState, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import './design-tokens.css'
 import './styles.css'
 import SplashScreen from './SplashScreen'
 
@@ -27,7 +28,7 @@ function useGlobalErrorToast() {
         'z-index:2147483647', 'max-width:min(92vw,420px)',
         'padding:12px 16px', 'border-radius:10px',
         'background:#1a1a1a', 'color:#f5f5f5', 'font-size:13px', 'line-height:1.5',
-        'border:1px solid rgba(255,214,0,0.4)', 'box-shadow:0 12px 40px rgba(0,0,0,0.5)',
+        'border:1px solid rgba(79,179,165,0.4)', 'box-shadow:0 12px 40px rgba(0,0,0,0.5)',
         'display:flex', 'align-items:center', 'gap:10px',
       ].join(';')
       const closeBtn = document.createElement('button')

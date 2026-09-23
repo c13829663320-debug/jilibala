@@ -54,13 +54,13 @@ export function VoiceToggleButton({ className, style }: { className?: string; st
     <button
       type="button"
       className={className}
-      style={style}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flexShrink: 0, ...style }}
       onClick={() => update(!enabled)}
       title={enabled ? '语音朗读：开（点击静音）' : '语音朗读：关（点击开启）'}
       aria-pressed={enabled}
     >
       {enabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
-      <span>{enabled ? '语音开' : '静音'}</span>
+      <span style={{ whiteSpace: 'nowrap' }}>{enabled ? '语音开' : '静音'}</span>
     </button>
   )
 }

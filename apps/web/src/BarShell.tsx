@@ -352,21 +352,21 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
   const proDebaters = debaterList.filter((d) => d.side === 'pro')
   const conDebaters = debaterList.filter((d) => d.side === 'con')
 
-  const panelBg = '#160d06'
-  const amber = '#ffb066'
+  const panelBg = '#141414'
+  const amber = '#4fb3a5'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0f0803', color: '#f4e8d2' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0A0A0A', color: '#EDEDF0' }}>
       {/* 顶栏 */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-        background: '#1a0f08', borderBottom: '1px solid #3a2410',
+        background: '#141414', borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}>
         <button onClick={onBack} style={headerBtn}><ArrowLeft size={16} /></button>
         <span style={{ fontSize: 18, fontWeight: 700, color: amber }}>🍺 酒吧辩论</span>
-        <span style={{ fontSize: 12, color: '#9a7a50' }}>暖光小馆 · 不站队，只聊最有趣的</span>
+        <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>暖光小馆 · 不站队，只聊最有趣的</span>
         <div style={{ flex: 1 }} />
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#c9a270' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(237,237,240,0.7)' }}>
           <Users size={14} /> {online} 位客人
         </span>
         {onPlaza && (
@@ -385,7 +385,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
           ) : (
             <div style={{
               height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', color: '#7a5a30', gap: 12,
+              justifyContent: 'center', color: 'rgba(237,237,240,0.3)', gap: 12,
             }}>
               <Beer size={48} />
               <div style={{ fontSize: 15 }}>挑一个话题，开一桌酒，让名人们先吵起来</div>
@@ -403,7 +403,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
           {notice && (
             <div style={{
               position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-              padding: '8px 16px', background: '#ffb066', color: '#1a0f08', borderRadius: 8,
+              padding: '8px 16px', background: '#EDEDF0', color: '#0A0A0A', borderRadius: 8,
               fontSize: 13, fontWeight: 600, zIndex: 5,
             }}>{notice}</div>
           )}
@@ -411,7 +411,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
         {/* 右：控制面板 */}
         <div style={{
-          width: 420, background: panelBg, borderLeft: '1px solid #3a2410',
+          width: 420, background: panelBg, borderLeft: '1px solid rgba(255,255,255,0.08)',
           display: 'flex', flexDirection: 'column', minHeight: 0,
         }}>
           {/* 话题选择 / 辩手 */}
@@ -425,8 +425,8 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
                     onClick={() => { setTopic(t); setCustomTopic('') }}
                     style={{
                       ...topicBtn,
-                      borderColor: topic === t && !customTopic ? amber : '#3a2410',
-                      background: topic === t && !customTopic ? 'rgba(255,176,102,0.12)' : 'transparent',
+                      borderColor: topic === t && !customTopic ? amber : 'rgba(255,255,255,0.08)',
+                      background: topic === t && !customTopic ? 'rgba(79,179,165,0.13)' : 'transparent',
                     }}
                   >{t}</button>
                 ))}
@@ -450,19 +450,19 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
                           onClick={() => setChosenDebaterIds((prev) => on ? prev.filter((x) => x !== c.id) : [...prev, c.id])}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                            background: on ? 'rgba(255,176,102,0.18)' : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${on ? '#ffb066' : '#3a2410'}`,
-                            borderRadius: 6, color: '#f0e2c8', cursor: 'pointer', textAlign: 'left',
+                            background: on ? 'rgba(79,179,165,0.13)' : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${on ? 'rgba(79,179,165,0.42)' : 'rgba(255,255,255,0.08)'}`,
+                            borderRadius: 6, color: '#EDEDF0', cursor: 'pointer', textAlign: 'left',
                           }}
                         >
                           {c.portrait ? (
                             <img src={c.portrait} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
                           ) : (
-                            <span style={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', background: '#3a2410', fontSize: 12 }}>{c.name[0]}</span>
+                            <span style={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,0.08)', fontSize: 12 }}>{c.name[0]}</span>
                           )}
                           <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
-                          <span style={{ fontSize: 11, color: '#9a7a50' }}>{c.visibility === 'public' ? '广场' : '我的'}</span>
-                          {on && <Check size={13} color="#ffb066" />}
+                          <span style={{ fontSize: 11, color: 'rgba(237,237,240,0.48)' }}>{c.visibility === 'public' ? '广场' : '我的'}</span>
+                          {on && <Check size={13} color="#4fb3a5" />}
                         </button>
                       )
                     })}
@@ -480,7 +480,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
           ) : (
             <>
               {/* 辩论进行区 */}
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid #3a2410' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                 <SectionTitle>话题：{activeTopic}</SectionTitle>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                   <SideGroup label="正方" color="#6ab0ff" debaters={proDebaters} activeId={activeSpeakerId} onSpeak={speak} disabled={busy} />
@@ -488,7 +488,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
                 </div>
                 {/* 投票 */}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: '#9a7a50', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <Vote size={13} /> 谁更有趣
                   </span>
                   <button onClick={() => castVote('pro')} style={{ ...voteBtn, borderColor: '#6ab0ff', color: '#9cc8ff' }}>
@@ -503,21 +503,21 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
               {/* 发言记录 */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '10px 18px', minHeight: 0 }}>
                 {transcript.length === 0 && (
-                  <div style={{ color: '#7a5a30', fontSize: 13, textAlign: 'center', marginTop: 24 }}>
+                  <div style={{ color: 'rgba(237,237,240,0.3)', fontSize: 13, textAlign: 'center', marginTop: 24 }}>
                     点一位名人的「发言」，先让场子热起来
                   </div>
                 )}
                 {transcript.map((e) => (
                   <div key={e.id} style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12, color: e.side === 'pro' ? '#9cc8ff' : e.side === 'con' ? '#ffb09a' : '#c9a270', marginBottom: 3 }}>
+                    <div style={{ fontSize: 12, color: e.side === 'pro' ? '#9cc8ff' : e.side === 'con' ? '#ffb09a' : 'rgba(237,237,240,0.7)', marginBottom: 3 }}>
                       {e.side === 'user' ? '👤 ' : ''}{e.speakerName}
                       {e.side === 'pro' ? ' · 正方' : e.side === 'con' ? ' · 反方' : ''}
                     </div>
-                    <div style={{ fontSize: 14, lineHeight: 1.5, color: '#f0e2c8' }}>{e.text}</div>
+                    <div style={{ fontSize: 14, lineHeight: 1.5, color: '#EDEDF0' }}>{e.text}</div>
                     {e.quote && (
                       <div style={{
                         marginTop: 4, padding: '4px 10px', borderLeft: `3px solid ${amber}`,
-                        background: 'rgba(255,176,102,0.08)', fontSize: 13, color: amber,
+                        background: 'rgba(79,179,165,0.13)', fontSize: 13, color: amber,
                       }}>“{e.quote}”</div>
                     )}
                   </div>
@@ -526,16 +526,16 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
               {/* 酒保总结 */}
               {consensus && (
-                <div style={{ padding: '12px 18px', borderTop: '1px solid #3a2410', background: 'rgba(255,176,102,0.06)' }}>
+                <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(79,179,165,0.13)' }}>
                   <SectionTitle>🍸 酒保小结</SectionTitle>
-                  <div style={{ fontSize: 13, lineHeight: 1.6, color: '#e8d0a8', marginBottom: 10 }}>{consensus}</div>
+                  <div style={{ fontSize: 13, lineHeight: 1.6, color: 'rgba(237,237,240,0.7)', marginBottom: 10 }}>{consensus}</div>
                   {quotes.map((q, i) => (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
-                      padding: '6px 10px', background: 'rgba(255,176,102,0.08)', borderRadius: 6,
+                      padding: '6px 10px', background: 'rgba(79,179,165,0.13)', borderRadius: 6,
                     }}>
                       <div style={{ flex: 1, fontSize: 13, color: amber }}>
-                        “{q.text}”<span style={{ color: '#9a7a50', fontSize: 11 }}> — {q.speaker}</span>
+                        “{q.text}”<span style={{ color: 'rgba(237,237,240,0.48)', fontSize: 11 }}> — {q.speaker}</span>
                       </div>
                       <button
                         onClick={() => publishQuote(q, i)}
@@ -543,7 +543,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
                         style={{
                           ...voteBtn,
                           opacity: published.has(`${i}:${q.text}`) ? 0.6 : 1,
-                          color: published.has(`${i}:${q.text}`) ? '#7ad39a' : '#f0e2c8',
+                          color: published.has(`${i}:${q.text}`) ? '#4fb3a5' : '#EDEDF0',
                         }}
                       >
                         {published.has(`${i}:${q.text}`) ? <><Check size={12} /> 已发</> : '发广场'}
@@ -554,10 +554,10 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
               )}
 
               {/* 底部：用户发言 + 酒保按钮 */}
-              <div style={{ padding: 12, borderTop: '1px solid #3a2410' }}>
+              <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 {!joined ? (
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    <span style={{ fontSize: 12, color: '#9a7a50', alignSelf: 'center' }}>你站哪边：</span>
+                    <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', alignSelf: 'center' }}>你站哪边：</span>
                     <button onClick={() => joinSide('pro')} style={{ ...voteBtn, borderColor: '#6ab0ff', color: '#9cc8ff' }}>正方</button>
                     <button onClick={() => joinSide('con')} style={{ ...voteBtn, borderColor: '#ff8a6a', color: '#ffb09a' }}>反方</button>
                   </div>
@@ -590,7 +590,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
                   <button onClick={sendChat} style={{ ...voteBtn }}><MessageCircle size={13} /></button>
                 </div>
                 {chatMessages.slice(-3).map((m, i) => (
-                  <div key={i} style={{ fontSize: 12, color: '#9a7a50', marginBottom: 2 }}>
+                  <div key={i} style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', marginBottom: 2 }}>
                     {m.nickname}：{m.text}
                   </div>
                 ))}
@@ -609,7 +609,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
 /* ---------- 子组件 ---------- */
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <div style={{ fontSize: 13, fontWeight: 700, color: '#c9a270', marginBottom: 10, letterSpacing: 1 }}>
+    <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(237,237,240,0.7)', marginBottom: 10, letterSpacing: 1 }}>
       {children}
     </div>
   )
@@ -636,16 +636,16 @@ function SideGroup({
             disabled={disabled}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-              background: d.celebrityId === activeId ? 'rgba(255,176,102,0.18)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${d.celebrityId === activeId ? '#ffb066' : '#3a2410'}`,
-              borderRadius: 6, color: '#f0e2c8', cursor: disabled ? 'wait' : 'pointer', textAlign: 'left',
+              background: d.celebrityId === activeId ? 'rgba(79,179,165,0.13)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${d.celebrityId === activeId ? 'rgba(79,179,165,0.42)' : 'rgba(255,255,255,0.08)'}`,
+              borderRadius: 6, color: '#EDEDF0', cursor: disabled ? 'wait' : 'pointer', textAlign: 'left',
             }}
           >
             {d.portrait && (
               <img src={d.portrait} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} />
             )}
             <span style={{ flex: 1, fontSize: 13 }}>{d.name}</span>
-            <ChevronRight size={13} color="#9a7a50" />
+            <ChevronRight size={13} color="rgba(237,237,240,0.48)" />
           </button>
         ))}
       </div>
@@ -657,7 +657,7 @@ function LoadingBar({ name }: { name: string }) {
   return (
     <div style={{
       position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#0f0803', color: '#ffb066', fontSize: 14,
+      background: '#0A0A0A', color: '#4fb3a5', fontSize: 14,
     }}>
       {name || '布置酒吧中…'}
     </div>
@@ -667,29 +667,29 @@ function LoadingBar({ name }: { name: string }) {
 /* ---------- 样式常量 ---------- */
 const headerBtn: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
-  padding: '6px 12px', background: 'transparent', border: '1px solid #3a2410',
-  borderRadius: 6, color: '#c9a270', cursor: 'pointer', fontSize: 13,
+  padding: '6px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 6, color: 'rgba(237,237,240,0.7)', cursor: 'pointer', fontSize: 13,
 }
 
 const topicBtn: CSSProperties = {
-  padding: '8px 12px', background: 'transparent', border: '1px solid #3a2410',
-  borderRadius: 6, color: '#e8d0a8', cursor: 'pointer', fontSize: 13, textAlign: 'left',
+  padding: '8px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 6, color: 'rgba(237,237,240,0.7)', cursor: 'pointer', fontSize: 13, textAlign: 'left',
 }
 
 const inputStyle: CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 6,
-  border: '1px solid #3a2410', background: '#0d0702', color: '#f0e2c8', fontSize: 13,
+  border: '1px solid rgba(255,255,255,0.08)', background: '#0F0F0F', color: '#EDEDF0', fontSize: 13,
   outline: 'none', marginBottom: 8,
 }
 
 const primaryBtn: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-  padding: '10px 16px', background: '#ffb066', border: 'none', borderRadius: 6,
-  color: '#1a0f08', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 8,
+  padding: '10px 16px', background: '#EDEDF0', border: 'none', borderRadius: 6,
+  color: '#0A0A0A', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 8,
 }
 
 const voteBtn: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
-  padding: '6px 12px', background: 'transparent', border: '1px solid #3a2410',
+  padding: '6px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: 6, cursor: 'pointer', fontSize: 13,
 }

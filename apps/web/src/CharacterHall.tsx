@@ -1,5 +1,5 @@
 import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { SafeCanvas } from './SafeCanvas'
 import { OrbitControls, ContactShadows, useGLTF } from '@react-three/drei'
 import { Box3, Group, Vector3 } from 'three'
 import { ChevronRight, Gavel, Loader2, MessageCircle, Pencil, Plus, RotateCw, Search, Trash2, Upload, X } from 'lucide-react'
@@ -9,7 +9,7 @@ import { useSceneCleanup } from './useSceneCleanup'
 import { useIdentity } from './identity'
 import { playTts } from './tts'
 import { useVoiceEnabled } from './voice-settings'
-import { buildGalleryEntries, type GalleryEntry } from './character-gallery'
+import { buildGallerySequence, type GalleryEntry } from './character-gallery'
 import {
   assetUrl, celebrityListToUi, celebrityToUi, customToUi,
   fetchMyCharacters, fetchPublicCharacters,
@@ -37,6 +37,8 @@ type CharacterHallProps = {
   onBack: () => void
   onEnterCourt: (character?: UiCharacter) => void
   onPlaza?: () => void
+  /** 点击「创建我的人物」占位入口 → 跳分身工坊。 */
+  onCreateCharacter?: () => void
 }
 
 const FIELD_GRADIENTS: Record<string, string> = {
@@ -114,11 +116,11 @@ function ModelCanvas({ url, onReady, autoRotate }: { url: string; onReady: () =>
   useSceneCleanup(sceneRef, () => (url ? [url] : []))
   if (!url) return null
   return (
-    <Canvas camera={{ position: [0, 1.35, 3.4], fov: 38 }} dpr={[1, 1.5]} shadows>
+    <SafeCanvas camera={{ position: [0, 1.35, 3.4], fov: 38 }} dpr={[1, 1.5]} shadows>
       <color attach="background" args={['#0b0b0b']} />
       <ambientLight intensity={0.75} color="#fff4d6" />
       <directionalLight position={[3, 6, 4]} intensity={1.5} color="#ffffff" castShadow />
-      <pointLight position={[-2.5, 2, 2.5]} intensity={12} distance={9} color="#FFD600" />
+      <pointLight position={[-2.5, 2, 2.5]} intensity={12} distance={9} color="#4fb3a5" />
       <pointLight position={[2.5, 1.2, 1.5]} intensity={6} distance={8} color="#ffb347" />
       <Suspense fallback={null}>
         <group ref={sceneRef}>
@@ -137,7 +139,7 @@ function ModelCanvas({ url, onReady, autoRotate }: { url: string; onReady: () =>
         maxPolarAngle={Math.PI / 2 + 0.15}
         target={[0, 1.0, 0]}
       />
-    </Canvas>
+    </SafeCanvas>
   )
 }
 
@@ -186,7 +188,7 @@ type EditDraft = {
   tags: string; persona: string; greeting: string
 }
 
-export default function CharacterHall({ onEnterCourt }: CharacterHallProps) {
+export default function CharacterHall({ onEnterCourt, onCreateCharacter }: CharacterHallProps) {
   const { user } = useIdentity()
   const [tab, setTab] = useState<HallTab>('all')
   const [activeField, setActiveField] = useState<CelebrityField | '全部'>('全部')
@@ -237,16 +239,14 @@ export default function CharacterHall({ onEnterCourt }: CharacterHallProps) {
   const filteredMine = inList(mine)
   const filteredPublic = inList(publicList)
 
-  // 拉取自定义人物（切到对应 tab 时）
+  // 拉取自定义人物：我的人物始终拉（all tab 的 C 位要用最近创建的角色）；广场仅切到 plaza 时拉。
   useEffect(() => {
-    if (tab === 'all') return
+    fetchMyCharacters(user?.userId ?? '').then(setMine)
+  }, [user?.userId])
+  useEffect(() => {
+    if (tab !== 'plaza') return
     setLoadingCustom(true)
-    const userId = user?.userId ?? ''
-    if (tab === 'mine') {
-      fetchMyCharacters(userId).then((list) => { setMine(list); setLoadingCustom(false) })
-    } else {
-      fetchPublicCharacters().then((list) => { setPublicList(list); setLoadingCustom(false) })
-    }
+    fetchPublicCharacters().then((list) => { setPublicList(list); setLoadingCustom(false) })
   }, [tab, user?.userId])
 
   const openChat = (character: UiCharacter) => {
@@ -409,10 +409,18 @@ export default function CharacterHall({ onEnterCourt }: CharacterHallProps) {
 
   const showEmpty = visibleList.length === 0 && !loadingCustom
 
-  // 长廊条目（含展台位置/领域色/问候语）。
-  const entries: GalleryEntry[] = useMemo(() => buildGalleryEntries(visibleList), [visibleList])
+  // 长廊条目：按 tab 组织，自定义角色/创建入口默认 C 位居中。
+  const { entries, centerIndex } = useMemo(
+    () => buildGallerySequence({ tab, celebs: filteredCelebs, mine: filteredMine, plaza: filteredPublic }),
+    [tab, filteredCelebs, filteredMine, filteredPublic],
+  )
 
-  // 列表变短（切 tab/搜索）时收敛当前索引。
+  // 切 tab / 列表变化时回到默认 C 位（最近自定义角色或创建入口）。
+  useEffect(() => {
+    setActiveIndex(centerIndex)
+  }, [centerIndex, tab])
+
+  // 列表变短（搜索过滤）时收敛当前索引。
   useEffect(() => {
     if (activeIndex > entries.length - 1) setActiveIndex(Math.max(0, entries.length - 1))
   }, [entries.length, activeIndex])
@@ -431,7 +439,7 @@ export default function CharacterHall({ onEnterCourt }: CharacterHallProps) {
     if (!greetedOnceRef.current) { greetedOnceRef.current = true; return }
     if (!voiceEnabled) return
     const entry = entries[activeIndex]
-    if (!entry) return
+    if (!entry || entry.isCreateEntry) return
     void playTts(entry.greeting, resolveCharacterVoice(entry.character.id, entry.character.voice)).catch(() => { /* 朗读失败静默 */ })
   }, [activeIndex, galleryMode3d, voiceEnabled, entries])
 
@@ -439,7 +447,7 @@ export default function CharacterHall({ onEnterCourt }: CharacterHallProps) {
   const enterGalleryEntry = (entry: GalleryEntry) => openChat(entry.character)
 
   return (
-    <div className="character-hall">
+    <div className={galleryMode3d ? 'character-hall character-hall--immersive' : 'character-hall'}>
       {/* M13 第六轮：删除自带 .character-hall__topbar（与全局 TopNav 重复）。
           品牌/导航交 TopNav；"进入趣味法庭" CTA 移入下方 hero 内容区。 */}
 
@@ -515,6 +523,7 @@ export default function CharacterHall({ onEnterCourt }: CharacterHallProps) {
               onIndexChange={setActiveIndex}
               onEnter={enterGalleryEntry}
               onModelError={() => setGalleryMode3d(false)}
+              onCreate={onCreateCharacter}
             />
           </Suspense>
         </div>

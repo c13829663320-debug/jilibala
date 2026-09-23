@@ -22,7 +22,7 @@ const GymView = lazy(() => import('./GymView'))
 type Tab = 'coach' | 'equipment' | 'celebrity' | 'multiplayer' | 'records'
 
 const httpHeaders = { 'Content-Type': 'application/json' }
-const ACCENT = '#5fdc90'
+const ACCENT = '#4fb3a5'
 
 // ===== 器械元数据 =====
 const EQUIPMENT_INFO: Record<GymEquipmentId, { name: string; kind: 'reps' | 'time'; target: number; tips: string; safety: string }> = {
@@ -443,14 +443,14 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
         <button onClick={onBack} style={iconBtn}><ArrowLeft size={16} /></button>
         <Dumbbell size={18} color={ACCENT} />
         <strong style={{ letterSpacing: 1 }}>健身房</strong>
-        <span style={{ fontSize: 12, color: '#7fa890' }}>挥洒汗水 · 自律即自由</span>
+        <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>挥洒汗水 · 自律即自由</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={onlineBadge}><Users size={12} /> {online} 人在线</span>
           {onPlaza && <button onClick={onPlaza} style={ghostBtn}>广场</button>}
         </div>
       </header>
 
-      {wsStatusText && <div style={{ background: '#FFD600', color: '#1a1a1a', fontSize: 12, padding: '4px 16px', textAlign: 'center' }}>{wsStatusText}</div>}
+      {wsStatusText && <div style={{ background: '#4fb3a5', color: '#0A0A0A', fontSize: 12, padding: '4px 16px', textAlign: 'center' }}>{wsStatusText}</div>}
 
       <div className="gym-body">
         {/* 左侧控制面板 */}
@@ -492,9 +492,9 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
               {plan && (
                 <div className="gym-card">
                   <div style={{ color: ACCENT, fontWeight: 700, fontSize: 15 }}>{plan.title}</div>
-                  <div style={{ fontSize: 12, color: '#9ab8a8', margin: '4px 0 8px' }}>{plan.description} · 约 {plan.estimatedMinutes} 分钟</div>
+                  <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', margin: '4px 0 8px' }}>{plan.description} · 约 {plan.estimatedMinutes} 分钟</div>
                   <div className="gym-progress" style={{ marginBottom: 10 }}><div className="gym-progress__fill" style={{ width: `${progressPct}%` }} /></div>
-                  <div style={{ fontSize: 11, color: '#7fa890', marginBottom: 8 }}>已完成 {doneCount}/{plan.exercises.length}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(237,237,240,0.48)', marginBottom: 8 }}>已完成 {doneCount}/{plan.exercises.length}</div>
                   {plan.exercises.map((ex, i) => {
                     const done = doneExercises[ex.id]
                     return (
@@ -505,16 +505,16 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
                             ? <CheckCircle2 size={15} color={ACCENT} />
                             : <button style={miniBtn} onClick={() => startExercise(ex)}>开始一组</button>}
                         </div>
-                        <div style={{ fontSize: 11, color: '#8aa898', marginTop: 4 }}>
+                        <div style={{ fontSize: 11, color: 'rgba(237,237,240,0.48)', marginTop: 4 }}>
                           {ex.sets} 组 × {ex.reps} 次 · 休息 {ex.restSeconds}s · 器械 {EQUIPMENT_INFO[ex.equipment ?? 'dumbbell'].name}
                         </div>
-                        <div style={{ fontSize: 11.5, color: '#c8e0d0', marginTop: 4 }}>要领：{ex.tips}</div>
+                        <div style={{ fontSize: 11.5, color: 'rgba(237,237,240,0.7)', marginTop: 4 }}>要领：{ex.tips}</div>
                         <div style={{ fontSize: 11.5, color: '#e0a0a0', marginTop: 2 }}>安全：{ex.safety}</div>
                       </div>
                     )
                   })}
                   {planComplete && (
-                    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: 'rgba(95,220,144,0.12)', textAlign: 'center' }}>
+                    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: 'rgba(79,179,165,0.13)', textAlign: 'center' }}>
                       <Trophy size={18} color={ACCENT} style={{ margin: '0 auto 4px' }} />
                       <div style={{ fontSize: 13, color: ACCENT }}>🎉 整套计划完成！太赞了</div>
                       {lastCheckinId && <button style={{ ...secBtn, marginTop: 6 }} onClick={() => void publishCheckin(lastCheckinId)}><Flag size={12} /> 发布到广场</button>}
@@ -529,7 +529,7 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
           {tab === 'equipment' && (
             <div>
               <div className="gym-card">
-                <div style={{ fontSize: 13, color: '#9ab8a8' }}>点击 3D 场景中的器械，或从下方选择一个开始训练。</div>
+                <div style={{ fontSize: 13, color: 'rgba(237,237,240,0.48)' }}>点击 3D 场景中的器械，或从下方选择一个开始训练。</div>
               </div>
               {(Object.keys(EQUIPMENT_INFO) as GymEquipmentId[]).map((eq) => {
                 const info = EQUIPMENT_INFO[eq]
@@ -540,10 +540,10 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
                       <b style={{ fontSize: 13 }}>{info.name}</b>
                       <button style={miniBtn} onClick={(e) => { e.stopPropagation(); setSelectedEquip(eq); startEquipment(eq) }}>开始训练</button>
                     </div>
-                    <div style={{ fontSize: 11, color: '#8aa898', marginTop: 3 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(237,237,240,0.48)', marginTop: 3 }}>
                       {info.kind === 'reps' ? `目标 ${info.target} 次` : `时长 ${info.target} 秒`}
                     </div>
-                    <div style={{ fontSize: 11.5, color: '#c8e0d0', marginTop: 3 }}>要领：{info.tips}</div>
+                    <div style={{ fontSize: 11.5, color: 'rgba(237,237,240,0.7)', marginTop: 3 }}>要领：{info.tips}</div>
                     <div style={{ fontSize: 11.5, color: '#e0a0a0' }}>安全：{info.safety}</div>
                   </div>
                 )
@@ -559,7 +559,7 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
                 {CELEBRITIES.slice(0, 6).map((c) => (
                   <button key={c.id} className={`gym-celeb-pick ${celebId === c.id ? 'is-active' : ''}`} onClick={() => setCelebId(c.id)}>
                     <img src={c.portrait} alt={c.name} />
-                    <span><b>{c.name}</b><br /><small style={{ color: '#8aa898' }}>{c.title}</small></span>
+                    <span><b>{c.name}</b><br /><small style={{ color: 'rgba(237,237,240,0.48)' }}>{c.title}</small></span>
                   </button>
                 ))}
                 <button onClick={() => void celebrityCoach()} disabled={busy} style={primaryBtn}>
@@ -569,7 +569,7 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
               {celebReply && (
                 <div className="gym-card">
                   <div style={{ color: ACCENT, fontSize: 12, marginBottom: 6 }}>{celebName} 说：</div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7, color: '#e6f2ea' }}>“{celebReply}”</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.7, color: 'rgba(237,237,240,0.9)' }}>“{celebReply}”</div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                     <TtsPlayButton text={celebReply} voice={resolveCharacterVoice(celebId)} />
                     <button style={secBtn} onClick={() => { setSavedQuote(celebReply); flash('已保存金句，发布时带上它') }}>
@@ -593,10 +593,10 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
                   <button style={primaryBtn} onClick={sendCheer}><Megaphone size={13} /> 加油</button>
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  <div className="gym-player-row"><b style={{ color: ACCENT }}>{user?.nickname ?? '我'}</b><span style={{ color: '#7fa890' }}>· 正在健身房</span></div>
+                  <div className="gym-player-row"><b style={{ color: ACCENT }}>{user?.nickname ?? '我'}</b><span style={{ color: 'rgba(237,237,240,0.48)' }}>· 正在健身房</span></div>
                   {remotePlayers.map((p) => (
                     <div key={p.userId} className="gym-player-row">
-                      <b>{p.nickname}</b><span style={{ color: '#7fa890' }}>{p.activity ? `· ${p.activity}` : '· 训练中'}</span>
+                      <b>{p.nickname}</b><span style={{ color: 'rgba(237,237,240,0.48)' }}>{p.activity ? `· ${p.activity}` : '· 训练中'}</span>
                       <button style={{ ...miniBtn, marginLeft: 'auto' }} onClick={() => void send(JSON.stringify({ type: 'chat', text: `${p.nickname} 加油！` }))}>回加油</button>
                     </div>
                   ))}
@@ -604,7 +604,7 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
               </div>
               <div className="gym-card">
                 <div style={labelText}>最近打卡</div>
-                {recentCheckins.length === 0 && <div style={{ fontSize: 12, color: '#7fa890' }}>还没有人打卡，做第一个！</div>}
+                {recentCheckins.length === 0 && <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>还没有人打卡，做第一个！</div>}
                 {recentCheckins.map((r, i) => (
                   <div key={i} className="gym-player-row"><b>{r.nickname}</b> 完成了「{r.exerciseName}」</div>
                 ))}
@@ -630,7 +630,7 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
                       <div className="gym-badge__name">{a.name}</div>
                     </div>
                   ))}
-                  {achievements.length === 0 && <div style={{ fontSize: 12, color: '#7fa890', gridColumn: '1/-1' }}>完成打卡解锁成就</div>}
+                  {achievements.length === 0 && <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', gridColumn: '1/-1' }}>完成打卡解锁成就</div>}
                 </div>
               </div>
               <div className="gym-card">
@@ -639,14 +639,14 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
                   <div key={c.id} className="gym-checkin-row">
                     <div>
                       <b>{c.exerciseName ?? '训练'}</b>
-                      <div style={{ color: '#8aa898', fontSize: 11 }}>
+                      <div style={{ color: 'rgba(237,237,240,0.48)', fontSize: 11 }}>
                         {c.setsCompleted}组 · {c.repsCompleted > 0 ? `${c.repsCompleted}次` : `${c.durationSeconds}秒`} · {new Date(c.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                     <button style={miniBtn} onClick={() => void publishCheckin(c.id)}>发布广场</button>
                   </div>
                 ))}
-                {checkins.length === 0 && <div style={{ fontSize: 12, color: '#7fa890' }}>还没有打卡记录</div>}
+                {checkins.length === 0 && <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>还没有打卡记录</div>}
               </div>
             </div>
           )}
@@ -657,14 +657,14 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
         {/* 右侧：3D 场景 */}
         <main style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-          <Suspense fallback={<div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7fa890' }}>健身房布置中…</div>}>
+          <Suspense fallback={<div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(237,237,240,0.48)' }}>健身房布置中…</div>}>
             <GymView
               onSelect={(eq) => { setSelectedEquip(eq); setTab('equipment'); sendPresence(eq) }}
               players={remotePlayers}
               cheers={cheers}
             />
           </Suspense>
-          <div style={{ position: 'absolute', left: 14, bottom: 12, fontSize: 11, color: 'rgba(234,244,238,0.55)' }}>
+          <div style={{ position: 'absolute', left: 14, bottom: 12, fontSize: 11, color: 'rgba(237,237,240,0.3)' }}>
             拖动旋转 · 滚轮缩放 · 点击器械开始训练
           </div>
 
@@ -687,29 +687,29 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
 // ===== 样式常量 =====
 const iconBtn: React.CSSProperties = {
-  background: 'transparent', border: '1px solid #2c3a33', color: '#d8ece0', borderRadius: 8, padding: '5px 9px', cursor: 'pointer',
+  background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#EDEDF0', borderRadius: 8, padding: '5px 9px', cursor: 'pointer',
 }
-const ghostBtn: React.CSSProperties = { ...iconBtn, fontSize: 12, color: '#a8c0b0' }
+const ghostBtn: React.CSSProperties = { ...iconBtn, fontSize: 12, color: 'rgba(237,237,240,0.7)' }
 const tabStyle = (active: boolean): React.CSSProperties => ({
   flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
   padding: '7px 4px', borderRadius: 9, cursor: 'pointer', fontSize: 12,
   border: active ? `1px solid ${ACCENT}` : '1px solid #2c3a33',
-  background: active ? 'rgba(95,220,144,0.14)' : 'rgba(12,20,17,0.6)',
+  background: active ? 'rgba(79,179,165,0.13)' : '#0F0F0F',
   color: active ? ACCENT : '#a8c0b0',
 })
 const primaryBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 9, cursor: 'pointer',
-  border: 'none', background: ACCENT, color: '#062a16', fontSize: 13, fontWeight: 700, marginTop: 10,
+  border: 'none', background: '#EDEDF0', color: '#0A0A0A', fontSize: 13, fontWeight: 700, marginTop: 10,
 }
 const secBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
-  border: '1px solid rgba(95,220,144,0.4)', background: 'transparent', color: ACCENT, fontSize: 12,
+  border: '1px solid rgba(79,179,165,0.42)', background: 'transparent', color: ACCENT, fontSize: 12,
 }
 const miniBtn: React.CSSProperties = {
   ...secBtn, padding: '3px 9px', fontSize: 11, marginTop: 0,
 }
-const labelText: React.CSSProperties = { fontSize: 12, color: '#7fa890', marginBottom: 6 }
+const labelText: React.CSSProperties = { fontSize: 12, color: 'rgba(237,237,240,0.48)', marginBottom: 6 }
 const onlineBadge: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: ACCENT,
-  background: 'rgba(95,220,144,0.1)', borderRadius: 12, padding: '2px 10px',
+  background: 'rgba(79,179,165,0.13)', borderRadius: 12, padding: '2px 10px',
 }
