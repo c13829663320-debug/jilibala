@@ -4,7 +4,7 @@ import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type Plaza
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createImageTask, createTextTask, findAssetUrl, getTask, TripoError, uploadImageUrl } from './tripo.js';
+import { createImageTask, createTextTask, findAssetUrl, getTask, TripoError, uploadImageBuffer, uploadImageUrl } from './tripo.js';
 import { loadCases as loadStoredCases, saveCases as saveStoredCases, type StoredCase } from './storage.js';
 import { loadContents, saveContents, makeSeedContents } from './content-storage.js';
 
@@ -130,7 +130,7 @@ const requestChatCompletion = async (provider: ProviderConfig, messages: ChatMes
   if (!content) throw new Error(`${provider.name} empty (finish=${data.choices?.[0]?.finish_reason})`);
   return content;
 };
-const chatWithProviders = async (messages: ChatMessage[]): Promise<string> => {
+const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800): Promise<string> => {
   const providers: ProviderConfig[] = [
     { name:'StepFun', base:stepfunBase, key:stepfunKey, model:stepfunModel },
     { name:'EvoMap', base:evomapBase, key:evomapKey, model:evomapModel },
@@ -138,7 +138,7 @@ const chatWithProviders = async (messages: ChatMessage[]): Promise<string> => {
   let lastError: unknown;
   for (const provider of providers) {
     if (!provider.key) continue;
-    try { return await requestChatCompletion(provider, messages); }
+    try { return await requestChatCompletion(provider, messages, maxTokens); }
     catch (error) { lastError = error; app.log.warn({ provider:provider.name, error }, 'celebrity chat failed; trying next provider'); }
   }
   throw lastError ?? new Error('no chat provider available');
@@ -442,6 +442,118 @@ app.post('/api/celebrities/:id/chat', async (req, reply) => {
     req.log.error(error);
     return reply.code(502).send({ message: '暂时连不上对话服务，请稍后再试。' });
   }
+});
+
+
+// ===== M5: 图片生成 3D（base64 上传） =====
+app.post('/api/avatars/generate-from-image', async (req, reply) => {
+  const body = (req.body ?? {}) as { imageBase64?: string; contentType?: string; filename?: string; modelVersion?: string };
+  try {
+    const raw = (body.imageBase64 ?? '').trim();
+    if (!raw) return reply.code(400).send({ message: '请选择一张图片。' });
+    const comma = raw.indexOf(',');
+    const b64 = raw.startsWith('data:') && comma >= 0 ? raw.slice(comma + 1) : raw;
+    let bytes: Buffer;
+    try { bytes = Buffer.from(b64, 'base64'); } catch { return reply.code(400).send({ message: '图片数据格式不正确。' }); }
+    if (!bytes.length) return reply.code(400).send({ message: '图片为空。' });
+    if (bytes.length > 10 * 1024 * 1024) return reply.code(413).send({ message: '图片不能超过 10MB。' });
+    const contentType = body.contentType && body.contentType.startsWith('image/') ? body.contentType : 'image/jpeg';
+    const filename = body.filename || 'upload.jpg';
+    const imageToken = await uploadImageBuffer(bytes, contentType, filename);
+    const task = await createImageTask(imageToken, { modelVersion: body.modelVersion });
+    if (!task.task_id) return reply.code(502).send({ message: 'Tripo 未返回 task_id。' });
+    return reply.code(202).send({ taskId: task.task_id, type: 'image_to_model' });
+  } catch (error) {
+    if (error instanceof TripoError) return reply.code(error.statusCode).send({ message: error.message, details: error.details });
+    req.log.error(error); return reply.code(500).send({ message: '创建图片生成任务失败。' });
+  }
+});
+
+// ===== M5: TTS 语音合成（StepFun） =====
+const DEFAULT_TTS_VOICE = process.env.STEPFUN_TTS_VOICE ?? 'jingdiannvsheng';
+app.post('/api/tts', async (req, reply) => {
+  const body = (req.body ?? {}) as { text?: string; voice?: string; format?: string };
+  const text = (body.text ?? '').trim();
+  if (!text) return reply.code(400).send({ message: 'text 不能为空。' });
+  if (text.length > 1000) return reply.code(400).send({ message: '单次合成不超过 1000 字。' });
+  if (!stepfunKey) return reply.code(503).send({ message: '语音服务未配置。' });
+  const voice = body.voice?.trim() || DEFAULT_TTS_VOICE;
+  const format = (body.format ?? 'mp3').toLowerCase();
+  try {
+    const response = await fetch(`${stepfunBase.replace(/\/$/, '')}/audio/speech`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${stepfunKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: process.env.STEPFUN_TTS_MODEL ?? 'step-tts-mini', input: text, voice, response_format: format }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      req.log.warn({ status: response.status, errText }, 'StepFun TTS failed');
+      return reply.code(502).send({ message: `语音合成失败（${response.status}）` });
+    }
+    const audio = Buffer.from(await response.arrayBuffer());
+    return reply
+      .header('content-type', response.headers.get('content-type') ?? 'audio/mpeg')
+      .header('cache-control', 'private, max-age=86400')
+      .send(audio);
+  } catch (error) {
+    req.log.error(error);
+    return reply.code(502).send({ message: '语音服务暂时不可用。' });
+  }
+});
+
+// ===== M5: AI 帮写（润色/扩写） =====
+const POLISH_SYSTEM = {
+  post: '你是叽里呱啦广场的爆款写手。把用户给的一句话或一段草稿润色成一条有趣、有话题性、适合社交广场发布的文字观点：1）语气活泼但不油腻；2）适当加入 2-4 个贴合语境的 emoji；3）保留用户原意，不要虚构事实；4）可以加一个吸引人的短句开头或结尾；5）只输出润色后的正文，不要解释、不要前缀、不要 Markdown。',
+  case: '你是叽里呱啦趣味法庭的编剧。把用户给的生活小事润色成一段客观、清晰、有一点戏剧性的案件描述：1）保留事实，不辱骂、不涉及自残/家暴等敏感内容；2）100 字以内；3）只输出润色后的案件描述，不要解释、不要前缀、不要 Markdown。',
+} as const;
+app.post('/api/ai/polish', async (req, reply) => {
+  const body = (req.body ?? {}) as { text?: string; context?: 'post' | 'case' };
+  const text = (body.text ?? '').trim();
+  if (!text) return reply.code(400).send({ message: '请先输入要润色的内容。' });
+  const context = body.context === 'case' ? 'case' : 'post';
+  try {
+    const result = await chatWithProviders([
+      { role: 'system', content: POLISH_SYSTEM[context] },
+      { role: 'user', content: text },
+    ], 800);
+    return { result: result.trim(), context };
+  } catch (error) {
+    req.log.error(error);
+    return reply.code(502).send({ message: '润色服务暂时不可用，请稍后再试。' });
+  }
+});
+
+// ===== M5: AI 视频工作台（异步任务桥接） =====
+type VideoTask = { id: string; kind: 'text' | 'image'; prompt: string; duration: number; ratio: string; imageUrl?: string; status: 'queued'|'processing'|'done'|'failed'; videoUrl?: string; error?: string; createdAt: string };
+const videoTasks = new Map<string, VideoTask>();
+app.post('/api/video/generate', async (req, reply) => {
+  const body = (req.body ?? {}) as { kind?: 'text'|'image'; prompt?: string; duration?: number; ratio?: string; imageUrl?: string };
+  const prompt = (body.prompt ?? '').trim();
+  if (!prompt) return reply.code(400).send({ message: '请输入视频描述。' });
+  const id = randomUUID();
+  const task: VideoTask = {
+    id, kind: body.kind === 'image' ? 'image' : 'text', prompt,
+    duration: Math.min(30, Math.max(5, Math.round(Number(body.duration) || 5))),
+    ratio: body.ratio || '16:9', imageUrl: body.imageUrl,
+    status: 'queued', createdAt: new Date().toISOString(),
+  };
+  videoTasks.set(id, task);
+  return reply.code(202).send({ taskId: id, status: task.status });
+});
+app.get('/api/video/tasks/:taskId', async (req, reply) => {
+  const task = videoTasks.get((req.params as { taskId: string }).taskId);
+  if (!task) return reply.code(404).send({ message: '任务不存在。' });
+  return task;
+});
+// 本地验证桥接：由运行环境把生成好的视频 URL 注入任务结果。
+app.post('/api/video/tasks/:taskId/result', async (req, reply) => {
+  const task = videoTasks.get((req.params as { taskId: string }).taskId);
+  if (!task) return reply.code(404).send({ message: '任务不存在。' });
+  const body = (req.body ?? {}) as { videoUrl?: string; error?: string };
+  if (body.videoUrl) { task.status = 'done'; task.videoUrl = body.videoUrl; }
+  else { task.status = 'failed'; task.error = body.error || '生成失败'; }
+  return task;
 });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});

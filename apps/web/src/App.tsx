@@ -6,6 +6,8 @@ import ArchivePage, { type ArchiveRecord } from './ArchivePage'
 import AvatarStudio from './AvatarStudio'
 import type { Celebrity } from '@balabala/shared'
 import MyPage from './MyPage'
+import VideoStudio from './VideoStudio'
+import { TtsPlayButton } from './TtsPlayButton'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
@@ -81,6 +83,9 @@ function App() {
   const [characterHallOpen, setCharacterHallOpen] = useState(false)
   const [plazaOpen, setPlazaOpen] = useState(false)
   const [myPageOpen, setMyPageOpen] = useState(false)
+  const [videoStudioOpen, setVideoStudioOpen] = useState(false)
+  const [polishingCase, setPolishingCase] = useState(false)
+  const [polishError, setPolishError] = useState('')
   const [caseText, setCaseText] = useState('泡泡借走了阿布的彩虹伞，但下雨后伞变成了会唱歌的蘑菇。')
   const [hearingMode, setHearingMode] = useState<HearingMode>('quick')
   const [perspective, setPerspective] = useState<Perspective>('plaintiff')
@@ -164,9 +169,10 @@ function App() {
   if (shareId) return <main className="share-page"><div className="share-brand"><Gavel size={20} /> 叽里呱啦 · BalaBala</div>{sharedCase ? <article className="shared-verdict"><span className="micro-label">AI 趣味判决书</span><h1>{sharedCase.title}</h1><div className="shared-quote">“{sharedCase.quote}”</div><div className="shared-field"><b>罪名认定</b><span>{sharedCase.charge}</span></div><div className="shared-field"><b>判决主文</b><span>{sharedCase.sentence}</span></div><p className="shared-disclaimer">{sharedCase.disclaimer}</p><a href="/" className="shared-cta">我也要上法庭</a></article> : <article className="shared-verdict"><h1>分享内容不存在</h1><p className="shared-disclaimer">这份案卷可能已被删除，或者分享链接已经失效。</p><a href="/" className="shared-cta">进入趣味法庭</a></article>}</main>
   if (showArchivePage) return <ArchivePage archives={archives} loading={archiveLoading} error={archiveError} onBack={() => { setShowArchivePage(false); setEnteredCourt(false) }} onCourt={() => { setShowArchivePage(false); setEnteredCourt(true) }} onRefresh={() => { void fetchArchives() }} onOpenCase={(record) => { setCaseText(record.input); setShowArchivePage(false); setEnteredCourt(true) }} onDelete={async (record) => { try { await fetch(`/api/cases/${encodeURIComponent(record.id)}`, { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('删除案卷失败') } }} onClear={async () => { try { await fetch('/api/archives', { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('清空案卷失败') } }} />
   if (avatarOpen) return <AvatarStudio onBack={() => setAvatarOpen(false)} onEnterCourt={() => { setAvatarOpen(false); setEnteredCourt(true) }} />
+  if (videoStudioOpen) return <VideoStudio onBack={() => setVideoStudioOpen(false)} />
   if (characterHallOpen) return <Suspense fallback={null}><CharacterHall onBack={() => setCharacterHallOpen(false)} onEnterCourt={(character) => { setCharacterHallOpen(false); setCourtCharacter(character ?? null); setEnteredCourt(true) }} onPlaza={() => { setCharacterHallOpen(false); setPlazaOpen(true) }} /></Suspense>
   const plazaParam = new URLSearchParams(window.location.search).get('plaza');
-  if (myPageOpen) return <MyPage onBack={() => setMyPageOpen(false)} onCourt={(input) => { setMyPageOpen(false); if (input) setCaseText(input); setEnteredCourt(true) }} onPlaza={() => { setMyPageOpen(false); setPlazaOpen(true) }} />
+  if (myPageOpen) return <MyPage onBack={() => setMyPageOpen(false)} onCourt={(input) => { setMyPageOpen(false); if (input) setCaseText(input); setEnteredCourt(true) }} onPlaza={() => { setMyPageOpen(false); setPlazaOpen(true) }} onVideo={() => { setMyPageOpen(false); setVideoStudioOpen(true) }} />
   if (plazaOpen || plazaParam === '1') return <Suspense fallback={null}><Plaza3D onBack={() => { if (plazaParam === '1') window.location.href = '/'; else setPlazaOpen(false); }} onEnterCourt={() => { setPlazaOpen(false); setEnteredCourt(true); }} /></Suspense>
   if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} onMyPage={() => setMyPageOpen(true)} />
 
@@ -194,6 +200,19 @@ function App() {
     } catch (error) { setAvatarStatus(error instanceof Error ? error.message : '生成失败') }
   }
 
+  const polishCase = async () => {
+    const input = caseText.trim()
+    if (!input || polishingCase) return
+    setPolishingCase(true)
+    setPolishError('')
+    try {
+      const res = await fetch('/api/ai/polish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: input, context: 'case' }) })
+      const data = await res.json() as { result?: string; message?: string }
+      if (!res.ok || !data.result) throw new Error(data.message ?? '润色失败')
+      setCaseText(data.result.slice(0, 120))
+    } catch (e) { setPolishError(e instanceof Error ? e.message : '润色失败') }
+    finally { setPolishingCase(false) }
+  }
   const startHearing = async (overrideInput?: string) => {
     const hearingInput = overrideInput?.trim() || caseText.trim()
     if (!hearingInput) return
@@ -369,6 +388,7 @@ function App() {
         <p className="intro">输入一个生活里的小小争议，和朋友一起进入 3D 法庭，探索每个人的可爱证词。</p>
         <label className="field-label" htmlFor="case">案件描述 · 客观叙述</label>
         <div className="textarea-wrap"><textarea id="case" value={caseText} onChange={e => setCaseText(e.target.value)} placeholder="例如：谁把最后一块小蛋糕吃掉了？" maxLength={120} /><span>{caseText.length}/120</span></div>
+        <div className="polish-row"><button type="button" className="polish-button" onClick={polishCase} disabled={!caseText.trim() || polishingCase}><Sparkles size={13} /> {polishingCase ? 'AI 润色中…' : '✨ AI 帮写'}</button>{polishError && <span className="polish-error">{polishError}</span>}</div>
         <div className="hearing-prep" aria-label="开庭准备">
           <div className="prep-heading"><span>开庭方式</span><small>{hearingMode === 'evidence' ? '已带证据' : '轻装上庭'}</small></div>
           <div className="prep-segmented" role="tablist" aria-label="开庭方式">
@@ -408,7 +428,7 @@ function App() {
         <div className="stage-header"><div><div className="stage-kicker"><span className="tiny-dot" /> 正在进行 · {currentPhase.label}</div><h2>{generatedTitle}</h2><div className="case-meta"><span>{hearingMode === 'evidence' ? '带证据开庭' : '快速开庭'}</span><span>·</span><span>{perspective === 'audience' ? '观众视角' : perspective === 'plaintiff' ? '原告视角' : '被告视角'}</span>{evidenceFiles.length > 0 && <><span>·</span><span>{evidenceFiles.length} 份证据</span></>}</div></div><div className="stage-tools"><span className="scene-tag">3D 场景 · 趣味法庭</span><button className="round-button" title="语音模式"><Volume2 size={17} /></button></div></div>
         <div className="scene-card"><Suspense fallback={null}><CourtroomView character={courtCharacter} /></Suspense><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': '#7a5ed9' } as React.CSSProperties}><div className="scene-character-avatar"><img src={courtCharacter.portrait} alt={courtCharacter.name} /></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.model && <a href={courtCharacter.model} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
         <div className="below-grid">
-          <div className="dialogue-card"><div className="card-heading"><div><span className="micro-label">当前发言</span><h3>{displayedSpeaker}</h3></div><button className="listen-button"><Mic2 size={15} /> 播放台词</button></div><div className={`quote quote-${currentPhase.tone}`}>{liveQuote ? displayedQuote : <><span className="quote-mark">“</span>{displayedQuote}<span className="quote-mark end">”</span></>}</div><div className="stepper">{phases.map((item, i) => <button aria-label={item.label} key={item.id} className={`step ${i === phase ? 'current' : ''} ${i < phase ? 'passed' : ''}`} onClick={() => setPhase(i)} />)}</div></div>
+          <div className="dialogue-card"><div className="card-heading"><div><span className="micro-label">当前发言</span><h3>{displayedSpeaker}</h3></div><TtsPlayButton text={displayedQuote} label="播放台词" className="listen-button" /></div><div className={`quote quote-${currentPhase.tone}`}>{liveQuote ? displayedQuote : <><span className="quote-mark">“</span>{displayedQuote}<span className="quote-mark end">”</span></>}</div><div className="stepper">{phases.map((item, i) => <button aria-label={item.label} key={item.id} className={`step ${i === phase ? 'current' : ''} ${i < phase ? 'passed' : ''}`} onClick={() => setPhase(i)} />)}</div></div>
           <div className="verdict-card"><div className="verdict-top"><div className="verdict-icon"><Gavel size={18} /></div><div><span className="micro-label">AI 判决书 · 草稿</span><h3>{verdictTitle || (phase === phases.length - 1 ? '友谊大于输赢' : '等待全部证词')}</h3></div><span className="draft-tag">{(verdictTitle || phase === phases.length - 1) ? '已生成' : '进行中'}</span></div><p>{verdictSummary || (phase === phases.length - 1 ? '双方各获得一枚“会唱歌的蘑菇”纪念章，彩虹伞由两人轮流使用。' : '完成四个庭审阶段后，这里会出现一份温柔又好玩的判决。')}</p><div className="verdict-progress"><span style={{ width: `${((phase + 1) / phases.length) * 100}%` }} /></div>{verdictTitle && <div className="verdict-card__buttons"><button className="share-button" onClick={shareVerdict}>分享判决</button><button className="share-button share-button--plaza" onClick={publishCourt}>发布到广场</button></div>}{shareStatus && <div className="share-status">{shareStatus}</div>}</div>
         </div>
         <section className="trial-interaction" aria-label="庭审互动">

@@ -16,9 +16,31 @@ export function PublishForm({ author, onBack, onPublished }: {
   const [scene, setScene] = useState<SceneId | "all">("all");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [polishing, setPolishing] = useState(false);
+  const [polishError, setPolishError] = useState('');
 
   const topics = parseTopics(topicsText);
 
+  const polishPost = async () => {
+    const input = body.trim();
+    if (!input || polishing) return;
+    setPolishing(true);
+    setPolishError('');
+    try {
+      const res = await fetch('/api/ai/polish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input, context: 'post' }),
+      });
+      const data = (await res.json()) as { result?: string; message?: string };
+      if (!res.ok || !data.result) throw new Error(data.message ?? '润色失败');
+      setBody(data.result);
+    } catch (e) {
+      setPolishError(e instanceof Error ? e.message : '润色失败');
+    } finally {
+      setPolishing(false);
+    }
+  };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!title.trim() || !body.trim()) {
@@ -83,6 +105,7 @@ export function PublishForm({ author, onBack, onPublished }: {
           <span>正文</span>
           <textarea value={body} onChange={(event) => setBody(event.target.value)}
             rows={6} maxLength={1000} placeholder="说说你的理由…" />
+          <div className="plaza-publish__polish"><button type="button" className="plaza-publish__polish-btn" onClick={polishPost} disabled={!body.trim() || polishing}>✨ {polishing ? 'AI 润色中…' : 'AI 帮写'}</button>{polishError && <small className="plaza-publish__polish-error">{polishError}</small>}</div>
         </label>
 
         <label className="plaza-field">

@@ -4,6 +4,7 @@ import { OrbitControls, ContactShadows, useGLTF } from '@react-three/drei'
 import { Box3, Vector3 } from 'three'
 import { ChevronRight, Gavel, Loader2, MessageCircle, RotateCw, Search, X } from 'lucide-react'
 import { CELEBRITIES, CELEBRITY_FIELDS, type Celebrity, type CelebrityField } from '@balabala/shared'
+import { TtsPlayButton } from './TtsPlayButton'
 import './character-hall.css'
 
 type ChatTurn = { from: 'me' | 'character'; text: string }
@@ -293,6 +294,7 @@ export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: Charact
                     <div className={`character-chat ${m.from}`} key={`${m.from}-${i}`}>
                       <span>{m.from === 'me' ? '你' : selected.name}</span>
                       <p>{m.text}</p>
+                      {m.from === 'character' && <TtsPlayButton text={m.text} label="朗读" className="character-chat__tts" />}
                     </div>
                   ))}
                   {sending && (

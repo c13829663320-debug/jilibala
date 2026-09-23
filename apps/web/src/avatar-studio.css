@@ -2,3 +2,13 @@
 @media (max-width:760px){.avatar-studio{padding:0 16px 24px}.avatar-studio__topbar{height:68px;grid-template-columns:auto 1fr}.avatar-studio__brand{justify-self:end}.avatar-studio__account{display:none}.avatar-studio__crumb{margin-top:22px}.avatar-studio__hero{display:block;margin:20px auto 31px}.avatar-studio__hero h1{font-size:34px}.avatar-studio__hero p{font-size:12px}.avatar-studio__court-link{margin-top:18px}.avatar-studio__workspace{grid-template-columns:1fr}.avatar-studio__form-card,.avatar-studio__preview-card{padding:19px}.avatar-studio__preview{min-height:255px}.avatar-studio__footer{display:block;line-height:1.8}.avatar-studio__footer span{display:block}.avatar-studio__footer span:last-child{margin-top:5px}}
 @media (prefers-reduced-motion:reduce){.avatar-studio__orb{animation:none}.avatar-studio__generate:hover:not(:disabled){transform:none}}
 .avatar-studio__model{position:absolute;inset:0}.avatar-studio__model canvas{width:100%!important;height:100%!important}.tripo-model-preview__loading{color:#c9b060;font-size:11px}.tripo-model-preview__fallback{display:grid;place-items:center;height:100%;text-align:center;color:#aaa;font-size:12px;line-height:1.7}.tripo-model-preview__fallback small{color:#888}
+
+.avatar-studio__tabs{display:flex;gap:10px;margin:0 auto 18px;max-width:980px}
+.avatar-studio__tabs button{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:999px;border:1px solid #2a2a2a;background:#111;color:#9a9a9a;font-size:13px;cursor:pointer;transition:all .2s}
+.avatar-studio__tabs button.is-active{background:#FFD600;color:#111;border-color:#FFD600;font-weight:600}
+.avatar-studio__hint{color:#9a9a9a;font-size:12px;line-height:1.7;margin:6px 0 14px}
+.avatar-studio__photo-drop{display:flex;width:100%;min-height:180px;align-items:center;justify-content:center;border:1.5px dashed #3a3a3a;border-radius:14px;background:#0e0e0e;overflow:hidden;cursor:pointer;margin-bottom:10px;transition:border-color .2s}
+.avatar-studio__photo-drop:hover:not(:disabled){border-color:#FFD600}
+.avatar-studio__photo-drop img{width:100%;height:100%;max-height:240px;object-fit:contain}
+.avatar-studio__photo-empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:#8a8a8a;font-size:13px}
+.avatar-studio__photo-repick{align-self:flex-start;background:none;border:none;color:#FFD600;font-size:12px;cursor:pointer;margin-bottom:10px;text-decoration:underline}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft, Award, Bell, ChevronRight, Clock3, FileText, Gavel, Heart,
   Home, MessageSquare, PenLine, Settings, Sparkles, ThumbsUp, Trash2,
-  Users, Volume2, VolumeX, Download, BadgeCheck, Scale, MessageCircle,
+  Users, Volume2, VolumeX, Download, BadgeCheck, Scale, MessageCircle, Film,
 } from 'lucide-react'
 import './my-page.css'
 
@@ -38,6 +38,7 @@ export type MyPageProps = {
   onBack: () => void
   onCourt: (input?: string) => void
   onPlaza: () => void
+  onVideo?: () => void
 }
 
 /* ---------- storage helpers ---------- */
@@ -124,7 +125,7 @@ function CertificateSvg({ cert }: { cert: CertRecord }) {
 }
 
 /* ---------- main component ---------- */
-export default function MyPage({ onBack, onCourt, onPlaza }: MyPageProps) {
+export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProps) {
   const [tab, setTab] = useState<'cases' | 'posts' | 'certs' | 'msgs' | 'settings'>('cases')
   const [username, setUsername] = useState(() => readJSON(LS_USER, '我') as string)
   const [sound, setSound] = useState(() => (readJSON(LS_SOUND, 'on') as string) === 'on')
@@ -297,6 +298,13 @@ export default function MyPage({ onBack, onCourt, onPlaza }: MyPageProps) {
       </nav>
 
       <section className="my-page__body">
+        {onVideo && (
+          <button type="button" className="my-video-entry" onClick={onVideo}>
+            <span className="my-video-entry__icon"><Film size={18} /></span>
+            <span className="my-video-entry__text"><b>AI 视频工坊</b><small>一句话生成短视频，支持文生视频 / 图生视频</small></span>
+            <ChevronRight size={16} />
+          </button>
+        )}
         {/* ---------- Module A: 我参与的 ---------- */}
         {tab === 'cases' && (
           <div className="my-panel">
