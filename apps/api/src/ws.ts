@@ -11,7 +11,10 @@ import {
   type BenchStage,
   type Verdict,
   type SceneId,
+  type Perspective,
 } from "@balabala/shared";
+import { getCourtCase } from "./db.js";
+import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
 
@@ -73,6 +76,7 @@ export function getOrCreateRoom(roomId: string): Room {
         speeches: [],
         currentStage: "forming",
         votes: { plaintiff: 0, defendant: 0 },
+        perspectives: {},
       };
     }
     // M8: 场景房间初始化 sceneState
@@ -153,6 +157,7 @@ export function updateCourtState(caseId: string, patch: Partial<CourtRoomState>)
       speeches: [],
       currentStage: "forming",
       votes: { plaintiff: 0, defendant: 0 },
+      perspectives: {},
     };
   }
   Object.assign(room.courtState, patch);
@@ -262,6 +267,18 @@ export function registerWebSocket(app: FastifyInstance): void {
         })),
         recentCheckins: [...gymRecentCheckins],
       } satisfies WSMessage);
+    }
+
+    // M13: 法庭房间——发送视角过滤后的案件快照
+    if (roomId.startsWith("court:")) {
+      const caseId = roomId.slice("court:".length);
+      const courtCase = getCourtCase(caseId);
+      if (courtCase) {
+        // 默认视角 audience
+        const perspective: Perspective = (room.courtState?.perspectives?.[userId] as Perspective) ?? "audience";
+        const filtered = filterCaseForPerspective(courtCase, perspective);
+        safeSend(socket, { type: "court_snapshot_v2", case: filtered } satisfies WSMessage);
+      }
     }
 
     // 通知其他人
@@ -389,6 +406,25 @@ export function registerWebSocket(app: FastifyInstance): void {
             exerciseName,
             createdAt: entry.createdAt,
           } satisfies WSMessage);
+          break;
+        }
+        case "court_perspective": {
+          // M13: 用户切换视角，更新该用户的视角，单发过滤后快照
+          if (!roomId.startsWith("court:")) return;
+          const perspective = data.perspective === "plaintiff" || data.perspective === "defendant" || data.perspective === "audience"
+            ? (data.perspective as Perspective)
+            : "audience";
+          if (room.courtState) {
+            if (!room.courtState.perspectives) room.courtState.perspectives = {};
+            room.courtState.perspectives[userId] = perspective;
+          }
+          // 单发过滤后的快照
+          const caseId = roomId.slice("court:".length);
+          const full = getCourtCase(caseId);
+          if (full) {
+            const filtered = filterCaseForPerspective(full, perspective);
+            safeSend(socket, { type: "court_snapshot_v2", case: filtered } satisfies WSMessage);
+          }
           break;
         }
         case "ping": {

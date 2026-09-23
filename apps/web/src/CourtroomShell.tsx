@@ -12,6 +12,7 @@ import BenchSelection from './BenchSelection'
 import LiveTranscript from './LiveTranscript'
 import TrialInteraction, { type TrialInteractPayload } from './TrialInteraction'
 import VerdictCard from './VerdictCard'
+import CourtroomM13 from './CourtroomM13'
 
 const CourtroomView = lazy(() => import('./CourtroomView'))
 
@@ -39,13 +40,17 @@ export type CourtroomShellProps = {
   onPublishToPlaza: () => void
   /** When set, the shell joins an existing court room as a guest via WS. */
   roomId?: string
+  /** M13: 返回大厅（入口页）。缺省时回到入口页。 */
+  onExitToEntry?: () => void
 }
 
 export default function CourtroomShell({
   caseText, onCaseTextChange, hearingMode, onHearingModeChange, perspective, onPerspectiveChange,
-  evidenceFiles, onEvidenceFilesChange, onOpenAvatarStudio, onPublishToPlaza, roomId,
+  evidenceFiles, onEvidenceFilesChange, onOpenAvatarStudio, onPublishToPlaza, roomId, onExitToEntry,
 }: CourtroomShellProps) {
   const { user } = useIdentity()
+  // M13 默认全屏 3D 模式；旧名人合议庭模式作为可选入口。
+  const [m13Mode, setM13Mode] = useState(true)
   const isGuest = Boolean(roomId)
   const [benchPhase, setBenchPhase] = useState<BenchPhase>(isGuest ? 'streaming' : 'config')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -343,6 +348,19 @@ export default function CourtroomShell({
     .map((m) => getCelebrity(m.celebrityId))
     .filter((c): c is Celebrity => Boolean(c))
   const stageIndex = STAGE_ORDER.indexOf(currentStage)
+
+  // ===== M13 全屏 3D 模式（默认） =====
+  if (m13Mode) {
+    return (
+      <CourtroomM13
+        caseText={caseText}
+        roomId={roomId}
+        onBack={onExitToEntry ?? (() => window.location.assign('/'))}
+        onSwitchToBench={() => setM13Mode(false)}
+        onPublishToPlaza={onPublishToPlaza}
+      />
+    )
+  }
 
   return (
     <div className="workspace">

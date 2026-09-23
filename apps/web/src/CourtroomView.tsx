@@ -107,16 +107,24 @@ function SpeakerSpotlight() {
 }
 
 /** Simple geometry placeholder shown when a member's GLB is missing or fails. */
-function MemberPlaceholder({ name, active }: { name: string; active: boolean }) {
+function MemberPlaceholder({ name, active, tint }: { name: string; active: boolean; tint?: 'judge' | 'plaintiff' | 'defendant' }) {
+  const bodyColor = tint === 'judge' ? (active ? '#e8c25a' : '#6b5316')
+    : tint === 'plaintiff' ? (active ? '#6aa0e8' : '#2d5fa8')
+    : tint === 'defendant' ? (active ? '#e86a86' : '#a82d48')
+    : (active ? '#e8b25a' : '#5b4a8a')
+  const headColor = tint === 'judge' ? (active ? '#f5dd9a' : '#9a8036')
+    : tint === 'plaintiff' ? (active ? '#bcdcfb' : '#5f8fd0')
+    : tint === 'defendant' ? (active ? '#fbbcc8' : '#d05f7c')
+    : (active ? '#f2d39a' : '#8a7cc0')
   return (
     <group>
       <mesh castShadow position={[0, 0.85, 0]}>
         <cylinderGeometry args={[0.22, 0.3, 1.3, 16]} />
-        <meshStandardMaterial color={active ? '#e8b25a' : '#5b4a8a'} />
+        <meshStandardMaterial color={bodyColor} />
       </mesh>
       <mesh castShadow position={[0, 1.72, 0]}>
         <sphereGeometry args={[0.18, 16, 16]} />
-        <meshStandardMaterial color={active ? '#f2d39a' : '#8a7cc0'} />
+        <meshStandardMaterial color={headColor} />
       </mesh>
       <Text
         position={[0, 2.05, 0.06]}
@@ -131,6 +139,17 @@ function MemberPlaceholder({ name, active }: { name: string; active: boolean }) 
       </Text>
     </group>
   )
+}
+
+/** M13: generic seat descriptor for the new fullscreen courtroom (judge/plaintiff/defendant/defender). */
+export type CourtSeat = {
+  id: string
+  name: string
+  role: 'judge' | 'plaintiff' | 'defendant' | 'defender'
+  model?: string
+  position: [number, number, number]
+  active: boolean
+  side?: 'plaintiff' | 'defendant' | null
 }
 
 interface SeatSlot {
@@ -168,6 +187,45 @@ function BenchSeat({ celebrity, position, active }: SeatSlot) {
         outlineColor={active ? '#a45a00' : '#160f24'}
       >
         {active ? `${celebrity.name} · 发言中` : celebrity.name}
+      </Text>
+    </group>
+  )
+}
+
+/** M13: a generic seat (judge / party / defender) rendered from a CourtSeat descriptor. */
+function GenericSeat({ seat }: { seat: CourtSeat }) {
+  const tint = seat.role === 'judge' ? 'judge'
+    : seat.side === 'plaintiff' ? 'plaintiff'
+    : seat.side === 'defendant' ? 'defendant'
+    : undefined
+  const fallback = (
+    <group position={[0, 0, 0]}>
+      <MemberPlaceholder name={seat.name} active={seat.active} tint={tint} />
+    </group>
+  )
+  return (
+    <group position={seat.position}>
+      <SeatRing active={seat.active} />
+      {seat.active && <SpeakerSpotlight />}
+      {seat.model ? (
+        <CourtroomModelErrorBoundary fallback={fallback}>
+          <Suspense fallback={null}>
+            <NormalizedCourtroomModel url={seat.model} />
+          </Suspense>
+        </CourtroomModelErrorBoundary>
+      ) : (
+        fallback
+      )}
+      <Text
+        position={[0, seat.active ? 2.0 : 1.78, 0.06]}
+        fontSize={seat.active ? 0.26 : 0.18}
+        color={seat.active ? '#ffe6a8' : '#f4ecff'}
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={seat.active ? 0.028 : 0.012}
+        outlineColor={seat.active ? '#a45a00' : '#160f24'}
+      >
+        {seat.active ? `${seat.name} · 发言中` : seat.name}
       </Text>
     </group>
   )
@@ -229,14 +287,17 @@ const SEAT_LAYOUTS: Record<number, [number, number, number][]> = {
 function Courtroom({
   celebrities,
   activeSpeakerId,
+  seats,
 }: {
   celebrities: Celebrity[]
   activeSpeakerId: string | null
+  seats?: CourtSeat[]
 }) {
   const sceneRef = useRef<Group>(null)
   useSceneCleanup(sceneRef, () => [
     '/models/balabala_courtroom.glb',
     ...celebrities.map((c) => c.model).filter((m): m is string => Boolean(m)),
+    ...(seats ?? []).map((s) => s.model).filter((m): m is string => Boolean(m)),
   ])
   const sconceLights: Array<[number, number, number]> = [
     [-3.3, 2.4, -4.0], [-1.53, 2.4, -4.0], [1.53, 2.4, -4.0], [3.3, 2.4, -4.0],
@@ -245,11 +306,17 @@ function Courtroom({
   const ceilingLights: Array<[number, number, number]> = [
     [0, 4.0, -2.6],
   ]
+  // M13 generic seats take priority; otherwise fall back to celebrity arc layout.
   const layout = SEAT_LAYOUTS[Math.max(3, Math.min(5, celebrities.length))] ?? SEAT_LAYOUTS[3]
-  const activeSeat: [number, number, number] | null = (() => {
-    const idx = celebrities.findIndex((c) => c.id === activeSpeakerId)
-    return idx >= 0 ? layout[idx] : null
-  })()
+  const activeSeat: [number, number, number] | null = seats
+    ? (() => {
+        const s = seats.find((x) => x.active)
+        return s ? s.position : null
+      })()
+    : (() => {
+        const idx = celebrities.findIndex((c) => c.id === activeSpeakerId)
+        return idx >= 0 ? layout[idx] : null
+      })()
 
   return (
     <group ref={sceneRef}>
@@ -272,9 +339,11 @@ function Courtroom({
       <Suspense fallback={null}>
         <CourtroomEnvironmentModel />
       </Suspense>
-      {celebrities.slice(0, layout.length).map((c, i) => (
-        <BenchSeat key={c.id} celebrity={c} position={layout[i]} active={c.id === activeSpeakerId} />
-      ))}
+      {seats
+        ? seats.map((s) => <GenericSeat key={s.id} seat={s} />)
+        : celebrities.slice(0, layout.length).map((c, i) => (
+            <BenchSeat key={c.id} celebrity={c} position={layout[i]} active={c.id === activeSpeakerId} />
+          ))}
       <CameraRig activeSeat={activeSeat}>{null}</CameraRig>
     </group>
   )
@@ -283,17 +352,23 @@ function Courtroom({
 /**
  * The full 3D courtroom view (Canvas + scene). Extracted as a lazily-loaded
  * chunk so three/r3f only download when the user actually enters the courtroom.
+ *
+ * Two modes:
+ *  - Legacy bench mode: pass `celebrities` + `activeSpeakerId` (arc bench).
+ *  - M13 fullscreen mode: pass `seats` (judge / plaintiff / defendant / defenders).
  */
 export default function CourtroomView({
   celebrities,
   activeSpeakerId,
+  seats,
 }: {
-  celebrities: Celebrity[]
-  activeSpeakerId: string | null
+  celebrities?: Celebrity[]
+  activeSpeakerId?: string | null
+  seats?: CourtSeat[]
 }) {
   return (
     <Canvas shadows camera={{ position: [0, 2.1, 3.7], fov: 45 }} dpr={[1, 2]}>
-      <Courtroom celebrities={celebrities} activeSpeakerId={activeSpeakerId} />
+      <Courtroom celebrities={celebrities ?? []} activeSpeakerId={activeSpeakerId ?? null} seats={seats} />
     </Canvas>
   )
 }

@@ -268,6 +268,7 @@ function AppInner() {
         onOpenAvatarStudio={() => setView('avatar')}
         onPublishToPlaza={() => setView('plaza')}
         roomId={roomId ?? undefined}
+        onExitToEntry={() => setView('entry')}
       />
     </main>
   )

@@ -63,7 +63,7 @@ export interface BenchStartRequest {
 }
 
 // ===== 广场 Plaza =====
-export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note" | "werewolf_report" | "gym_checkin" | "custom_character";
+export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note" | "werewolf_report" | "gym_checkin" | "custom_character" | "court_verdict";
 export type SceneId = "court" | "talkshow" | "werewolf" | "bar" | "gym" | "library";
 export type ContentSort = "recommended" | "hot" | "latest";
 
@@ -307,6 +307,7 @@ export interface PlazaContent {
   werewolf?: WerewolfReportData;
   gym?: GymCheckinData;
   customCharacter?: CustomCharacterCard;
+  courtVerdict?: CourtVerdict;
   caseId?: string;
   likes: number;
   dislikes: number;
@@ -373,6 +374,8 @@ export interface CourtRoomState {
   currentStage: BenchStage;
   votes: { plaintiff: number; defendant: number };
   verdict?: Verdict;
+  /** M13: userId -> perspective，用于法庭房间视角过滤 */
+  perspectives?: Record<string, Perspective>;
 }
 
 // ===== M8: 通用场景房间状态 =====
@@ -399,6 +402,9 @@ export type WSMessage =
   | { type: 'werewolf_snapshot'; snapshot: WerewolfPlayerSnapshot }
   | { type: 'werewolf_event'; event: WerewolfBroadcastEvent }
   | { type: 'werewolf_action'; action: WerewolfClientAction }
+  | { type: 'court_event'; event: CourtTrialEvent }
+  | { type: 'court_perspective'; perspective: Perspective }
+  | { type: 'court_snapshot_v2'; case: CourtCase }
   | { type: 'gym_state'; users: Array<{ userId: string; nickname: string; avatarType: string; avatarRef: string; x: number; z: number; rotation: number; activity?: string }>; recentCheckins: Array<{ userId: string; nickname: string; exerciseName: string; createdAt: string }> }
   | { type: 'gym_user_joined'; user: { userId: string; nickname: string; avatarType: string; avatarRef: string; x: number; z: number; rotation: number } }
   | { type: 'gym_user_left'; userId: string }
@@ -406,6 +412,148 @@ export type WSMessage =
   | { type: 'gym_cheer'; userId: string; nickname: string; text: string }
   | { type: 'gym_checkin_broadcast'; userId: string; nickname: string; exerciseName: string; createdAt: string }
   | { type: 'pong' }
+  | { type: 'error'; message: string };
+
+
+// ===== M13: 趣味法庭 · 全屏 3D + 完整案件状态机 =====
+/** 案件状态机 */
+export type CourtCaseStatus = 'DRAFT' | 'ANALYZING' | 'GENERATED' | 'CONFIRMED' | 'IN_PROGRESS' | 'JUDGING' | 'COMPLETED';
+
+/** 证据类型 */
+export type EvidenceType = 'TEXT' | 'IMAGE' | 'DOCUMENT';
+
+/** 证据 */
+export interface CourtEvidence {
+  id: string;
+  caseId: string;
+  type: EvidenceType;
+  name: string;
+  content: string;
+  submittedBy: 'plaintiff' | 'defendant' | 'user' | 'system';
+  createdAt: string;
+}
+
+/** 结构化事实 */
+export interface CourtFact {
+  id: string;
+  caseId: string;
+  content: string;
+  source: string; // 'user_input' 或 evidence id
+  disputed: boolean;
+  createdAt: string;
+}
+
+/** 原告/被告立场角色（法官不参与角色生成） */
+export interface CourtPartyRole {
+  id: string;
+  caseId: string;
+  side: 'plaintiff' | 'defendant';
+  name: string;
+  stance: string;
+  persona: string;
+  createdAt: string;
+}
+
+/** 双方知识库 */
+export interface CourtKnowledgeBase {
+  caseId: string;
+  side: 'plaintiff' | 'defendant';
+  facts: string[];
+  evidence: string[];
+  claims: string[];
+  arguments: string[];
+  assumptions: string[];
+  opponent_arguments: string[];
+  user_additions: string[];
+  updatedAt: string;
+}
+
+/** 每次发言独立对象 */
+export interface CourtTurn {
+  id: string;
+  caseId: string;
+  round: number;
+  turn: number;
+  speaker: 'judge' | 'plaintiff' | 'defendant' | 'defender';
+  speakerId: string; // role id 或 celebrity id 或 'judge'
+  speakerName: string;
+  content: string;
+  referenced_evidence: string[];
+  response_to_turn_id: string | null;
+  createdAt: string;
+}
+
+/** 法官持续维护的记录 */
+export interface CourtRecord {
+  caseId: string;
+  facts: string[];
+  claims: string[];
+  arguments: string[];
+  counter_arguments: string[];
+  evidence_relations: Array<{ evidenceId: string; supports: string }>;
+  unresolved: string[];
+  resolved: string[];
+  updatedAt: string;
+}
+
+/** 玩家输入 */
+export interface CourtPlayerInput {
+  id: string;
+  caseId: string;
+  userId: string;
+  player_role: 'plaintiff' | 'defendant';
+  type: 'argument' | 'evidence' | 'question';
+  content: string;
+  evidenceName?: string;
+  createdAt: string;
+}
+
+/** 结构化判决 */
+export interface CourtVerdict {
+  id: string;
+  caseId: string;
+  case_summary: string;
+  key_facts: string[];
+  key_evidence: string[];
+  plaintiff_arguments: string[];
+  defendant_arguments: string[];
+  judge_analysis: string;
+  reasoning: string;
+  verdict: 'plaintiff' | 'defendant' | 'mixed' | 'dismissed';
+  conclusion: string;
+  createdAt: string;
+}
+
+/** 完整案件对象（聚合） */
+export interface CourtCase {
+  id: string;
+  userId: string;
+  status: CourtCaseStatus;
+  title: string;
+  user_input: string;
+  evidence: CourtEvidence[];
+  facts: CourtFact[];
+  dispute_points: string[];
+  plaintiff: CourtPartyRole | null;
+  defendant: CourtPartyRole | null;
+  plaintiff_kb: CourtKnowledgeBase | null;
+  defendant_kb: CourtKnowledgeBase | null;
+  court_record: CourtRecord | null;
+  current_round: number;
+  current_turn: number;
+  final_verdict: CourtVerdict | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** SSE 事件类型 */
+export type CourtTrialEvent =
+  | { type: 'court_status'; status: CourtCaseStatus; round: number; turn: number }
+  | { type: 'court_turn'; turn: CourtTurn }
+  | { type: 'court_record'; record: CourtRecord }
+  | { type: 'should_continue'; shouldContinue: boolean; unresolvedPoints: string[]; reason: string }
+  | { type: 'court_verdict'; verdict: CourtVerdict }
+  | { type: 'player_input_ack'; inputId: string }
   | { type: 'error'; message: string };
 
 // ===== 人物馆 · 真实名人 =====

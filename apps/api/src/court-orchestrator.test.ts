@@ -1,0 +1,233 @@
+// ===== M13: court-orchestrator 测试（mock chat，临时 SQLite，无真实网络）=====
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { CourtPlayerInput, CourtTrialEvent } from "@balabala/shared";
+import type { ChatFn } from "./bench-orchestrator.js";
+
+type DbModule = typeof import("./db.js");
+
+async function loadDb(): Promise<{ mod: DbModule; dir: string }> {
+  const dir = mkdtempSync(join(tmpdir(), "balabala-court-orch-"));
+  process.env.DB_PATH = join(dir, "test.db");
+  vi.resetModules();
+  const mod = await import("./db.js");
+  return { mod, dir };
+}
+
+/** Mock chat: 根据 system prompt 内容返回不同 JSON/文本。 */
+function makeMockChat(): ChatFn {
+  return vi.fn(async (messages) => {
+    const sys = messages[0]?.content ?? "";
+    const user = messages[1]?.content ?? "";
+
+    // analyzeCase 的调用
+    if (sys.includes("AI 案件分析师")) {
+      return JSON.stringify({
+        title: "邻居扰民案",
+        facts: [
+          { content: "邻居连续一周凌晨装修", source: "user_input", disputed: false },
+          { content: "用户多次报警未解决", source: "user_input", disputed: true },
+        ],
+        dispute_points: ["是否构成扰民", "损失如何赔偿"],
+        plaintiff_role: { name: "原告住户", stance: "要求停止并赔偿", persona: "你是受噪音困扰的住户，情绪激动。" },
+        defendant_role: { name: "邻居", stance: "装修是必要施工", persona: "你是邻居，认为自己只是正常装修。" },
+        plaintiff_kb: {
+          facts: ["凌晨3点施工"], evidence: ["录音"],
+          claims: ["停止装修"], arguments: ["噪音超标"], assumptions: ["邻居故意"],
+          opponent_arguments: [], user_additions: [],
+        },
+        defendant_kb: {
+          facts: ["白天施工"], evidence: ["施工许可"],
+          claims: ["不应停止"], arguments: ["有合法许可"], assumptions: ["原告夸大"],
+          opponent_arguments: [], user_additions: [],
+        },
+      });
+    }
+
+    // should_continue 判定（system prompt 包含 shouldContinue 字样）
+    if (sys.includes("shouldContinue")) {
+      return JSON.stringify({ shouldContinue: false, reason: "争议已充分辩论" });
+    }
+
+    // 判决生成（必须在 AI 法官分支之前匹配，因为 system prompt 同时含 "AI 法官" 和 "只返回合法 JSON"）
+    if (sys.includes("只返回合法 JSON") && user.includes("生成结构化判决")) {
+      return JSON.stringify({
+        case_summary: "邻居凌晨装修扰民案",
+        key_facts: ["凌晨3点施工"],
+        key_evidence: ["录音"],
+        plaintiff_arguments: ["噪音影响休息"],
+        defendant_arguments: ["有施工许可"],
+        judge_analysis: "夜间施工影响他人休息",
+        reasoning: "凌晨施工超出合理范围",
+        verdict: "plaintiff",
+        conclusion: "邻居应停止夜间施工",
+      });
+    }
+
+    // 法官记录更新
+    if (sys.includes("只返回合法 JSON") && user.includes("更新法官记录")) {
+      return JSON.stringify({
+        facts: ["凌晨施工确认"],
+        claims: ["原告要求停止"],
+        arguments: ["噪音影响休息"],
+        counter_arguments: ["施工有许可"],
+        unresolved: [],
+        resolved: ["是否扰民"],
+      });
+    }
+
+    // 法官发言
+    if (sys.includes("AI 法官")) {
+      return "本庭注意到双方陈述，现记录在案。";
+    }
+
+    // 默认：角色发言
+    return "（mock 发言）我方主张合理，证据确凿。";
+  });
+}
+
+describe("court-orchestrator", () => {
+  let ctx: { mod: DbModule; dir: string };
+
+  beforeEach(async () => {
+    ctx = await loadDb();
+  });
+
+  afterAll(() => {
+    try { ctx.mod.db.close(); } catch { /* ignore */ }
+    try { rmSync(ctx.dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it("analyzeCase: mock chat 返回 JSON，验证 facts/roles/KB 写入", async () => {
+    const { analyzeCase } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "邻居连续一周凌晨3点装修，无法休息");
+    const chat = makeMockChat();
+    const updated = await analyzeCase(c.id, chat);
+
+    expect(updated.status).toBe("GENERATED");
+    expect(updated.title).toBe("邻居扰民案");
+    expect(updated.plaintiff?.name).toBe("原告住户");
+    expect(updated.defendant?.name).toBe("邻居");
+    expect(updated.plaintiff_kb?.claims).toContain("停止装修");
+    expect(updated.dispute_points.length).toBeGreaterThan(0);
+  });
+
+  it("runCourtTrial: 产生 judge/plaintiff/defendant turns，生成 verdict", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "邻居凌晨装修扰民");
+    const chat = makeMockChat();
+
+    // 分析 -> 确认 -> 开庭
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+
+    const events: CourtTrialEvent[] = [];
+    const pendingInputs: CourtPlayerInput[] = [];
+
+    const result = await runCourtTrial({
+      caseId: c.id,
+      chat,
+      perspective: "plaintiff",
+      onEvent: (e) => events.push(e),
+      getPendingPlayerInputs: () => pendingInputs,
+      markPlayerInputHandled: vi.fn(),
+    });
+
+    // 验证有 judge/plaintiff/defendant turns
+    const turnEvents = events.filter((e) => e.type === "court_turn") as Array<{ type: "court_turn"; turn: { speaker: string; speakerName: string; content: string } }>;
+    const speakers = new Set(turnEvents.map((e) => e.turn.speaker));
+    expect(speakers).toContain("judge");
+    expect(speakers).toContain("plaintiff");
+    expect(speakers).toContain("defendant");
+
+    // 验证有 verdict 事件
+    const verdictEvent = events.find((e) => e.type === "court_verdict") as { type: "court_verdict"; verdict: { verdict: string } } | undefined;
+    expect(verdictEvent).toBeDefined();
+    expect(verdictEvent!.verdict.verdict).toBe("plaintiff");
+
+    // 验证返回值
+    expect(result.verdict.verdict).toBe("plaintiff");
+    expect(result.turns.length).toBeGreaterThan(0);
+
+    // 验证案件状态为 COMPLETED
+    const finalCase = ctx.mod.getCourtCase(c.id)!;
+    expect(finalCase.status).toBe("COMPLETED");
+    expect(finalCase.final_verdict).not.toBeNull();
+  });
+
+  it("PlayerInput 被消费并 ack", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试案情");
+    const chat = makeMockChat();
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+
+    const events: CourtTrialEvent[] = [];
+    // 预置一条玩家输入
+    const playerInput: CourtPlayerInput = {
+      id: "ctp-test",
+      caseId: c.id,
+      userId: "u1",
+      player_role: "plaintiff",
+      type: "argument",
+      content: "玩家补充：对方凌晨3点还在施工",
+      createdAt: new Date().toISOString(),
+    };
+
+    await runCourtTrial({
+      caseId: c.id,
+      chat,
+      perspective: "plaintiff",
+      onEvent: (e) => events.push(e),
+      getPendingPlayerInputs: () => [playerInput],
+      markPlayerInputHandled: vi.fn(),
+    });
+
+    // 验证有 player_input_ack 事件
+    const ackEvent = events.find((e) => e.type === "player_input_ack");
+    expect(ackEvent).toBeDefined();
+    if (ackEvent && "inputId" in ackEvent) {
+      expect(ackEvent.inputId).toBe("ctp-test");
+    }
+  });
+
+  it("should_continue 事件被推送", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试");
+    const chat = makeMockChat();
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+
+    const events: CourtTrialEvent[] = [];
+    await runCourtTrial({
+      caseId: c.id,
+      chat,
+      perspective: "audience",
+      onEvent: (e) => events.push(e),
+      getPendingPlayerInputs: () => [],
+      markPlayerInputHandled: vi.fn(),
+    });
+
+    const scEvent = events.find((e) => e.type === "should_continue");
+    expect(scEvent).toBeDefined();
+    if (scEvent && "shouldContinue" in scEvent) {
+      expect(typeof scEvent.shouldContinue).toBe("boolean");
+    }
+  });
+
+  it("非 CONFIRMED 状态开庭抛错", async () => {
+    const { runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试");
+    const chat = makeMockChat();
+    await expect(runCourtTrial({
+      caseId: c.id,
+      chat,
+      perspective: "audience",
+      onEvent: () => {},
+      getPendingPlayerInputs: () => [],
+      markPlayerInputHandled: vi.fn(),
+    })).rejects.toThrow();
+  });
+});

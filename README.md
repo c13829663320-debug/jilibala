@@ -82,6 +82,52 @@
 ### 运行时文件隔离
 用户生成的 GLB 模型和头像存储在 `apps/api/.data/custom-characters/<id>/`（已 gitignore），由 Fastify 安全静态托管（防目录穿越、仅放行 .glb/.jpg/.png/.webp/.gif、按 visibility 鉴权），绝不进入 git 或项目包。
 
+## 趣味法庭重构（M13）
+
+趣味法庭从「左 sidebar + 右小窗 3D」重构为**全屏 3D + 完整案件状态机**，支持 AI 生成双方当事人立场与知识库、多轮辩论、玩家随时切换视角补充弹药、法官按事实权重判决。
+
+### 案件状态机
+`DRAFT → ANALYZING → GENERATED → CONFIRMED → IN_PROGRESS → JUDGING → COMPLETED`
+
+### 创建流程
+1. **描述案件**：输入事件描述（≤500字）+ 可选证据（名称/类型/内容）
+2. **AI 分析**：一次 LLM 调用生成案件标题、5-8 条结构化事实、2-4 个争议点、原告/被告角色（名字/立场/persona）、双方知识库（facts/evidence/claims/arguments/assumptions/opponent_arguments）
+3. **预览确认**：三栏展示事实/原告诉求/被告诉求，**不可直接编辑 AI 产出**，可回原始描述重新生成
+4. **选视角**：原告/观众/被告（默认观众），可选邀请名人或 M12 自定义人物作为某方辩护人
+5. **开始庭审**：进入全屏 3D 法庭
+
+### 庭审循环
+- 每轮：法官开场/总结 → 原告发言 → 被告发言（辩护人可追加）→ 法官更新 CourtRecord → should_continue 判断
+- 最多 5 轮；法官根据未决争议点数量、是否有实质性新论点决定是否继续
+- 每次发言独立保存为 CourtTurn（round/turn/speaker/content/referenced_evidence/response_to_turn_id）
+- 法官持续维护 CourtRecord（facts/claims/arguments/counter_arguments/unresolved/resolved）
+
+### 玩家介入（核心亮点）
+- 随时切换 **原告↔观众↔被告** 视角，只改 UI 权限，不重置/不改案件/回合
+- 原告/被告视角：底部输入框 + 证据上传 + 「补充给X方」按钮，提交 PlayerInput 后更新该方 KnowledgeBase 的 user_additions，影响后续 AI 发言（绝不改 AI 已说出口的话）
+- 观众视角：输入区消失，纯旁观
+
+### 信息可见性（服务端权威，类似狼人杀视角过滤）
+- 观众只看双方「已公开」论点证据，**看不到内部 KnowledgeBase 底牌**
+- 原告视角看不到被告 KB，被告视角看不到原告 KB
+- WS 中按用户视角单发过滤后快照，PlayerInput 只广播给同视角用户
+
+### 判决
+- should_continue=false 后进入 JUDGING，综合 Case+Facts+Evidence+全部Turn+CourtRecord+PlayerInputs 生成结构化 CourtVerdict
+- 胜负按**事实权重/证据/逻辑/反驳有效性**判定（plaintiff/defendant/mixed/dismissed），而非「谁先没话说」
+- 判决含 case_summary/key_facts/key_evidence/双方arguments/judge_analysis/reasoning/conclusion
+- 可发布到广场（`court_verdict` 内容类型）
+
+### 全屏 3D UI
+- Canvas 全屏背景（fixed inset 0，无小窗口、无侧边留白）
+- 顶部栏：案件标题/轮次/状态/在线人数/邀请/返回
+- 底部中央面板：当前发言+法官记录摘要+视角切换+玩家输入
+- 深色半透明面板（rgba 深色 + 明黄 #FFD60A），OrbitControls 不拦截上层 UI
+- 移动端全屏 3D + 底部面板，触控可用
+
+### 名人合议庭模式（保留）
+创建向导中「名人合议庭模式」按钮可切换回旧流程（左侧配置 + BenchSelection + 名人合议庭 SSE），旧资产未删未改。
+
 ## 本地启动
 
 在项目根目录复制 `.env.example` 为 `.env`，填入服务端密钥（STEPFUN、EVOMAP、TRIPO）。密钥只给 API 服务使用，不会进入前端 bundle。
@@ -108,7 +154,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 
 ## 自动化测试（M10）
 
-后端核心纯逻辑使用 **Vitest** 覆盖，共 87 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
+后端核心纯逻辑使用 **Vitest** 覆盖，共 117 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
 
 | 测试文件 | 用例数 | 覆盖范围 |
 |---|---|---|
@@ -119,6 +165,9 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 | `gym-orchestrator.test.ts` | 15 | 训练计划生成、streak 连续天数计算（含跨月/断档）、成就解锁判定（器械分类/累计阈值） |
 | `custom-character-db.test.ts` | 11 | 自定义人物 CRUD、多用户隔离、可见性过滤、tags 序列化 |
 | `character-resolver.test.ts` | 7 | 统一角色解析：预置名人/自定义人物/未知 ref/批量解析/URL 转换 |
+| `court-state.test.ts` | 13 | M13 状态机流转/非法流转/视角过滤/发言上下文 |
+| `court-db.test.ts` | 9 | M13 案件/证据/事实/turn/player_input/verdict DAO CRUD |
+| `court-orchestrator.test.ts` | 5 | M13 AI分析/庭审流程/player input消费/错误路径 |
 
 测试使用临时 SQLite 文件（`process.env.DB_PATH` 覆盖），每个测试文件独立数据库，`afterAll` 清理。GitHub Actions 在 push/PR 时自动运行 `npm test` + `npm run build`。
 
@@ -248,6 +297,18 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - `POST /api/custom-characters/:id/publish` — 发布到广场（需 owner，置 public + 生成人物卡）
 - `GET /api/custom-characters/assets/:id/:filename` — 运行时文件静态托管（防目录穿越）
 
+### 趣味法庭 M13（全屏 3D + 案件状态机）
+- `POST /api/court/cases` — 创建案件（DRAFT），body `{userId, userInput, evidence?}`
+- `POST /api/court/cases/:id/analyze` — AI 分析（→GENERATED，生成事实/争议点/双方角色+知识库）
+- `POST /api/court/cases/:id/regenerate` — 重新分析
+- `POST /api/court/cases/:id/confirm` — 确认（→CONFIRMED）
+- `POST /api/court/cases/:id/start` — **SSE 流**，开庭审理（多轮辩论→判决），body `{userId, perspective, defenderAssignments?}`
+- `POST /api/court/cases/:id/player-input` — 玩家补充弹药（更新该方知识库），body `{userId, playerRole, type, content, evidenceName?}`
+- `GET /api/court/cases/:id?userId=&perspective=` — 案件详情（**视角过滤**：观众看不到双方 KB）
+- `GET /api/court/cases/:id/turns` — 庭审发言记录（公开）
+- `GET /api/court/cases/:id/verdict` — 判决（公开）
+- `POST /api/court/cases/:id/publish` — 发布判决到广场（`court_verdict` 类型）
+
 ### WebSocket
 - `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>|gym:lobby` — 实时连接
 - 场景房间：脱口秀/酒吧/图书馆/健身房各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby` / `gym:lobby`，通过场景专属事件广播（表演、发言、问答、打卡、加油等）
@@ -351,6 +412,9 @@ apps/
       tripo.ts        # Tripo 3D API 封装
       character-resolver.ts  # M12: 统一角色解析（预置名人 + 自定义人物）
       custom-character-routes.ts  # M12: 自定义人物 CRUD/对话/发布/文件托管
+      court-state.ts    # M13: 状态机/视角过滤/发言上下文（纯逻辑）
+      court-orchestrator.ts  # M13: AI分析+庭审循环+判决编排
+      court-routes.ts   # M13: 案件 CRUD/分析/SSE庭审/玩家输入/判决
   web/          # Vite + React 18 + R3F 前端
     src/
       identity.tsx    # 用户身份 Provider
@@ -373,6 +437,10 @@ apps/
       CharacterHall.tsx  # 人物馆（名人 + 自定义人物，三 tab）
       CustomCharacterStudio.tsx  # M12: 自定义人物创建向导
       custom-characters.ts  # M12: 前端统一角色 helper
+      CourtroomM13.tsx  # M13: 全屏3D法庭主编排（向导/庭审/判决+WS）
+      CourtCreationWizard.tsx  # M13: 四步创建向导
+      CourtTrialPanel.tsx  # M13: 庭审底部面板（发言/记录/视角/玩家输入）
+      CourtVerdictPanel.tsx  # M13: 判决展示面板
 packages/
   shared/       # 共享类型与名人数据
 ```
@@ -381,7 +449,7 @@ packages/
 
 - **后端**：Fastify 5 + node:sqlite + @fastify/websocket + undici
 - **前端**：Vite 5 + React 18 + React Three Fiber + drei + three + vite-plugin-pwa
-- **测试**：Vitest（后端核心逻辑，87 用例）
+- **测试**：Vitest（后端核心逻辑，117 用例）
 - **共享**：TypeScript 类型 + 名人数据
 - **CI**：GitHub Actions（push/PR 自动跑 test + build）
 - **AI**：StepFun / EvoMap（庭审生成、名人对话、润色）、Tripo（3D 模型）、StepFun TTS

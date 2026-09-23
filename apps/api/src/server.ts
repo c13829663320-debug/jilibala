@@ -17,6 +17,7 @@ import { registerLibraryRoutes } from './library-routes.js';
 import { registerWerewolfRoutes } from './werewolf-routes.js';
 import { registerGymRoutes } from './gym-routes.js';
 import { registerCustomCharacterRoutes } from './custom-character-routes.js';
+import { registerCourtRoutes } from './court-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
@@ -857,6 +858,9 @@ registerGymRoutes(app, { chat: chatWithProviders, contents });
 
 // ===== M12: 自定义人物 =====
 registerCustomCharacterRoutes(app, { chat: chatWithProviders, contents });
+
+// ===== M13: 趣味法庭（全屏 3D + 完整案件状态机）=====
+registerCourtRoutes(app, { chat: chatWithProviders, contents, saveContents });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

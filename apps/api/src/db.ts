@@ -20,6 +20,17 @@ import type {
   GymStats,
   GymAchievement,
   GymAchievementId,
+  CourtCase,
+  CourtCaseStatus,
+  CourtEvidence,
+  CourtFact,
+  CourtPartyRole,
+  CourtKnowledgeBase,
+  CourtTurn,
+  CourtRecord,
+  CourtPlayerInput,
+  CourtVerdict,
+  EvidenceType,
 } from "@balabala/shared";
 import { calculateStreak } from "./gym-orchestrator.js";
 
@@ -54,9 +65,32 @@ function tableHasColumn(table: string, column: string): boolean {
 }
 
 function migrateContentsTable(): void {
-  for (const col of ["talkshow", "bar", "library", "werewolf", "gym", "custom_character"]) {
+  for (const col of ["talkshow", "bar", "library", "werewolf", "gym", "custom_character", "court_verdict"]) {
     if (!tableHasColumn("contents", col)) {
       db.exec(`ALTER TABLE contents ADD COLUMN ${col} TEXT DEFAULT ''`);
+    }
+  }
+}
+
+/** M13: 在现有 cases 表上 ALTER TABLE 加列（列已存在则跳过）。 */
+function migrateCourtCasesTable(): void {
+  const cols: Array<[string, string]> = [
+    ["status", "TEXT DEFAULT 'DRAFT'"],
+    ["title", "TEXT DEFAULT ''"],
+    ["facts", "TEXT DEFAULT '[]'"],
+    ["dispute_points", "TEXT DEFAULT '[]'"],
+    ["plaintiff_role", "TEXT DEFAULT ''"],
+    ["defendant_role", "TEXT DEFAULT ''"],
+    ["plaintiff_kb", "TEXT DEFAULT ''"],
+    ["defendant_kb", "TEXT DEFAULT ''"],
+    ["court_record", "TEXT DEFAULT ''"],
+    ["current_round", "INTEGER DEFAULT 0"],
+    ["current_turn", "INTEGER DEFAULT 0"],
+    ["final_verdict", "TEXT DEFAULT ''"],
+  ];
+  for (const [col, def] of cols) {
+    if (!tableHasColumn("cases", col)) {
+      db.exec(`ALTER TABLE cases ADD COLUMN ${col} ${def}`);
     }
   }
 }
@@ -214,6 +248,44 @@ function createTables(): void {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS court_evidence (
+      id TEXT PRIMARY KEY, case_id TEXT NOT NULL, type TEXT NOT NULL,
+      name TEXT NOT NULL, content TEXT NOT NULL, submitted_by TEXT NOT NULL DEFAULT 'user',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_court_evidence_case ON court_evidence(case_id);
+
+    CREATE TABLE IF NOT EXISTS court_facts (
+      id TEXT PRIMARY KEY, case_id TEXT NOT NULL, content TEXT NOT NULL,
+      source TEXT NOT NULL, disputed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_court_facts_case ON court_facts(case_id);
+
+    CREATE TABLE IF NOT EXISTS court_turns (
+      id TEXT PRIMARY KEY, case_id TEXT NOT NULL, round INTEGER NOT NULL,
+      turn INTEGER NOT NULL, speaker TEXT NOT NULL, speaker_id TEXT NOT NULL,
+      speaker_name TEXT NOT NULL, content TEXT NOT NULL,
+      referenced_evidence TEXT NOT NULL DEFAULT '[]',
+      response_to_turn_id TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_court_turns_case ON court_turns(case_id);
+
+    CREATE TABLE IF NOT EXISTS court_player_inputs (
+      id TEXT PRIMARY KEY, case_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      player_role TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL,
+      evidence_name TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_court_player_inputs_case ON court_player_inputs(case_id);
+
+    CREATE TABLE IF NOT EXISTS court_verdicts (
+      id TEXT PRIMARY KEY, case_id TEXT NOT NULL UNIQUE,
+      case_summary TEXT NOT NULL, key_facts TEXT NOT NULL,
+      key_evidence TEXT NOT NULL, plaintiff_arguments TEXT NOT NULL,
+      defendant_arguments TEXT NOT NULL, judge_analysis TEXT NOT NULL,
+      reasoning TEXT NOT NULL, verdict TEXT NOT NULL, conclusion TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cases_user ON cases(user_id);
     CREATE INDEX IF NOT EXISTS idx_contents_user ON contents(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_content ON comments(content_id);
@@ -229,6 +301,7 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_custom_chars_visibility ON custom_characters(visibility);
   `);
   migrateContentsTable();
+  migrateCourtCasesTable();
 }
 
 // ===== JSON 辅助 =====
@@ -247,6 +320,10 @@ type CaseRow = {
   created_at: string; updated_at: string;
   bench_members: string; bench_transcript: string; bench_votes: string;
   perspective: string;
+  title: string; facts: string; dispute_points: string;
+  plaintiff_role: string; defendant_role: string;
+  plaintiff_kb: string; defendant_kb: string; court_record: string;
+  current_round: number; current_turn: number; final_verdict: string;
 };
 function rowToCase(row: CaseRow): StoredCase {
   return {
@@ -270,6 +347,7 @@ type ContentRow = {
   title: string; body: string; case_id: string;
   likes: number; dislikes: number; views: number; court: string;
   talkshow: string; bar: string; library: string; werewolf: string; gym: string; custom_character: string;
+  court_verdict: string;
 };
 function rowToContent(row: ContentRow): StoredContent {
   const content: StoredContent = {
@@ -302,6 +380,8 @@ function rowToContent(row: ContentRow): StoredContent {
   if (gym) content.gym = gym;
   const customCharacter = safeParse<PlazaContent["customCharacter"]>(row.custom_character, undefined);
   if (customCharacter) content.customCharacter = customCharacter;
+  const courtVerdict = safeParse<PlazaContent["courtVerdict"]>(row.court_verdict, undefined);
+  if (courtVerdict) content.courtVerdict = courtVerdict;
   return content;
 }
 
@@ -318,8 +398,8 @@ function seedIfEmpty(): void {
   const seeds = seedContentsFn();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym, custom_character)
-    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym, custom_character, court_verdict)
+    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const c of seeds) {
     insert.run(
@@ -333,6 +413,7 @@ function seedIfEmpty(): void {
       safeStringify(c.werewolf ?? ""),
       safeStringify(c.gym ?? ""),
       safeStringify(c.customCharacter ?? ""),
+      safeStringify(c.courtVerdict ?? ""),
     );
     // 种子评论写入 comments 表
     if (c.comments?.length) {
@@ -415,8 +496,8 @@ export function upsertContent(c: StoredContent): void {
   initDb();
   db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym, custom_character)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym, custom_character, court_verdict)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     c.id, c.userId ?? "", c.type, c.scene, c.author, c.createdAt,
     safeStringify(c.topics), c.title, c.body ?? "", c.caseId ?? "",
@@ -428,6 +509,7 @@ export function upsertContent(c: StoredContent): void {
     safeStringify(c.werewolf ?? ""),
     safeStringify(c.gym ?? ""),
     safeStringify(c.customCharacter ?? ""),
+    safeStringify(c.courtVerdict ?? ""),
   );
 }
 
@@ -964,4 +1046,303 @@ export function getPublicCustomCharacters(limit = 50): CustomCharacterRecord[] {
     "SELECT * FROM custom_characters WHERE visibility = 'public' ORDER BY updated_at DESC LIMIT ?",
   ).all(limit) as CustomCharacterRow[];
   return rows.map(rowToCustomCharacter);
+}
+
+// ===== M13: 趣味法庭 Court DAO =====
+
+type CourtCaseRow = {
+  id: string; user_id: string; input: string;
+  status: string;
+  title: string; facts: string; dispute_points: string;
+  plaintiff_role: string; defendant_role: string;
+  plaintiff_kb: string; defendant_kb: string; court_record: string;
+  current_round: number; current_turn: number; final_verdict: string;
+  created_at: string; updated_at: string;
+  perspective: string;
+};
+
+function rowToCourtCase(row: CourtCaseRow): CourtCase {
+  const evidence = getCourtEvidence(row.id);
+  const facts = getCourtFacts(row.id);
+  const verdict = getCourtVerdict(row.id);
+  const plaintiff = safeParse<CourtPartyRole | null>(row.plaintiff_role, null);
+  const defendant = safeParse<CourtPartyRole | null>(row.defendant_role, null);
+  const plaintiffKb = safeParse<CourtKnowledgeBase | null>(row.plaintiff_kb, null);
+  const defendantKb = safeParse<CourtKnowledgeBase | null>(row.defendant_kb, null);
+  const courtRecord = safeParse<CourtRecord | null>(row.court_record, null);
+  return {
+    id: row.id,
+    userId: row.user_id || "",
+    status: (row.status || "DRAFT") as CourtCaseStatus,
+    title: row.title || "",
+    user_input: row.input || "",
+    evidence,
+    facts,
+    dispute_points: safeParse<string[]>(row.dispute_points, []),
+    plaintiff,
+    defendant,
+    plaintiff_kb: plaintiffKb,
+    defendant_kb: defendantKb,
+    court_record: courtRecord,
+    current_round: row.current_round || 0,
+    current_turn: row.current_turn || 0,
+    final_verdict: verdict ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+  };
+}
+
+export function createCourtCase(
+  userId: string,
+  userInput: string,
+  evidence?: Array<{ name: string; type: EvidenceType; content: string; submittedBy?: "plaintiff" | "defendant" | "user" | "system" }>,
+): CourtCase {
+  initDb();
+  const id = `court-${randomUUID()}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO cases (id, user_id, input, title, facts, dispute_points,
+      plaintiff_role, defendant_role, plaintiff_kb, defendant_kb, court_record,
+      current_round, current_turn, final_verdict, created_at, updated_at, perspective)
+    VALUES (?, ?, ?, '', '[]', '[]', '', '', '', '', '', 0, 0, '', ?, ?, 'audience')
+  `).run(id, userId, userInput, now, now);
+  // 写入初始证据
+  if (evidence && evidence.length) {
+    for (const ev of evidence) {
+      addCourtEvidence(id, {
+        type: ev.type,
+        name: ev.name,
+        content: ev.content,
+        submittedBy: ev.submittedBy ?? "user",
+      });
+    }
+  }
+  return getCourtCase(id)!;
+}
+
+export function getCourtCase(id: string): CourtCase | undefined {
+  initDb();
+  const row = db.prepare("SELECT * FROM cases WHERE id = ?").get(id) as CourtCaseRow | undefined;
+  if (!row) return undefined;
+  return rowToCourtCase(row);
+}
+
+export function updateCourtCaseStatus(id: string, status: CourtCaseStatus): void {
+  initDb();
+  db.prepare("UPDATE cases SET status = ?, updated_at = ? WHERE id = ?").run(status, new Date().toISOString(), id);
+}
+
+export function updateCourtCaseAnalysis(
+  id: string,
+  data: {
+    title: string;
+    facts: Array<{ content: string; source: string; disputed?: boolean }>;
+    disputePoints: string[];
+    plaintiffRole: Omit<CourtPartyRole, "id" | "caseId" | "createdAt">;
+    defendantRole: Omit<CourtPartyRole, "id" | "caseId" | "createdAt">;
+    plaintiffKb: Omit<CourtKnowledgeBase, "caseId" | "updatedAt">;
+    defendantKb: Omit<CourtKnowledgeBase, "caseId" | "updatedAt">;
+  },
+): void {
+  initDb();
+  const now = new Date().toISOString();
+  // 写入 facts 到 court_facts 表
+  db.prepare("DELETE FROM court_facts WHERE case_id = ?").run(id);
+  for (const f of data.facts) {
+    addCourtFact(id, { content: f.content, source: f.source, disputed: f.disputed ?? false });
+  }
+  db.prepare(`
+    UPDATE cases SET
+      title = ?, facts = ?, dispute_points = ?,
+      plaintiff_role = ?, defendant_role = ?,
+      plaintiff_kb = ?, defendant_kb = ?,
+      updated_at = ?
+    WHERE id = ?
+  `).run(
+    data.title,
+    safeStringify(data.facts.map((f) => f.content)),
+    safeStringify(data.disputePoints),
+    safeStringify({ ...data.plaintiffRole, id: `cr-pl-${id}`, caseId: id, createdAt: now }),
+    safeStringify({ ...data.defendantRole, id: `cr-de-${id}`, caseId: id, createdAt: now }),
+    safeStringify({ ...data.plaintiffKb, caseId: id, updatedAt: now }),
+    safeStringify({ ...data.defendantKb, caseId: id, updatedAt: now }),
+    now,
+    id,
+  );
+}
+
+export function updateCourtRecord(id: string, record: CourtRecord): void {
+  initDb();
+  db.prepare("UPDATE cases SET court_record = ?, updated_at = ? WHERE id = ?").run(
+    safeStringify(record), new Date().toISOString(), id,
+  );
+}
+
+export function updateCourtRoundTurn(id: string, round: number, turn: number): void {
+  initDb();
+  db.prepare("UPDATE cases SET current_round = ?, current_turn = ?, updated_at = ? WHERE id = ?").run(
+    round, turn, new Date().toISOString(), id,
+  );
+}
+
+export function setCourtVerdict(id: string, verdict: CourtVerdict): void {
+  initDb();
+  db.prepare(`
+    INSERT OR REPLACE INTO court_verdicts
+      (id, case_id, case_summary, key_facts, key_evidence, plaintiff_arguments,
+       defendant_arguments, judge_analysis, reasoning, verdict, conclusion, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    verdict.id, id, verdict.case_summary,
+    safeStringify(verdict.key_facts), safeStringify(verdict.key_evidence),
+    safeStringify(verdict.plaintiff_arguments), safeStringify(verdict.defendant_arguments),
+    verdict.judge_analysis, verdict.reasoning, verdict.verdict, verdict.conclusion,
+    verdict.createdAt,
+  );
+  db.prepare("UPDATE cases SET final_verdict = ?, updated_at = ? WHERE id = ?").run(
+    safeStringify(verdict), new Date().toISOString(), id,
+  );
+}
+
+export function getCourtVerdict(caseId: string): CourtVerdict | undefined {
+  initDb();
+  const row = db.prepare("SELECT * FROM court_verdicts WHERE case_id = ?").get(caseId) as {
+    id: string; case_id: string; case_summary: string; key_facts: string;
+    key_evidence: string; plaintiff_arguments: string; defendant_arguments: string;
+    judge_analysis: string; reasoning: string; verdict: string; conclusion: string; created_at: string;
+  } | undefined;
+  if (!row) return undefined;
+  return {
+    id: row.id, caseId: row.case_id, case_summary: row.case_summary,
+    key_facts: safeParse<string[]>(row.key_facts, []),
+    key_evidence: safeParse<string[]>(row.key_evidence, []),
+    plaintiff_arguments: safeParse<string[]>(row.plaintiff_arguments, []),
+    defendant_arguments: safeParse<string[]>(row.defendant_arguments, []),
+    judge_analysis: row.judge_analysis, reasoning: row.reasoning,
+    verdict: row.verdict as CourtVerdict["verdict"],
+    conclusion: row.conclusion, createdAt: row.created_at,
+  };
+}
+
+export function addCourtEvidence(
+  caseId: string,
+  evidence: Omit<CourtEvidence, "id" | "caseId" | "createdAt">,
+): CourtEvidence {
+  initDb();
+  const id = `cte-${randomUUID()}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO court_evidence (id, case_id, type, name, content, submitted_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, caseId, evidence.type, evidence.name, evidence.content, evidence.submittedBy, now);
+  return { id, caseId, ...evidence, createdAt: now };
+}
+
+export function getCourtEvidence(caseId: string): CourtEvidence[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM court_evidence WHERE case_id = ? ORDER BY created_at ASC",
+  ).all(caseId) as Array<{
+    id: string; case_id: string; type: string; name: string; content: string;
+    submitted_by: string; created_at: string;
+  }>;
+  return rows.map((r) => ({
+    id: r.id, caseId: r.case_id, type: r.type as EvidenceType,
+    name: r.name, content: r.content,
+    submittedBy: r.submitted_by as CourtEvidence["submittedBy"],
+    createdAt: r.created_at,
+  }));
+}
+
+export function addCourtFact(
+  caseId: string,
+  fact: Omit<CourtFact, "id" | "caseId" | "createdAt">,
+): CourtFact {
+  initDb();
+  const id = `ctf-${randomUUID()}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO court_facts (id, case_id, content, source, disputed, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, caseId, fact.content, fact.source, fact.disputed ? 1 : 0, now);
+  return { id, caseId, ...fact, createdAt: now };
+}
+
+export function getCourtFacts(caseId: string): CourtFact[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM court_facts WHERE case_id = ? ORDER BY created_at ASC",
+  ).all(caseId) as Array<{
+    id: string; case_id: string; content: string; source: string;
+    disputed: number; created_at: string;
+  }>;
+  return rows.map((r) => ({
+    id: r.id, caseId: r.case_id, content: r.content,
+    source: r.source, disputed: r.disputed === 1, createdAt: r.created_at,
+  }));
+}
+
+export function addCourtTurn(turn: Omit<CourtTurn, "id" | "createdAt">): CourtTurn {
+  initDb();
+  const id = `ctt-${randomUUID()}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO court_turns (id, case_id, round, turn, speaker, speaker_id,
+      speaker_name, content, referenced_evidence, response_to_turn_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, turn.caseId, turn.round, turn.turn, turn.speaker, turn.speakerId,
+    turn.speakerName, turn.content,
+    safeStringify(turn.referenced_evidence), turn.response_to_turn_id, now,
+  );
+  return { id, ...turn, createdAt: now };
+}
+
+export function getCourtTurns(caseId: string): CourtTurn[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM court_turns WHERE case_id = ? ORDER BY round ASC, turn ASC",
+  ).all(caseId) as Array<{
+    id: string; case_id: string; round: number; turn: number;
+    speaker: string; speaker_id: string; speaker_name: string; content: string;
+    referenced_evidence: string; response_to_turn_id: string | null; created_at: string;
+  }>;
+  return rows.map((r) => ({
+    id: r.id, caseId: r.case_id, round: r.round, turn: r.turn,
+    speaker: r.speaker as CourtTurn["speaker"],
+    speakerId: r.speaker_id, speakerName: r.speaker_name, content: r.content,
+    referenced_evidence: safeParse<string[]>(r.referenced_evidence, []),
+    response_to_turn_id: r.response_to_turn_id,
+    createdAt: r.created_at,
+  }));
+}
+
+export function addCourtPlayerInput(
+  input: Omit<CourtPlayerInput, "id" | "createdAt">,
+): CourtPlayerInput {
+  initDb();
+  const id = `ctp-${randomUUID()}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO court_player_inputs (id, case_id, user_id, player_role, type, content, evidence_name, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, input.caseId, input.userId, input.player_role, input.type, input.content, input.evidenceName ?? null, now);
+  return { id, ...input, createdAt: now };
+}
+
+export function getCourtPlayerInputs(caseId: string): CourtPlayerInput[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM court_player_inputs WHERE case_id = ? ORDER BY created_at ASC",
+  ).all(caseId) as Array<{
+    id: string; case_id: string; user_id: string; player_role: string;
+    type: string; content: string; evidence_name: string | null; created_at: string;
+  }>;
+  return rows.map((r) => ({
+    id: r.id, caseId: r.case_id, userId: r.user_id,
+    player_role: r.player_role as CourtPlayerInput["player_role"],
+    type: r.type as CourtPlayerInput["type"],
+    content: r.content, evidenceName: r.evidence_name || undefined,
+    createdAt: r.created_at,
+  }));
 }

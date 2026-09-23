@@ -12,6 +12,7 @@ const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   werewolf_report: "🐺 狼人杀战报",
   gym_checkin: "🏋️ 健身打卡",
   custom_character: "🧑 自定义人物",
+  court_verdict: "⚖️ 法庭判决",
 };
 
 export function ContentDetail({ id, author, onBack, onChanged }: {
