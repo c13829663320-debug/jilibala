@@ -130,3 +130,31 @@
   .character-dialog__profile{flex-direction:row}
   .character-dialog__portrait{width:80px;flex-basis:80px}
 }
+
+/* ===== M13 第五轮：3D 人物长廊 ===== */
+.character-hall__viewtoggle{flex:none;border:1px solid #FFD60A;background:transparent;color:#FFD60A;border-radius:9px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.character-hall__viewtoggle[aria-pressed="true"]{background:#FFD60A;color:#221d0c}
+.character-hall__stage{position:relative;height:min(66vh,640px);min-height:420px;border:1px solid #1c1c1c;border-radius:16px;overflow:hidden;background:#0a0a0a}
+.gallery3d-root{position:absolute;inset:0;touch-action:pan-y;cursor:grab}
+.gallery3d-root:active{cursor:grabbing}
+.gallery3d-root canvas{display:block;touch-action:pan-y}
+.gallery3d__arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:5;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,214,10,.4);background:rgba(15,14,10,.7);color:#FFD60A;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(4px)}
+.gallery3d__arrow:hover{background:rgba(255,214,10,.18)}
+.gallery3d__arrow:disabled{opacity:.25;cursor:not-allowed}
+.gallery3d__arrow--left{left:14px}
+.gallery3d__arrow--right{right:14px}
+.gallery3d__now{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:12px;max-width:min(92%,560px);padding:10px 16px;border-radius:14px;border:1px solid rgba(255,214,10,.25);background:rgba(12,11,8,.82);backdrop-filter:blur(6px)}
+.gallery3d__dot{width:12px;height:12px;border-radius:50%;flex:none}
+.gallery3d__now-text{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.gallery3d__now-text b{font-size:14px;color:#fff}
+.gallery3d__now-text span{font-size:11px;color:#bbb}
+.gallery3d__now-text i{font-style:normal;font-size:10px;color:#FFD60A}
+.gallery3d__talk{margin-left:auto;flex:none;border:0;border-radius:10px;padding:9px 16px;background:#FFD60A;color:#221d0c;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.gallery3d__hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;color:rgba(255,255,255,.4);font-size:11px;pointer-events:none;white-space:nowrap}
+@media(max-width:760px){
+  .character-hall__stage{height:min(60vh,520px);min-height:360px}
+  .gallery3d__hint{display:none}
+  .gallery3d__now{bottom:10px;padding:8px 12px;gap:8px}
+  .gallery3d__now-text span{display:none}
+  .gallery3d__arrow{width:38px;height:38px}
+}

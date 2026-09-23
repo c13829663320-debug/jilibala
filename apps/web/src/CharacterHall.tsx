@@ -1,4 +1,4 @@
-import { Component, Suspense, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
+import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, ContactShadows, useGLTF } from '@react-three/drei'
 import { Box3, Group, Vector3 } from 'three'
@@ -7,12 +7,28 @@ import { CELEBRITIES, CELEBRITY_FIELDS, resolveCharacterVoice, type CelebrityFie
 import { TtsPlayButton } from './TtsPlayButton'
 import { useSceneCleanup } from './useSceneCleanup'
 import { useIdentity } from './identity'
+import { playTts } from './tts'
+import { useVoiceEnabled } from './voice-settings'
+import { buildGalleryEntries, type GalleryEntry } from './character-gallery'
 import {
   assetUrl, celebrityListToUi, celebrityToUi, customToUi,
   fetchMyCharacters, fetchPublicCharacters,
   type CustomCharacterApi, type UiCharacter,
 } from './custom-characters'
 import './character-hall.css'
+
+// 3D 长廊独立懒加载：three/r3f 已在 manualChunks，长廊代码本身再分一个 chunk。
+const CharacterGallery3D = lazy(() => import('./CharacterGallery3D'))
+
+const GALLERY_MODE_KEY = 'balabala.gallery-3d'
+const GALLERY_INDEX_KEY = 'balabala.gallery-index'
+
+function readStored3d(): boolean {
+  try { return window.localStorage.getItem(GALLERY_MODE_KEY) !== '0' } catch { return true }
+}
+function readStoredIndex(): number {
+  try { const v = Number(window.localStorage.getItem(GALLERY_INDEX_KEY)); return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0 } catch { return 0 }
+}
 
 type ChatTurn = { from: 'me' | 'character'; text: string }
 type HallTab = 'all' | 'mine' | 'plaza'
@@ -193,6 +209,12 @@ export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: Charact
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [notice, setNotice] = useState('')
+
+  // ===== M13 第五轮：3D 人物长廊 =====
+  const [galleryMode3d, setGalleryMode3d] = useState<boolean>(readStored3d)
+  const [activeIndex, setActiveIndex] = useState<number>(readStoredIndex)
+  const [voiceEnabled] = useVoiceEnabled()
+  const greetedOnceRef = useRef(false)
 
   const showNotice = (msg: string) => {
     setNotice(msg)
@@ -387,6 +409,35 @@ export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: Charact
 
   const showEmpty = visibleList.length === 0 && !loadingCustom
 
+  // 长廊条目（含展台位置/领域色/问候语）。
+  const entries: GalleryEntry[] = useMemo(() => buildGalleryEntries(visibleList), [visibleList])
+
+  // 列表变短（切 tab/搜索）时收敛当前索引。
+  useEffect(() => {
+    if (activeIndex > entries.length - 1) setActiveIndex(Math.max(0, entries.length - 1))
+  }, [entries.length, activeIndex])
+
+  // 记住模式与位置。
+  useEffect(() => {
+    try { window.localStorage.setItem(GALLERY_MODE_KEY, galleryMode3d ? '1' : '0') } catch { /* noop */ }
+  }, [galleryMode3d])
+  useEffect(() => {
+    try { window.localStorage.setItem(GALLERY_INDEX_KEY, String(activeIndex)) } catch { /* noop */ }
+  }, [activeIndex])
+
+  // 走近（居中切换）才发声：仅在 3D 模式、开关开、索引真的变化时朗读该角色问候语。
+  useEffect(() => {
+    if (!galleryMode3d) return
+    if (!greetedOnceRef.current) { greetedOnceRef.current = true; return }
+    if (!voiceEnabled) return
+    const entry = entries[activeIndex]
+    if (!entry) return
+    void playTts(entry.greeting, resolveCharacterVoice(entry.character.id, entry.character.voice)).catch(() => { /* 朗读失败静默 */ })
+  }, [activeIndex, galleryMode3d, voiceEnabled, entries])
+
+  // 从 3D 长廊进入对话（复用现有 openChat 对话框）。
+  const enterGalleryEntry = (entry: GalleryEntry) => openChat(entry.character)
+
   return (
     <div className="character-hall">
       <header className="character-hall__topbar">
@@ -423,6 +474,15 @@ export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: Charact
             ))}
           </div>
         )}
+        <button
+          type="button"
+          className="character-hall__viewtoggle"
+          onClick={() => setGalleryMode3d((v) => !v)}
+          aria-pressed={galleryMode3d}
+          title={galleryMode3d ? '切回 2D 卡片网格' : '切到 3D 人物长廊'}
+        >
+          {galleryMode3d ? '平面视图' : '3D 长廊'}
+        </button>
       </div>
 
       {/* 三栏切换 */}
@@ -454,6 +514,18 @@ export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: Charact
             : tab === 'plaza' && !q
               ? '广场还没有公开人物，把你的人物发布上来试试。'
               : `没有找到「${query}」相关人物，换个关键词试试。`}
+        </div>
+      ) : galleryMode3d ? (
+        <div className="character-hall__stage">
+          <Suspense fallback={<div className="character-hall__empty"><Loader2 size={18} className="spin" /> 正在加载 3D 长廊…</div>}>
+            <CharacterGallery3D
+              entries={entries}
+              activeIndex={Math.min(activeIndex, entries.length - 1)}
+              onIndexChange={setActiveIndex}
+              onEnter={enterGalleryEntry}
+              onModelError={() => setGalleryMode3d(false)}
+            />
+          </Suspense>
         </div>
       ) : (
         <div className="character-hall__grid">
