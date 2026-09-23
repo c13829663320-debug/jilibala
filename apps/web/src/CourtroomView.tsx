@@ -4,11 +4,16 @@ import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-t
 import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
 import { useSceneCleanup } from './useSceneCleanup'
+import NeutralMannequin from './NeutralMannequin'
 import {
   TRIAL_CAMERA,
   WIZARD_CAMERA,
   clampCameraPosition,
   getCameraForMode,
+  pickSpeakerCamera,
+  shouldFollow,
+  SPEAKER_CAM_IDLE,
+  type ActiveSpeakerInfo,
   type CameraMode,
 } from './courtroom-camera'
 
@@ -167,9 +172,7 @@ interface SeatSlot {
 
 function BenchSeat({ celebrity, position, active }: SeatSlot) {
   const fallback = (
-    <group position={[0, 0, 0]}>
-      <MemberPlaceholder name={celebrity.name} active={active} />
-    </group>
+    <NeutralMannequin name={celebrity.name} active={active} variant="party" />
   )
   return (
     <group position={position}>
@@ -201,14 +204,12 @@ function BenchSeat({ celebrity, position, active }: SeatSlot) {
 
 /** M13: a generic seat (judge / party / defender) rendered from a CourtSeat descriptor. */
 function GenericSeat({ seat }: { seat: CourtSeat }) {
-  const tint = seat.role === 'judge' ? 'judge'
-    : seat.side === 'plaintiff' ? 'plaintiff'
-    : seat.side === 'defendant' ? 'defendant'
-    : undefined
   const fallback = (
-    <group position={[0, 0, 0]}>
-      <MemberPlaceholder name={seat.name} active={seat.active} tint={tint} />
-    </group>
+    <NeutralMannequin
+      name={seat.name}
+      active={seat.active}
+      variant={seat.role === 'judge' ? 'judge' : 'party'}
+    />
   )
   return (
     <group position={seat.position}>
@@ -239,23 +240,23 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
 }
 
 /**
- * Smoothly pans the OrbitControls target (and the camera that orbits it)
- * toward the currently speaking seat. User drag still works because we only
- * lerp the target + preserve the camera's current offset from it.
+ * M13 修复 B：按发言者角色固定机位，不再"保持用户 offset 导致贴脸"。
  *
- * Modes:
- *  - trial/bench: follow active seat (idle → TRIAL_CAMERA framing).
- *  - wizard: fixed wide panorama with slow auto-rotate, no seat following.
- * Camera position is clamped into ROOM_CLAMP every frame so the rig can never
- * push the camera through a wall / the floor / the ceiling.
+ *  - trial/bench: 发言者切换时 lerp (target, camera.position) 一起移到
+ *    SPEAKER_CAMERAS 对应机位，保证全身入画且距离 >= 2.5。
+ *  - 用户拖拽/缩放后 4 秒内跳过自动跟随（只 clamp），尊重用户视角；
+ *    4 秒后平滑回到当前发言者机位。
+ *  - wizard: 维持全景 autoRotate，不跟席位。
+ *  - mode 切换（wizard→trial）保留 1.2s 平滑过渡。
+ *  - 每帧仍 clampCameraPosition，相机永不穿墙/穿地/穿天花板。
  */
 function CameraRig({
   mode,
-  activeSeat,
+  activeSpeaker,
   children,
 }: {
   mode: CameraMode
-  activeSeat: [number, number, number] | null
+  activeSpeaker: ActiveSpeakerInfo | null
   children: ReactNode
 }) {
   const controls = useRef<{ target: Vector3; update: () => void } | null>(null)
@@ -266,36 +267,51 @@ function CameraRig({
   const offset = useMemo(() => new Vector3(), [])
   const modeRef = useRef<CameraMode>(mode)
   const transitionUntil = useRef(-1)
+  // r3f clock 时间轴：onStart/onEnd 里没有 clock，用 useFrame 里刷过的 clockNow 取同一时间。
+  const clockNow = useRef(0)
+  // 初始为 -Infinity，保证开场第一帧就自动跟随到 idle 机位。
+  const lastUserInteraction = useRef(-Infinity)
+  // 用户正在拖拽/缩放手势中（onStart → onEnd 之间），期间暂停自动跟随。
+  // 注意：不能用 onChange——drei 的 onChange 会被我们每帧的 controls.update() 触发，
+  // 导致 lastUserInteraction 永远是 now，宽限期永不结束（相机卡死不跟随）。
+  const userInteracting = useRef(false)
 
   useFrame(({ clock }, delta) => {
     const c = controls.current
     if (!c) return
     const now = clock.getElapsedTime()
+    clockNow.current = now
     if (modeRef.current !== mode) {
       modeRef.current = mode
       transitionUntil.current = now + 1.2
     }
     const transitioning = now < transitionUntil.current
+    // frame-rate independent lerp
+    const k = 1 - Math.pow(0.0015, Math.min(delta, 0.1))
 
     if (mode === 'wizard') {
       desiredTarget.set(WIZARD_CAMERA.target[0], WIZARD_CAMERA.target[1], WIZARD_CAMERA.target[2])
-    } else if (activeSeat) {
-      desiredTarget.set(activeSeat[0], 1.1, activeSeat[2])
+      c.target.lerp(desiredTarget, k)
+      if (transitioning) {
+        desiredCamera.set(WIZARD_CAMERA.position[0], WIZARD_CAMERA.position[1], WIZARD_CAMERA.position[2])
+        camera.position.lerp(desiredCamera, k)
+      } else {
+        // wizard 保留用户 orbit/zoom 绕 target 的 offset（autoRotate 自己转）
+        offset.subVectors(camera.position, c.target)
+        desiredCamera.copy(desiredTarget).add(offset)
+        camera.position.lerp(desiredCamera, k)
+      }
     } else {
-      desiredTarget.set(TRIAL_CAMERA.target[0], TRIAL_CAMERA.target[1], TRIAL_CAMERA.target[2])
-    }
-    // frame-rate independent lerp
-    const k = 1 - Math.pow(0.0015, Math.min(delta, 0.1))
-    c.target.lerp(desiredTarget, k)
-    if (transitioning) {
-      // ease the whole camera onto the mode's canonical position on mode switch
-      desiredCamera.set(cfg.position[0], cfg.position[1], cfg.position[2])
-      camera.position.lerp(desiredCamera, k)
-    } else {
-      // keep camera roughly over the speaker without fighting user zoom/polar
-      offset.subVectors(camera.position, c.target)
-      desiredCamera.copy(desiredTarget).add(offset)
-      camera.position.lerp(desiredCamera, k)
+      // trial / bench：按发言者角色取固定机位
+      const cam = activeSpeaker ? pickSpeakerCamera(activeSpeaker) : SPEAKER_CAM_IDLE
+      desiredTarget.set(cam.target[0], cam.target[1], cam.target[2])
+      desiredCamera.set(cam.position[0], cam.position[1], cam.position[2])
+      // 用户正在手势中，或刚松手 4 秒内：暂停自动跟随，只走下面的 clamp，不抢视角
+      const inGrace = userInteracting.current || !shouldFollow(lastUserInteraction.current, now)
+      if (transitioning || !inGrace) {
+        c.target.lerp(desiredTarget, k)
+        camera.position.lerp(desiredCamera, k)
+      }
     }
     // hard clamp so the camera can never leave the room
     const [cx, cy, cz] = clampCameraPosition([camera.position.x, camera.position.y, camera.position.z])
@@ -316,6 +332,15 @@ function CameraRig({
         minDistance={cfg.minDistance}
         maxDistance={cfg.maxDistance}
         maxPolarAngle={cfg.maxPolarAngle}
+        onStart={() => {
+          // 用户开始拖拽/缩放：手势进行中暂停跟随
+          userInteracting.current = true
+        }}
+        onEnd={() => {
+          // 用户松手：从这一刻起再保留 4 秒宽限期，然后平滑回到当前发言者机位
+          userInteracting.current = false
+          lastUserInteraction.current = clockNow.current
+        }}
       />
     </>
   )
@@ -352,17 +377,18 @@ function Courtroom({
   ]
   // M13 generic seats take priority; otherwise fall back to celebrity arc layout.
   const layout = SEAT_LAYOUTS[Math.max(3, Math.min(5, celebrities.length))] ?? SEAT_LAYOUTS[3]
-  const activeSeat: [number, number, number] | null = mode === 'wizard'
+  // M13 修复 B：CameraRig 需要发言者的 role + side + position 才能选固定机位。
+  // legacy bench 模式没有角色信息，直接给 null → idle 全景（弧形席位整体入画）。
+  const activeSpeaker: ActiveSpeakerInfo | null = mode === 'wizard'
     ? null
     : seats
     ? (() => {
         const s = seats.find((x) => x.active)
-        return s ? s.position : null
+        return s
+          ? { role: s.role, side: s.side ?? null, position: s.position }
+          : null
       })()
-    : (() => {
-        const idx = celebrities.findIndex((c) => c.id === activeSpeakerId)
-        return idx >= 0 ? layout[idx] : null
-      })()
+    : null
 
   return (
     <group ref={sceneRef}>
@@ -390,7 +416,7 @@ function Courtroom({
         : celebrities.slice(0, layout.length).map((c, i) => (
             <BenchSeat key={c.id} celebrity={c} position={layout[i]} active={c.id === activeSpeakerId} />
           ))}
-      <CameraRig mode={mode} activeSeat={activeSeat}>{null}</CameraRig>
+      <CameraRig mode={mode} activeSpeaker={activeSpeaker}>{null}</CameraRig>
     </group>
   )
 }
