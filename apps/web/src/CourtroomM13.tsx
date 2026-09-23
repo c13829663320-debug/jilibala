@@ -8,6 +8,7 @@ import CourtCreationWizard, { type DefenderInfo, type WizardStartPayload } from 
 import CourtTrialPanel, { type TrialSubmitInput } from './CourtTrialPanel'
 import CourtVerdictPanel from './CourtVerdictPanel'
 import type { CourtSeat } from './CourtroomView'
+import { buildFixedSeats, calculateSupportRate } from './courtroom-seats'
 import { playTts, stopTts } from './tts'
 import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
 import './courtroom-fullscreen.css'
@@ -262,47 +263,80 @@ export default function CourtroomM13({
   }, [caseId])
 
   // ===== 3D 席位 =====
+  // 第五轮：核心 7 角色固定 GLB 席位（法官/原告/原告律师/被告/被告律师/证人/陪审团）
+  // + 6 旁听者氛围 NPC；名人/custom 仍作为“额外辩护人”动态排在 z=0.4 一排。
+  const fixedSeats = useMemo(() => buildFixedSeats(), [])
+
+  // 辩护人发言 → 支持率归边用
+  const defenderSideById = useMemo(() => {
+    const m = new Map<string, 'plaintiff' | 'defendant'>()
+    for (const d of defenders) m.set(d.id, d.side)
+    return m
+  }, [defenders])
+
+  // 陪审团民意支持率（纯逻辑：双方发言 + 证据引用加权）
+  const support = useMemo(
+    () => calculateSupportRate(turns, defenderSideById),
+    [turns, defenderSideById],
+  )
+
   const seats = useMemo<CourtSeat[]>(() => {
     if (!courtCase) return []
     const latestTurn = turns[turns.length - 1]
-    const seatList: CourtSeat[] = [
-      {
-        id: 'judge', name: '法官', role: 'judge',
-        position: [0, 1.0, -2.9],
-        active: latestTurn?.speaker === 'judge',
-      },
-      {
-        id: courtCase.plaintiff?.id ?? 'plaintiff',
-        name: courtCase.plaintiff?.name ?? '原告',
-        role: 'plaintiff',
-        position: [-2.7, 0.62, -0.4],
-        side: 'plaintiff',
-        active: latestTurn?.speaker === 'plaintiff',
-      },
-      {
-        id: courtCase.defendant?.id ?? 'defendant',
-        name: courtCase.defendant?.name ?? '被告',
-        role: 'defendant',
-        position: [2.7, 0.62, -0.4],
-        side: 'defendant',
-        active: latestTurn?.speaker === 'defendant',
-      },
-    ]
-    // 辩护人席位：原告方排左侧，被告方排右侧
+    const seatList: CourtSeat[] = fixedSeats.map((f) => {
+      let role: CourtSeat['role']
+      let side: CourtSeat['side'] = null
+      let active = false
+      switch (f.kind) {
+        case 'judge':
+          role = 'judge'
+          active = latestTurn?.speaker === 'judge'
+          break
+        case 'plaintiff':
+          role = 'plaintiff'; side = 'plaintiff'
+          active = latestTurn?.speaker === 'plaintiff'
+          break
+        case 'defendant':
+          role = 'defendant'; side = 'defendant'
+          active = latestTurn?.speaker === 'defendant'
+          break
+        case 'plaintiff-counsel':
+          // 固定律师：从不发言（后端发言轮次仅 judge/plaintiff/defendant/动态 defender）
+          role = 'defender'; side = 'plaintiff'
+          break
+        case 'defendant-counsel':
+          role = 'defender'; side = 'defendant'
+          break
+        default:
+          // witness / juror / audience：氛围 NPC，永不高亮
+          role = 'defender'; side = null
+      }
+      const name = f.kind === 'plaintiff'
+        ? (courtCase.plaintiff?.name ?? f.name)
+        : f.kind === 'defendant'
+          ? (courtCase.defendant?.name ?? f.name)
+          : f.name
+      return {
+        id: f.id, name, role, kind: f.kind, model: f.model,
+        position: f.position, facing: f.facing, npc: f.npc,
+        active, side,
+      }
+    })
+    // 额外辩护人（名人 / custom-人物）：原告方排左侧，被告方排右侧，固定律师在 z=-0.4 桌位
     let pIdx = 0, dIdx = 0
     for (const d of defenders) {
       const isP = d.side === 'plaintiff'
       const x = isP ? -3.9 - pIdx * 0.9 : 3.9 + dIdx * 0.9
       if (isP) pIdx++; else dIdx++
       seatList.push({
-        id: d.id, name: d.name, role: 'defender', model: d.model,
+        id: d.id, name: d.name, role: 'defender', kind: 'defender', model: d.model,
         position: [x, 0.62, 0.4],
         side: d.side,
         active: latestTurn?.speaker === 'defender' && latestTurn.speakerId === d.id,
       })
     }
     return seatList
-  }, [courtCase, turns, defenders])
+  }, [courtCase, turns, defenders, fixedSeats])
 
   const statusLabel = courtCase ? STATUS_LABEL[courtCase.status] : '待开庭'
 
@@ -335,6 +369,13 @@ export default function CourtroomM13({
             )}
             <span className={`cr-pill ${courtCase.status === 'IN_PROGRESS' || courtCase.status === 'JUDGING' ? 'cr-pill--live' : 'cr-pill--gray'}`}>
               {statusLabel}
+            </span>
+            <span className="cr-pill cr-support" title="陪审团民意支持率">
+              <span className="cr-support__label">原告 {support.plaintiff}%</span>
+              <span className="cr-support__bar">
+                <span className="cr-support__fill cr-support__fill--p" style={{ width: `${support.plaintiff}%` }} />
+              </span>
+              <span className="cr-support__label">被告 {support.defendant}%</span>
             </span>
           </div>
           <div className="cr-topbar__right">

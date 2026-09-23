@@ -5,6 +5,7 @@ import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vec
 import type { Celebrity } from '@balabala/shared'
 import { useSceneCleanup } from './useSceneCleanup'
 import NeutralMannequin from './NeutralMannequin'
+import type { CourtSeatKind } from './courtroom-seats'
 import {
   TRIAL_CAMERA,
   WIZARD_CAMERA,
@@ -34,17 +35,17 @@ class CourtroomModelErrorBoundary extends Component<{ children: ReactNode; fallb
   render() { return this.state.failed ? this.props.fallback : this.props.children }
 }
 
-function NormalizedCourtroomModel({ url }: { url: string }) {
+function NormalizedCourtroomModel({ url, height = 1.7 }: { url: string; height?: number }) {
   const { scene } = useGLTF(url, false, true)
   const normalized = useMemo(() => {
     const clone = scene.clone(true)
     const bounds = new Box3().setFromObject(clone)
     const size = bounds.getSize(new Vector3())
     const center = bounds.getCenter(new Vector3())
-    // Full-body celebrity models: normalize by HEIGHT (size.y) to ~1.7 scene
-    // units so they fit the courtroom seat without being oversized. Feet sit on
-    // the local ground (position.y = -bounds.min.y * scale), matching the seat.
-    const scale = 1.7 / Math.max(size.y, 0.001)
+    // Normalize by HEIGHT (size.y) to the seat target height so models fit the
+    // courtroom seat without being oversized. Feet sit on the local ground
+    // (position.y = -bounds.min.y * scale), matching the seat origin.
+    const scale = height / Math.max(size.y, 0.001)
     clone.scale.setScalar(scale)
     clone.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale)
     clone.traverse((child) => {
@@ -52,7 +53,7 @@ function NormalizedCourtroomModel({ url }: { url: string }) {
       child.receiveShadow = true
     })
     return clone
-  }, [scene])
+  }, [scene, height])
   return <primitive object={normalized} />
 }
 
@@ -158,10 +159,18 @@ export type CourtSeat = {
   id: string
   name: string
   role: 'judge' | 'plaintiff' | 'defendant' | 'defender'
+  /** 第五轮：细分角色（固定 GLB 席位 / 旁听 / 陪审 / 证人）。 */
+  kind?: CourtSeatKind
   model?: string
+  /** 模型归一化目标身高（法官略高 1.8，其余 1.7）。 */
+  modelHeight?: number
   position: [number, number, number]
   active: boolean
   side?: 'plaintiff' | 'defendant' | null
+  /** 绕 Y 轴朝向（弧度）。0 = 面向 +z（法庭/观众），π = 面向 -z（法官）。 */
+  facing?: number
+  /** 氛围 NPC：不高亮、不挂名牌、不进发言轮次。 */
+  npc?: boolean
 }
 
 interface SeatSlot {
@@ -202,7 +211,7 @@ function BenchSeat({ celebrity, position, active }: SeatSlot) {
   )
 }
 
-/** M13: a generic seat (judge / party / defender) rendered from a CourtSeat descriptor. */
+/** M13: a generic seat (judge / party / defender / fixed counsel / NPC) rendered from a CourtSeat descriptor. */
 function GenericSeat({ seat }: { seat: CourtSeat }) {
   // 法官 / 原告 / 被告坐在各自桌后（坐姿人台，头高 local ≈1.3）；
   // 辩护人用真实名人 GLB 模型（站姿，头高 ≈1.7）。
@@ -215,19 +224,31 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
       seated={seated}
     />
   )
-  return (
-    <group position={seat.position}>
-      <SeatRing active={seat.active} />
-      {seat.active && <SpeakerSpotlight />}
+  // 人物本体单独按 facing 旋转（面向法官/法庭），金色席环与名牌保持朝向相机不转。
+  const body = (
+    <group rotation={[0, seat.facing ?? 0, 0]}>
       {seat.model ? (
         <CourtroomModelErrorBoundary fallback={fallback}>
           <Suspense fallback={null}>
-            <NormalizedCourtroomModel url={seat.model} />
+            <NormalizedCourtroomModel url={seat.model} height={seat.modelHeight ?? (seat.role === 'judge' ? 1.8 : 1.7)} />
           </Suspense>
         </CourtroomModelErrorBoundary>
       ) : (
         fallback
       )}
+    </group>
+  )
+
+  // 氛围 NPC（旁听者 / 陪审团 / 证人）：只渲染人物，无席环 / 聚光 / 名牌 / 高亮。
+  if (seat.npc) {
+    return <group position={seat.position}>{body}</group>
+  }
+
+  return (
+    <group position={seat.position}>
+      <SeatRing active={seat.active} />
+      {seat.active && <SpeakerSpotlight />}
+      {body}
       {/* 名牌：坐姿头高 ≈1.3 → 名牌 local ≈1.55；站姿头高 ≈1.7 → 名牌 local ≈1.78。 */}
       <Text
         position={[0, seat.active ? (seated ? 1.78 : 2.0) : (seated ? 1.55 : 1.78), 0.06]}

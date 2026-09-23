@@ -91,6 +91,15 @@
 }
 .cr-pill--live { color: var(--cr-yellow); border-color: rgba(255, 214, 10, 0.5); }
 .cr-pill--gray { color: var(--cr-text-dim); }
+.cr-support { gap: 8px; }
+.cr-support__label { font-size: 11px; font-weight: 700; white-space: nowrap; }
+.cr-support__bar {
+  width: 90px; height: 8px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden; display: inline-block;
+}
+.cr-support__fill { display: block; height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+.cr-support__fill--p { background: linear-gradient(90deg, #4a90d9, #6aa8ff); }
 .cr-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--cr-yellow);
