@@ -13,6 +13,7 @@ import type {
   User,
   CertRecord,
   MsgRecord,
+  SceneId,
 } from "@balabala/shared";
 
 // ===== StoredCase 本地类型（与 storage.ts 保持一致）=====
@@ -39,6 +40,19 @@ mkdirSync(dirname(DB_PATH), { recursive: true });
 export const db = new DatabaseSync(DB_PATH);
 
 // ===== 建表 =====
+function tableHasColumn(table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return rows.some((r) => r.name === column);
+}
+
+function migrateContentsTable(): void {
+  for (const col of ["talkshow", "bar", "library"]) {
+    if (!tableHasColumn("contents", col)) {
+      db.exec(`ALTER TABLE contents ADD COLUMN ${col} TEXT DEFAULT ''`);
+    }
+  }
+}
+
 function createTables(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -78,7 +92,10 @@ function createTables(): void {
       likes INTEGER NOT NULL DEFAULT 0,
       dislikes INTEGER NOT NULL DEFAULT 0,
       views INTEGER NOT NULL DEFAULT 0,
-      court TEXT DEFAULT ''
+      court TEXT DEFAULT '',
+      talkshow TEXT DEFAULT '',
+      bar TEXT DEFAULT '',
+      library TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS comments (
@@ -119,12 +136,25 @@ function createTables(): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS scene_records (
+      id TEXT PRIMARY KEY,
+      user_id TEXT DEFAULT '',
+      scene TEXT NOT NULL,
+      session_id TEXT DEFAULT '',
+      title TEXT DEFAULT '',
+      payload TEXT DEFAULT '{}',
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cases_user ON cases(user_id);
     CREATE INDEX IF NOT EXISTS idx_contents_user ON contents(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_content ON comments(content_id);
     CREATE INDEX IF NOT EXISTS idx_certs_user ON certificates(user_id);
     CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
+    CREATE INDEX IF NOT EXISTS idx_scene_records_user ON scene_records(user_id);
+    CREATE INDEX IF NOT EXISTS idx_scene_records_scene ON scene_records(scene);
   `);
+  migrateContentsTable();
 }
 
 // ===== JSON 辅助 =====
@@ -165,6 +195,7 @@ type ContentRow = {
   author: string; created_at: string; topics: string;
   title: string; body: string; case_id: string;
   likes: number; dislikes: number; views: number; court: string;
+  talkshow: string; bar: string; library: string;
 };
 function rowToContent(row: ContentRow): StoredContent {
   const content: StoredContent = {
@@ -185,6 +216,12 @@ function rowToContent(row: ContentRow): StoredContent {
   if (row.case_id) content.caseId = row.case_id;
   const court = safeParse<PlazaContent["court"]>(row.court, undefined);
   if (court) content.court = court;
+  const talkshow = safeParse<PlazaContent["talkshow"]>(row.talkshow, undefined);
+  if (talkshow) content.talkshow = talkshow;
+  const bar = safeParse<PlazaContent["bar"]>(row.bar, undefined);
+  if (bar) content.bar = bar;
+  const library = safeParse<PlazaContent["library"]>(row.library, undefined);
+  if (library) content.library = library;
   return content;
 }
 
@@ -201,14 +238,18 @@ function seedIfEmpty(): void {
   const seeds = seedContentsFn();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court)
-    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library)
+    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const c of seeds) {
     insert.run(
       c.id, c.type, c.scene, c.author, c.createdAt,
       safeStringify(c.topics), c.title, c.body ?? "", c.caseId ?? "",
-      c.likes, c.dislikes, c.views, safeStringify(c.court ?? ""),
+      c.likes, c.dislikes, c.views,
+      safeStringify(c.court ?? ""),
+      safeStringify(c.talkshow ?? ""),
+      safeStringify(c.bar ?? ""),
+      safeStringify(c.library ?? ""),
     );
     // 种子评论写入 comments 表
     if (c.comments?.length) {
@@ -291,12 +332,16 @@ export function upsertContent(c: StoredContent): void {
   initDb();
   db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     c.id, c.userId ?? "", c.type, c.scene, c.author, c.createdAt,
     safeStringify(c.topics), c.title, c.body ?? "", c.caseId ?? "",
-    c.likes, c.dislikes, c.views, safeStringify(c.court ?? ""),
+    c.likes, c.dislikes, c.views,
+    safeStringify(c.court ?? ""),
+    safeStringify(c.talkshow ?? ""),
+    safeStringify(c.bar ?? ""),
+    safeStringify(c.library ?? ""),
   );
 }
 
@@ -424,4 +469,75 @@ export function markMessageRead(userId: string, msgId: string): void {
 export function markAllMessagesRead(userId: string): void {
   initDb();
   db.prepare("UPDATE messages SET read = 1 WHERE user_id = ?").run(userId);
+}
+
+// ===== M8: 场景记录 DAO =====
+export type SceneRecord = {
+  id: string;
+  userId?: string;
+  scene: SceneId;
+  sessionId: string;
+  title: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
+
+type SceneRecordRow = {
+  id: string; user_id: string; scene: string; session_id: string;
+  title: string; payload: string; created_at: string;
+};
+
+function rowToSceneRecord(row: SceneRecordRow): SceneRecord {
+  return {
+    id: row.id,
+    userId: row.user_id || undefined,
+    scene: row.scene as SceneId,
+    sessionId: row.session_id,
+    title: row.title,
+    payload: safeParse<Record<string, unknown>>(row.payload, {}),
+    createdAt: row.created_at,
+  };
+}
+
+export function addSceneRecord(rec: Omit<SceneRecord, "id" | "createdAt"> & { id?: string; createdAt?: string }): SceneRecord {
+  initDb();
+  const record: SceneRecord = {
+    id: rec.id ?? randomUUID(),
+    userId: rec.userId,
+    scene: rec.scene,
+    sessionId: rec.sessionId,
+    title: rec.title,
+    payload: rec.payload,
+    createdAt: rec.createdAt ?? new Date().toISOString(),
+  };
+  db.prepare(`
+    INSERT OR REPLACE INTO scene_records (id, user_id, scene, session_id, title, payload, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    record.id, record.userId ?? "", record.scene, record.sessionId,
+    record.title, safeStringify(record.payload), record.createdAt,
+  );
+  return record;
+}
+
+export function getSceneRecordsByUser(userId: string): SceneRecord[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM scene_records WHERE user_id = ? ORDER BY created_at DESC",
+  ).all(userId) as SceneRecordRow[];
+  return rows.map(rowToSceneRecord);
+}
+
+export function getSceneRecordsByScene(scene: SceneId, limit = 50): SceneRecord[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM scene_records WHERE scene = ? ORDER BY created_at DESC LIMIT ?",
+  ).all(scene, limit) as SceneRecordRow[];
+  return rows.map(rowToSceneRecord);
+}
+
+export function getSceneRecord(id: string): SceneRecord | undefined {
+  initDb();
+  const row = db.prepare("SELECT * FROM scene_records WHERE id = ?").get(id) as SceneRecordRow | undefined;
+  return row ? rowToSceneRecord(row) : undefined;
 }

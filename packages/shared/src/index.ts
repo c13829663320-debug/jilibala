@@ -63,7 +63,7 @@ export interface BenchStartRequest {
 }
 
 // ===== 广场 Plaza =====
-export type ContentType = "text" | "closed_court";
+export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note";
 export type SceneId = "court" | "talkshow" | "werewolf" | "bar" | "gym" | "library";
 export type ContentSort = "recommended" | "hot" | "latest";
 
@@ -87,6 +87,36 @@ export interface ClosedCourtData {
   closedAt: string;
 }
 
+/** talkshow_clip 类型内容携带的脱口秀精彩片段。 */
+export interface TalkshowClipData {
+  performer: string;
+  text: string;
+  audienceScore: number;
+  reactions: string[];
+  celebrityGuest?: string;
+  createdAt: string;
+}
+
+/** bar_quote 类型内容携带的酒吧辩论金句/共识。 */
+export interface BarQuoteData {
+  topic: string;
+  quote: string;
+  speaker: string;
+  side: "pro" | "con" | "bartender";
+  consensus?: string;
+  createdAt: string;
+}
+
+/** library_note 类型内容携带的图书馆读书笔记/金句。 */
+export interface LibraryNoteData {
+  celebrityId?: string;
+  celebrityName?: string;
+  book?: string;
+  question?: string;
+  answer: string;
+  createdAt: string;
+}
+
 export interface PlazaContent {
   id: string;
   type: ContentType;
@@ -97,6 +127,9 @@ export interface PlazaContent {
   title: string;
   body?: string;
   court?: ClosedCourtData;
+  talkshow?: TalkshowClipData;
+  bar?: BarQuoteData;
+  library?: LibraryNoteData;
   caseId?: string;
   likes: number;
   dislikes: number;
@@ -106,11 +139,11 @@ export interface PlazaContent {
 
 export const SCENE_META: Array<{ id: SceneId; label: string; emoji: string; locked?: boolean }> = [
   { id: "court", label: "趣味法庭", emoji: "⚖️" },
-  { id: "talkshow", label: "脱口秀剧场", emoji: "🎤", locked: true },
+  { id: "talkshow", label: "脱口秀剧场", emoji: "🎤" },
   { id: "werewolf", label: "狼人杀馆", emoji: "🐺", locked: true },
-  { id: "bar", label: "酒吧辩论", emoji: "🍺", locked: true },
+  { id: "bar", label: "酒吧辩论", emoji: "🍺" },
   { id: "gym", label: "健身房", emoji: "🏋️", locked: true },
-  { id: "library", label: "图书馆", emoji: "📚", locked: true },
+  { id: "library", label: "图书馆", emoji: "📚" },
 ];
 
 // ===== M7: 用户身份 =====
@@ -165,8 +198,17 @@ export interface CourtRoomState {
   verdict?: Verdict;
 }
 
+// ===== M8: 通用场景房间状态 =====
+export interface SceneRoomState {
+  scene: SceneId;
+  sessionId: string;
+  phase: string;
+  participants: number;
+  payload?: Record<string, unknown>;
+}
+
 export type WSMessage =
-  | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState }
+  | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState; sceneState?: SceneRoomState }
   | { type: 'user_joined'; user: WSUser }
   | { type: 'user_left'; userId: string }
   | { type: 'presence'; users: Array<{ userId: string; x: number; z: number; rotation: number }> }
@@ -175,6 +217,8 @@ export type WSMessage =
   | { type: 'user_vote'; userId: string; vote: 'plaintiff' | 'defendant' }
   | { type: 'bench_event'; event: BenchEvent }
   | { type: 'court_snapshot'; state: CourtRoomState }
+  | { type: 'scene_event'; scene: SceneId; event: Record<string, unknown> }
+  | { type: 'scene_snapshot'; scene: SceneId; state: SceneRoomState }
   | { type: 'pong' }
   | { type: 'error'; message: string };
 

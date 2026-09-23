@@ -16,12 +16,19 @@ export const timeAgo = (iso: string): string => {
 const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   text: "📝 文字观点",
   closed_court: "⚖️ 已结案法庭",
+  talkshow_clip: "🎤 脱口秀片段",
+  bar_quote: "🍺 酒吧金句",
+  library_note: "📚 读书笔记",
 };
 
 export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen: (id: string) => void }) {
-  const summary = content.type === "closed_court" && content.court
-    ? `最终判决：${content.court.verdict}`
-    : content.body ?? "";
+  const summary = (() => {
+    if (content.type === "closed_court" && content.court) return `最终判决：${content.court.verdict}`;
+    if (content.type === "talkshow_clip" && content.talkshow) return `${content.talkshow.performer} · 观众评分 ${content.talkshow.audienceScore}：${content.talkshow.text}`;
+    if (content.type === "bar_quote" && content.bar) return `${content.bar.speaker}："${content.bar.quote}"`;
+    if (content.type === "library_note" && content.library) return content.library.answer;
+    return content.body ?? "";
+  })();
   return (
     <article className="plaza-card" onClick={() => onOpen(content.id)} role="button" tabIndex={0}
       onKeyDown={(event) => { if (event.key === "Enter") onOpen(content.id); }}>

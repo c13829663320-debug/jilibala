@@ -6,6 +6,9 @@ import { timeAgo } from "./ContentCard";
 const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   text: "📝 文字观点",
   closed_court: "⚖️ 已结案法庭",
+  talkshow_clip: "🎤 脱口秀片段",
+  bar_quote: "🍺 酒吧金句",
+  library_note: "📚 读书笔记",
 };
 
 export function ContentDetail({ id, author, onBack, onChanged }: {
@@ -99,7 +102,7 @@ export function ContentDetail({ id, author, onBack, onChanged }: {
 
             {content.type === "text" ? (
               <p className="plaza-detail__body">{content.body}</p>
-            ) : content.court ? (
+            ) : content.type === "closed_court" && content.court ? (
               <section className="plaza-court">
                 <div className="plaza-court__row"><span>案号</span><p>{content.court.caseNo}</p></div>
                 <div className="plaza-court__row"><span>正方观点</span><p>{content.court.plaintiffClaim}</p></div>
@@ -110,6 +113,28 @@ export function ContentDetail({ id, author, onBack, onChanged }: {
                 <p className="plaza-court__stats">
                   <Users size={14} /> {content.court.participants} 人参与 · 结案于 {timeAgo(content.court.closedAt)}
                 </p>
+              </section>
+            ) : content.type === "talkshow_clip" && content.talkshow ? (
+              <section className="plaza-court">
+                <div className="plaza-court__row"><span>表演者</span><p>{content.talkshow.performer}</p></div>
+                <div className="plaza-court__row"><span>观众评分</span><p>{content.talkshow.audienceScore} / 100</p></div>
+                <div className="plaza-court__row"><span>观众反应</span><p>{content.talkshow.reactions.join(" · ")}</p></div>
+                {content.talkshow.celebrityGuest && <div className="plaza-court__row"><span>客串名人</span><p>{content.talkshow.celebrityGuest}</p></div>}
+                <div className="plaza-court__row is-verdict"><span>表演内容</span><p>{content.talkshow.text}</p></div>
+              </section>
+            ) : content.type === "bar_quote" && content.bar ? (
+              <section className="plaza-court">
+                <div className="plaza-court__row"><span>辩题</span><p>{content.bar.topic}</p></div>
+                <div className="plaza-court__row"><span>发言者</span><p>{content.bar.speaker}（{content.bar.side === "pro" ? "正方" : content.bar.side === "con" ? "反方" : "酒保"}）</p></div>
+                {content.bar.consensus && <div className="plaza-court__row"><span>双方共识</span><p>{content.bar.consensus}</p></div>}
+                <div className="plaza-court__row is-verdict"><span>金句</span><p>"{content.bar.quote}"</p></div>
+              </section>
+            ) : content.type === "library_note" && content.library ? (
+              <section className="plaza-court">
+                {content.library.celebrityName && <div className="plaza-court__row"><span>名人</span><p>{content.library.celebrityName}</p></div>}
+                {content.library.book && <div className="plaza-court__row"><span>著作</span><p>{content.library.book}</p></div>}
+                {content.library.question && <div className="plaza-court__row"><span>问题</span><p>{content.library.question}</p></div>}
+                <div className="plaza-court__row is-verdict"><span>笔记/回答</span><p>{content.library.answer}</p></div>
               </section>
             ) : null}
 

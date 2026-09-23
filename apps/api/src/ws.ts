@@ -4,11 +4,13 @@ import type { WebSocket } from "ws";
 import {
   type WSUser,
   type CourtRoomState,
+  type SceneRoomState,
   type WSMessage,
   type BenchMember,
   type BenchSpeech,
   type BenchStage,
   type Verdict,
+  type SceneId,
 } from "@balabala/shared";
 import * as db from "./db.js";
 
@@ -29,9 +31,17 @@ type Room = {
   id: string;
   users: Map<string, RoomUser>;
   courtState?: CourtRoomState;
+  sceneState?: SceneRoomState;
 };
 
 const rooms = new Map<string, Room>();
+
+/** M8: 合法房间前缀。plaza 为全局广场，其余为按场景/案件的房间。 */
+const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:"];
+
+function isValidRoom(roomId: string): boolean {
+  return VALID_ROOM_PREFIXES.some((p) => (p.endsWith(":") ? roomId.startsWith(p) : roomId === p));
+}
 
 const randomPos = () => (Math.random() * 20 - 10);
 
@@ -49,6 +59,20 @@ function getOrCreateRoom(roomId: string): Room {
         currentStage: "forming",
         votes: { plaintiff: 0, defendant: 0 },
       };
+    }
+    // M8: 场景房间初始化 sceneState
+    for (const prefix of ["talkshow:", "bar:", "library:"] as const) {
+      if (roomId.startsWith(prefix)) {
+        const scene = prefix.slice(0, -1) as SceneId;
+        room.sceneState = {
+          scene,
+          sessionId: roomId.slice(prefix.length),
+          phase: "idle",
+          participants: 0,
+          payload: {},
+        };
+        break;
+      }
     }
     rooms.set(roomId, room);
   }
@@ -116,6 +140,28 @@ export function getCourtState(caseId: string): CourtRoomState | undefined {
   return room?.courtState;
 }
 
+// ===== M8: 场景房间状态管理 =====
+/** 局部更新场景房间状态。 */
+export function updateSceneState(scene: SceneId, sessionId: string, patch: Partial<SceneRoomState>): void {
+  const roomId = `${scene}:${sessionId}`;
+  const room = getOrCreateRoom(roomId);
+  if (!room.sceneState) {
+    room.sceneState = { scene, sessionId, phase: "idle", participants: 0, payload: {} };
+  }
+  Object.assign(room.sceneState, patch);
+}
+
+/** 获取场景房间状态。 */
+export function getSceneState(scene: SceneId, sessionId: string): SceneRoomState | undefined {
+  const room = rooms.get(`${scene}:${sessionId}`);
+  return room?.sceneState;
+}
+
+/** 向场景房间广播事件。 */
+export function broadcastSceneEvent(scene: SceneId, sessionId: string, event: Record<string, unknown>): void {
+  broadcastToRoom(`${scene}:${sessionId}`, { type: "scene_event", scene, event });
+}
+
 // ===== 注册 WebSocket 路由 =====
 export function registerWebSocket(app: FastifyInstance): void {
   app.get("/api/ws", { websocket: true }, (socket: WebSocket, req) => {
@@ -130,8 +176,8 @@ export function registerWebSocket(app: FastifyInstance): void {
     }
 
     // 验证 room 格式
-    if (roomId !== "plaza" && !roomId.startsWith("court:")) {
-      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<caseId>" });
+    if (!isValidRoom(roomId)) {
+      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<id>/talkshow:<id>/bar:<id>/library:<id>" });
       socket.close();
       return;
     }
@@ -164,6 +210,7 @@ export function registerWebSocket(app: FastifyInstance): void {
       roomId,
       users: [...room.users.values()].map(wsUserOf),
       ...(room.courtState ? { courtState: room.courtState } : {}),
+      ...(room.sceneState ? { sceneState: room.sceneState } : {}),
     };
     safeSend(socket, welcome);
 
@@ -233,6 +280,14 @@ export function registerWebSocket(app: FastifyInstance): void {
             userId,
             vote,
           } satisfies WSMessage);
+          break;
+        }
+        case "scene_event": {
+          // M8: 场景事件透传广播（由各场景后端也可直接调用 broadcastSceneEvent）
+          const scene = String(data.scene ?? "") as SceneId;
+          const event = (data.event ?? {}) as Record<string, unknown>;
+          if (!scene) return;
+          broadcastToRoom(roomId, { type: "scene_event", scene, event } satisfies WSMessage);
           break;
         }
         case "ping": {

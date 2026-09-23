@@ -4,7 +4,7 @@ import { RotateCcw } from 'lucide-react'
  * 统一顶部导航：左侧品牌 + 三大入口（角色档案 / 场景 / 广场），
  * 右侧案卷库、重置、用户头像。庭审页也复用同一条导航并高亮当前位置。
  */
-export type TopView = 'court' | 'characters' | 'plaza' | 'mypage' | 'video' | 'archive'
+export type TopView = 'court' | 'characters' | 'plaza' | 'mypage' | 'video' | 'archive' | 'talkshow' | 'bar' | 'library'
 
 export type TopNavProps = {
   currentView: TopView
@@ -21,7 +21,12 @@ const NAV_ITEMS: Array<{ view: TopView; label: string }> = [
   { view: 'plaza', label: '广场' },
 ]
 
+/** 场景内页（脱口秀/酒吧/图书馆）高亮「场景」导航。 */
+const activeNavView = (v: TopView): TopView =>
+  v === 'talkshow' || v === 'bar' || v === 'library' ? 'court' : v
+
 export default function TopNav({ currentView, onNavigate, inCourtroom, onOpenArchive, onReset }: TopNavProps) {
+  const navActive = activeNavView(currentView)
   return (
     <header className="topnav">
       <div className="topnav__brand" onClick={() => onNavigate('court')} role="button" tabIndex={0}
@@ -38,8 +43,8 @@ export default function TopNav({ currentView, onNavigate, inCourtroom, onOpenArc
           <button
             key={item.view}
             type="button"
-            className={`topnav__link ${currentView === item.view ? 'is-active' : ''}`}
-            aria-current={currentView === item.view ? 'page' : undefined}
+            className={`topnav__link ${navActive === item.view ? 'is-active' : ''}`}
+            aria-current={navActive === item.view ? 'page' : undefined}
             onClick={() => onNavigate(item.view)}
           >
             {item.label}

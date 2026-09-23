@@ -11,6 +11,9 @@ import { loadContents, saveContents, makeSeedContents } from './content-storage.
 import * as db from './db.js';
 import type { StoredContent } from './db.js';
 import { registerWebSocket, broadcastToRoom, updateCourtState, getCourtState } from './ws.js';
+import { registerBarRoutes } from './bar-routes.js';
+import { registerTalkshowRoutes } from './talkshow-routes.js';
+import { registerLibraryRoutes } from './library-routes.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
 for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
@@ -824,6 +827,15 @@ app.post('/api/video/tasks/:taskId/result', async (req, reply) => {
   else { task.status = 'failed'; task.error = body.error || '生成失败'; }
   return task;
 });
+
+// ===== M8: 脱口秀剧场路由（注入 chatWithProviders） =====
+registerTalkshowRoutes(app, { chat: chatWithProviders, contents });
+
+// ===== M8: 酒吧辩论路由 =====
+registerBarRoutes(app, { chat: chatWithProviders, contents });
+
+// ===== M8: 图书馆路由 =====
+registerLibraryRoutes(app, { chat: chatWithProviders, contents });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

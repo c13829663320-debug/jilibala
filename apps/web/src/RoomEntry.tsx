@@ -12,6 +12,9 @@ export type RoomEntryProps = {
   onCharacters?: () => void
   onPlaza?: () => void
   onMyPage?: () => void
+  onEnterTalkshow?: () => void
+  onEnterBar?: () => void
+  onEnterLibrary?: () => void
 }
 
 type Item = { id: string; label: string; eyebrow: string; hint: string; color: string; locked?: boolean }
@@ -19,15 +22,15 @@ type Item = { id: string; label: string; eyebrow: string; hint: string; color: s
 
 const SCENES: Item[] = [
   { id: 'court', label: '趣味法庭', eyebrow: 'SCENE 01 · ONLINE', hint: '当前可进入', color: '#ffc83d' },
-  { id: 'talk', label: '脱口秀剧场', eyebrow: 'SCENE 02 · LOCKED', hint: '即将开放', color: '#ff5b61', locked: true },
+  { id: 'talkshow', label: '脱口秀剧场', eyebrow: 'SCENE 02 · ONLINE', hint: '上台讲段子，AI 观众实时反应', color: '#ff5b61' },
   { id: 'werewolf', label: '狼人杀馆', eyebrow: 'SCENE 03 · LOCKED', hint: '即将开放', color: '#357be8', locked: true },
-  { id: 'bar', label: '酒吧辩论赛', eyebrow: 'SCENE 04 · LOCKED', hint: '即将开放', color: '#11c99a', locked: true },
+  { id: 'bar', label: '酒吧辩论赛', eyebrow: 'SCENE 04 · ONLINE', hint: '与名人围坐对辩，酒保总结金句', color: '#11c99a' },
   { id: 'gym', label: '健身房', eyebrow: 'SCENE 05 · LOCKED', hint: '即将开放', color: '#f18820', locked: true },
-  { id: 'library', label: '图书馆', eyebrow: 'SCENE 06 · LOCKED', hint: '即将开放', color: '#7e52c7', locked: true },
+  { id: 'library', label: '图书馆', eyebrow: 'SCENE 06 · ONLINE', hint: '名人读书会与深度问答', color: '#7e52c7' },
 ]
 
 const SCENE_ICONS: Record<string, LucideIcon> = {
-  talk: Mic2,
+  talkshow: Mic2,
   werewolf: Moon,
   bar: Wine,
   gym: Dumbbell,
@@ -125,13 +128,16 @@ function ScenesCarousel({ activeId, onSelect, onOpen }: CarouselProps) {
   )
 }
 
-export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza, onMyPage }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza, onMyPage, onEnterTalkshow, onEnterBar, onEnterLibrary }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
   const active = items.find((item) => item.id === activeId) ?? items[0]
   const openScene = (scene: Item) => {
     if (scene.id === 'court') { onEnter(); return }
+    if (scene.id === 'talkshow') { onEnterTalkshow?.(); return }
+    if (scene.id === 'bar') { onEnterBar?.(); return }
+    if (scene.id === 'library') { onEnterLibrary?.(); return }
     if (scene.locked) setNotice(`${scene.label} · 该场景即将开放`)
   }
   return <main className="main-home" aria-label="BalaBala 平台主界面">
@@ -152,6 +158,6 @@ export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, 
     </section>
     <section className="main-home__modules" aria-label="快捷入口">{items.map((item) => { const QuickIcon = item.locked ? Lock : ArrowUpRight; return <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} style={{ '--module-color': item.color } as CSSProperties} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => { setActiveId(item.id); openScene(item) }}><QuickIcon size={14} aria-hidden="true" /><b>{item.label}</b></button> })}</section>
     {notice && <button type="button" className="main-home__notice" onClick={() => setNotice('')}>{notice}<span>×</span></button>}
-    <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>1 / 6 个场景已解锁</span></footer>
+    <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>4 / 6 个场景已解锁</span></footer>
   </main>
 }

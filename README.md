@@ -1,6 +1,30 @@
-# 叽里呱啦 · BalaBala 趣味法庭
+# 叽里呱啦 · BalaBala 社交世界
 
-把生活里的小小争议，变成一场温柔又好玩的趣味庭审。支持名人合议庭、3D 广场、实时多人联机与数据持久化。
+把生活里的小小争议，变成一场温柔又好玩的趣味庭审。平台包含趣味法庭、脱口秀剧场、酒吧辩论、图书馆四大互动场景，支持名人合议庭、3D 广场、实时多人联机与数据持久化。
+
+## 场景玩法（M8）
+
+### 🎤 脱口秀剧场
+- 上台讲段子（文字输入，可选 TTS 朗读），AI 虚拟观众实时打分（0-100）并给出反应（笑声/鼓掌/起哄/冷场/欢呼）和评论
+- 名人 open-mic：选择一位名人，用其 persona 现场讲 2-3 个短段子
+- AI 帮写：输入主题和风格，AI 生成可直接讲的脱口秀文本
+- 精彩片段一键发布到广场
+- 多人房间：其他用户当观众，表演和反应实时同步
+
+### 🍺 酒吧辩论
+- 围绕轻松话题（内置 12 个话题库，支持自定义）与名人围坐对辩
+- AI 自动推荐正反方辩手（各 1-2 位名人），名人按 persona + 立场发言并产出金句
+- 用户可加入正方或反方发言，投票评「更有趣的一方」
+- 酒保总结：不站队，提炼双方共识和最有趣的金句
+- 金句/共识一键发布到广场
+
+### 📚 图书馆
+- 名人读书会：名人按领域推荐著作，开场介绍并抛出讨论问题，可继续追问
+- 深度问答：与名人多轮对话（回复 200-400 字，支持展开论述），每条回答可发布金句
+- AI 馆员：按主题（15 个知识主题）回答知识性问题，可发布笔记
+- 安静氛围，多人一起参加读书会，提问实时同步
+
+> 狼人杀馆、健身房即将开放。
 
 ## 本地启动
 
@@ -30,6 +54,7 @@ npm run build        # 全量构建（shared + api + web）
 - 合议庭完整发言记录
 - 广场内容、评论、点赞/反对
 - 证书、消息
+- 场景交互记录（脱口秀表演、酒吧发言、图书馆问答）
 
 首次启动自动填充广场演示内容。
 
@@ -91,8 +116,32 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - `POST /api/contents/:id/react` — 点赞/反对（可选 `userId`，去重）
 - `POST /api/contents/:id/comments` — 评论
 
+### 脱口秀剧场
+- `POST /api/talkshow/perform` — 上台表演，返回观众评分/反应/评论
+- `POST /api/talkshow/celebrity` — 名人 open-mic 讲段子
+- `POST /api/talkshow/ai-write` — AI 帮写段子
+- `POST /api/talkshow/publish` — 发布精彩片段到广场
+
+### 酒吧辩论
+- `GET /api/bar/topics` — 话题库
+- `POST /api/bar/start` — 开始辩论（AI 推荐正反方辩手）
+- `POST /api/bar/speak` — 名人发言
+- `POST /api/bar/user-speak` — 用户发言
+- `POST /api/bar/summarize` — 酒保总结共识与金句
+- `POST /api/bar/vote` — 投票评更有趣的一方
+- `POST /api/bar/publish` — 发布金句到广场
+
+### 图书馆
+- `GET /api/library/topics` — 知识主题列表
+- `POST /api/library/celebrity-chat` — 名人深度问答
+- `POST /api/library/recommend` — 名人推荐著作
+- `POST /api/library/book-club` — 开始名人读书会
+- `POST /api/library/librarian` — AI 馆员答疑
+- `POST /api/library/publish` — 发布笔记/金句到广场
+
 ### WebSocket
-- `GET /api/ws?userId=<id>&room=plaza|court:<caseId>` — 实时连接
+- `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>` — 实时连接
+- 场景房间：脱口秀/酒吧/图书馆各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby`，通过 `scene_event` 广播场景内事件（表演、发言、问答等）
 
 ### 其他
 - `GET /health` — 服务健康与配置状态
@@ -112,7 +161,13 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 
 ## 3D 场景
 
-平台入口和趣味法庭使用 Three.js + React Three Fiber 实时渲染。广场为 3D 可交互场景（点击地面移动、点击建筑进入），法庭为多席位 3D 场景。
+平台使用 Three.js + React Three Fiber 实时渲染。广场为 3D 可交互场景（点击地面移动、点击建筑进入），六个建筑环绕广场：趣味法庭、脱口秀剧场、狼人杀馆（即将开放）、酒吧辩论、健身房（即将开放）、图书馆。
+
+室内场景均为程序化 3D 建模（三面布景 + 主题道具），延续 Q 版圆润 + 纯黑明黄视觉语言：
+- 趣味法庭：写实法庭 + 多席位合议庭
+- 脱口秀剧场：舞台 + 麦克风 + 观众席 + 聚光灯
+- 酒吧辩论：吧台 + 酒瓶 + 圆桌 + 暖光氛围
+- 图书馆：三面书架 + 阅览桌 + 台灯 + 安静氛围
 
 ## 项目结构
 
@@ -126,13 +181,27 @@ apps/
       storage.ts      # 案件存储（委托 db.ts）
       content-storage.ts  # 广场内容存储（委托 db.ts）
       bench-orchestrator.ts  # 多名人合议庭编排
+      talkshow-orchestrator.ts  # 脱口秀 AI 编排
+      talkshow-routes.ts  # 脱口秀路由
+      bar-orchestrator.ts  # 酒吧辩论 AI 编排
+      bar-routes.ts   # 酒吧辩论路由
+      library-orchestrator.ts  # 图书馆 AI 编排
+      library-routes.ts  # 图书馆路由
       tripo.ts        # Tripo 3D API 封装
   web/          # Vite + React 18 + R3F 前端
     src/
       identity.tsx    # 用户身份 Provider
       App.tsx         # 应用入口与路由
       CourtroomShell.tsx  # 合议庭状态机 + 多人联机
+      CourtroomView.tsx   # 法庭 3D 场景
+      TalkshowShell.tsx   # 脱口秀 UI 壳 + 多人
+      TalkshowView.tsx    # 脱口秀 3D 场景
+      BarShell.tsx        # 酒吧辩论 UI 壳 + 多人
+      BarView.tsx         # 酒吧 3D 场景
+      LibraryShell.tsx    # 图书馆 UI 壳 + 多人
+      LibraryView.tsx     # 图书馆 3D 场景
       Plaza3D.tsx     # 3D 广场 + presence
+      RoomEntry.tsx   # 场景入口大厅
       MyPage.tsx      # 我的页面
 packages/
   shared/       # 共享类型与名人数据

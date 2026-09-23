@@ -128,13 +128,16 @@ function RemoteAvatar({ userId, playersRef }: { userId: string; playersRef: Muta
 
 interface PlazaSceneProps {
   onEnterCourt: () => void
+  onEnterTalkshow: () => void
+  onEnterBar: () => void
+  onEnterLibrary: () => void
   toast: (msg: string) => void
   playersRef: MutableRefObject<Map<string, RemotePlayer>>
   remoteUserIds: string[]
   onMove: (x: number, z: number) => void
 }
 
-function PlazaScene({ onEnterCourt, toast, playersRef, remoteUserIds, onMove }: PlazaSceneProps) {
+function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterBar, onEnterLibrary, toast, playersRef, remoteUserIds, onMove }: PlazaSceneProps) {
   const targetRef = useRef(new THREE.Vector3(0, CAMERA_Y, 22))
   const lookRef = useRef(new THREE.Vector3(0, 0, 0))
   const [markers, setMarkers] = useState<Marker[]>([])
@@ -153,7 +156,10 @@ function PlazaScene({ onEnterCourt, toast, playersRef, remoteUserIds, onMove }: 
     e.stopPropagation()
     const b = hitBuilding(e.point.x, e.point.z)
     if (b) {
-      if (b.isCourt) onEnterCourt()
+      if (b.id === 'court') onEnterCourt()
+      else if (b.id === 'talkshow') onEnterTalkshow()
+      else if (b.id === 'bar') onEnterBar()
+      else if (b.id === 'library') onEnterLibrary()
       else toast(`${b.name} 即将开放，敬请期待`)
       return
     }
@@ -207,7 +213,13 @@ function buildWsUrl(room: string, userId: string): string {
   return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
 }
 
-export default function Plaza3D({ onBack, onEnterCourt }: { onBack: () => void; onEnterCourt: () => void }) {
+export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterBar, onEnterLibrary }: {
+  onBack: () => void
+  onEnterCourt: () => void
+  onEnterTalkshow?: () => void
+  onEnterBar?: () => void
+  onEnterLibrary?: () => void
+}) {
   const { user } = useIdentity()
   const [showDiscuss, setShowDiscuss] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
@@ -330,6 +342,9 @@ export default function Plaza3D({ onBack, onEnterCourt }: { onBack: () => void; 
       <Canvas shadows camera={{ position: [0, CAMERA_Y, 22], fov: 50, near: 0.1, far: 200 }} dpr={[1, 1.5]}>
         <PlazaScene
           onEnterCourt={onEnterCourt}
+          onEnterTalkshow={onEnterTalkshow ?? (() => toast('脱口秀剧场即将开放'))}
+          onEnterBar={onEnterBar ?? (() => toast('酒吧辩论即将开放'))}
+          onEnterLibrary={onEnterLibrary ?? (() => toast('图书馆即将开放'))}
           toast={toast}
           playersRef={playersRef}
           remoteUserIds={remoteUserIds}

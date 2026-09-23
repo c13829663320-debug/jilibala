@@ -13,9 +13,12 @@ import { IdentityProvider, useIdentity } from './identity'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
+const TalkshowShell = lazy(() => import('./TalkshowShell'))
+const BarShell = lazy(() => import('./BarShell'))
+const LibraryShell = lazy(() => import('./LibraryShell'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar'/**
+type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'bar' | 'library'/**
  * Lightweight non-blocking backend health probe. On failure shows a fixed yellow
  * overlay bar (portal to body) and retries every 5s; clicking the bar retries immediately.
  */
@@ -123,7 +126,17 @@ function AppInner() {
 
   // ===== 入口页（房间大厅，自带导航） =====
   if (view === 'entry') {
-    return <RoomEntry onEnter={() => setView('court')} onArchive={openArchives} onAvatar={() => setView('avatar')} onCharacters={() => setView('characters')} onPlaza={() => setView('plaza')} onMyPage={() => setView('mypage')} />
+    return <RoomEntry
+      onEnter={() => setView('court')}
+      onArchive={openArchives}
+      onAvatar={() => setView('avatar')}
+      onCharacters={() => setView('characters')}
+      onPlaza={() => setView('plaza')}
+      onMyPage={() => setView('mypage')}
+      onEnterTalkshow={() => setView('talkshow')}
+      onEnterBar={() => setView('bar')}
+      onEnterLibrary={() => setView('library')}
+    />
   }
 
   // ===== 3D 分身工坊（全屏子工具，无顶栏） =====
@@ -161,7 +174,37 @@ function AppInner() {
   if (view === 'plaza') {
     return <>
       <TopNav {...navProps} currentView="plaza" />
-      <Suspense fallback={null}><Plaza3D onBack={() => setView('entry')} onEnterCourt={() => setView('court')} /></Suspense>
+      <Suspense fallback={null}><Plaza3D
+        onBack={() => setView('entry')}
+        onEnterCourt={() => setView('court')}
+        onEnterTalkshow={() => setView('talkshow')}
+        onEnterBar={() => setView('bar')}
+        onEnterLibrary={() => setView('library')}
+      /></Suspense>
+    </>
+  }
+
+  // ===== M8: 脱口秀剧场 =====
+  if (view === 'talkshow') {
+    return <>
+      <TopNav {...navProps} currentView="talkshow" />
+      <Suspense fallback={null}><TalkshowShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
+    </>
+  }
+
+  // ===== M8: 酒吧辩论 =====
+  if (view === 'bar') {
+    return <>
+      <TopNav {...navProps} currentView="bar" />
+      <Suspense fallback={null}><BarShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
+    </>
+  }
+
+  // ===== M8: 图书馆 =====
+  if (view === 'library') {
+    return <>
+      <TopNav {...navProps} currentView="library" />
+      <Suspense fallback={null}><LibraryShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
     </>
   }
 
