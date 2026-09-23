@@ -10,11 +10,13 @@
   "dependencies": {
     "@balabala/shared": "*",
     "@fastify/cors": "^10.0.0",
+    "@fastify/websocket": "^11.3.1",
     "fastify": "^5.0.0",
     "undici": "^6.28.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

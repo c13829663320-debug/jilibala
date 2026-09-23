@@ -113,5 +113,70 @@ export const SCENE_META: Array<{ id: SceneId; label: string; emoji: string; lock
   { id: "library", label: "图书馆", emoji: "📚", locked: true },
 ];
 
+// ===== M7: 用户身份 =====
+export interface User {
+  userId: string;
+  nickname: string;
+  avatarType: 'capsule' | 'celebrity' | 'custom';
+  avatarRef: string;
+  createdAt: string;
+}
+
+// ===== M7: 证书 =====
+export interface CertRecord {
+  id: string;
+  userId: string;
+  caseId: string;
+  caseTitle: string;
+  verdict: string;
+  charge?: string;
+  createdAt: string;
+}
+
+// ===== M7: 消息 =====
+export interface MsgRecord {
+  id: string;
+  userId: string;
+  kind: 'court' | 'comment' | 'cert' | 'system';
+  title: string;
+  summary: string;
+  read: boolean;
+  createdAt: string;
+}
+
+// ===== M7: WebSocket 实时多人 =====
+export interface WSUser {
+  userId: string;
+  nickname: string;
+  avatarType: string;
+  avatarRef: string;
+  x: number;
+  z: number;
+  rotation: number;
+}
+
+export interface CourtRoomState {
+  caseId: string;
+  phase: 'config' | 'streaming' | 'verdict';
+  members: BenchMember[];
+  speeches: BenchSpeech[];
+  currentStage: BenchStage;
+  votes: { plaintiff: number; defendant: number };
+  verdict?: Verdict;
+}
+
+export type WSMessage =
+  | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState }
+  | { type: 'user_joined'; user: WSUser }
+  | { type: 'user_left'; userId: string }
+  | { type: 'presence'; users: Array<{ userId: string; x: number; z: number; rotation: number }> }
+  | { type: 'chat'; userId: string; nickname: string; text: string }
+  | { type: 'user_speech'; userId: string; nickname: string; text: string }
+  | { type: 'user_vote'; userId: string; vote: 'plaintiff' | 'defendant' }
+  | { type: 'bench_event'; event: BenchEvent }
+  | { type: 'court_snapshot'; state: CourtRoomState }
+  | { type: 'pong' }
+  | { type: 'error'; message: string };
+
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";

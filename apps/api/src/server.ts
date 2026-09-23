@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective } from "@balabala/shared";
+import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective, type User, type CertRecord, type MsgRecord } from "@balabala/shared";
 import { runBenchTrial } from "./bench-orchestrator.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -8,6 +8,9 @@ import { resolve } from "node:path";
 import { createImageTask, createTextTask, findAssetUrl, getTask, TripoError, uploadImageBuffer, uploadImageUrl } from './tripo.js';
 import { loadCases as loadStoredCases, saveCases as saveStoredCases, type StoredCase } from './storage.js';
 import { loadContents, saveContents, makeSeedContents } from './content-storage.js';
+import * as db from './db.js';
+import type { StoredContent } from './db.js';
+import { registerWebSocket, broadcastToRoom, updateCourtState, getCourtState } from './ws.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
 for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
@@ -20,12 +23,15 @@ for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), ".
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
-type CaseRecord = StoredCase & { createdAt: string; shareToken?: string };
+await app.register(import('@fastify/websocket'));
+registerWebSocket(app);
+
+type CaseRecord = StoredCase & { createdAt: string; shareToken?: string; userId?: string };
 const cases = new Map<string, CaseRecord>();
 for (const item of await loadStoredCases()) {
   cases.set(item.id, { ...item, createdAt: item.createdAt ?? new Date(0).toISOString() });
 }
-let contents: PlazaContent[] = await loadContents();
+let contents: StoredContent[] = await loadContents();
 if (contents.length === 0) {
   contents = makeSeedContents();
   await saveContents(contents);
@@ -146,14 +152,120 @@ const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800): Prom
 };
 
 app.get('/health', async () => ({ ok:true, service:'balabala-api', time:new Date().toISOString(), tripoConfigured:Boolean(tripoKey), stepfunConfigured:Boolean(stepfunKey), stepfunModel, evomapConfigured:Boolean(evomapKey), evomapModel }));
+
+// ===== M7: 用户身份端点 =====
+app.post('/api/users', async (req, reply) => {
+  const body = (req.body ?? {}) as { userId?: string; nickname?: string; avatarType?: User['avatarType']; avatarRef?: string };
+  if (body.userId) {
+    // 更新已有用户
+    const existing = db.getUser(body.userId);
+    if (!existing) return reply.code(404).send({ message: '用户不存在' });
+    const updated: User = {
+      ...existing,
+      nickname: body.nickname?.trim() || existing.nickname,
+      avatarType: body.avatarType ?? existing.avatarType,
+      avatarRef: body.avatarRef ?? existing.avatarRef,
+    };
+    db.upsertUser(updated);
+    return updated;
+  }
+  // 创建新用户
+  const newUser: User = {
+    userId: randomUUID(),
+    nickname: body.nickname?.trim() || '我',
+    avatarType: body.avatarType ?? 'capsule',
+    avatarRef: body.avatarRef ?? '',
+    createdAt: new Date().toISOString(),
+  };
+  db.upsertUser(newUser);
+  return reply.code(201).send(newUser);
+});
+
+app.get('/api/users/:userId', async (req, reply) => {
+  const { userId } = req.params as { userId: string };
+  const user = db.getUser(userId);
+  if (!user) return reply.code(404).send({ message: '用户不存在' });
+  return user;
+});
+
+// ===== M7: 我的页面数据端点 =====
+app.get('/api/users/:userId/cases', async (req) => {
+  const { userId } = req.params as { userId: string };
+  return db.getCasesByUser(userId);
+});
+
+app.get('/api/users/:userId/contents', async (req) => {
+  const { userId } = req.params as { userId: string };
+  return db.getContentsByUser(userId);
+});
+
+app.get('/api/users/:userId/certificates', async (req) => {
+  const { userId } = req.params as { userId: string };
+  return db.getCertificates(userId);
+});
+
+app.post('/api/users/:userId/certificates', async (req, reply) => {
+  const { userId } = req.params as { userId: string };
+  const body = (req.body ?? {}) as { caseId?: string; caseTitle?: string; verdict?: string; charge?: string };
+  if (!body.caseId || !body.caseTitle || !body.verdict) {
+    return reply.code(400).send({ message: 'caseId, caseTitle, verdict 为必填' });
+  }
+  const cert: CertRecord = {
+    id: randomUUID(),
+    userId,
+    caseId: body.caseId,
+    caseTitle: body.caseTitle,
+    verdict: body.verdict,
+    charge: body.charge,
+    createdAt: new Date().toISOString(),
+  };
+  db.addCertificate(cert);
+  return reply.code(201).send(cert);
+});
+
+app.get('/api/users/:userId/messages', async (req) => {
+  const { userId } = req.params as { userId: string };
+  return db.getMessages(userId);
+});
+
+app.put('/api/users/:userId/messages/:msgId/read', async (req, reply) => {
+  const { userId, msgId } = req.params as { userId: string; msgId: string };
+  db.markMessageRead(userId, msgId);
+  return { ok: true };
+});
+
+app.put('/api/users/:userId/messages/read-all', async (req, reply) => {
+  const { userId } = req.params as { userId: string };
+  db.markAllMessagesRead(userId);
+  return { ok: true };
+});
+
+app.post('/api/users/:userId/messages', async (req, reply) => {
+  const { userId } = req.params as { userId: string };
+  const body = (req.body ?? {}) as { kind?: MsgRecord['kind']; title?: string; summary?: string };
+  if (!body.kind || !body.title || !body.summary) {
+    return reply.code(400).send({ message: 'kind, title, summary 为必填' });
+  }
+  const msg: MsgRecord = {
+    id: randomUUID(),
+    userId,
+    kind: body.kind,
+    title: body.title,
+    summary: body.summary,
+    read: false,
+    createdAt: new Date().toISOString(),
+  };
+  db.addMessage(msg);
+  return reply.code(201).send(msg);
+});
+
+// ===== 案件端点（M1-M6 原有 + M7 userId 扩展） =====
 app.post('/api/cases', async (req, reply) => {
-  // Fastify leaves req.body undefined when a request has no body. Normalize
-  // that case so validation returns the same helpful 400 as an empty input.
-  const body = (req.body ?? {}) as { input?: string };
+  const body = (req.body ?? {}) as { input?: string; userId?: string };
   const checked = moderateInput(body.input ?? '');
   if (!checked.ok) return reply.code(400).send({ message: checked.message });
   const id = randomUUID();
-  cases.set(id, { id, input: checked.value, createdAt: new Date().toISOString() });
+  cases.set(id, { id, input: checked.value, createdAt: new Date().toISOString(), userId: body.userId });
   await persistCases();
   return { id };
 });
@@ -206,8 +318,7 @@ app.get('/api/cases/:id/trial/stream', async (req, reply) => {
 });
 
 
-// ===== 合议庭 Bench (M6)：多名人实时编排 =====
-// benchSessions 在 SSE 连接期间暂存用户互动；key 为 caseId。
+// ===== 合议庭 Bench (M6)：多名人实时编排 + M7 WebSocket 广播 =====
 const benchSessions = new Map<string, { interactions: BenchInteraction[] }>();
 
 // POST + SSE：前端用 fetch + ReadableStream 读取（EventSource 仅支持 GET）。
@@ -222,6 +333,9 @@ app.post('/api/cases/:id/bench/stream', async (req, reply) => {
     : 'audience';
   const celebrityIds = Array.isArray(body.celebrityIds) ? body.celebrityIds.filter((x): x is string => typeof x === 'string') : [];
   const benchSize = typeof body.benchSize === 'number' ? body.benchSize : 3;
+
+  // 初始化法庭房间状态
+  updateCourtState(id, { phase: 'streaming', votes: { plaintiff: 0, defendant: 0 } });
 
   // 若已有进行中的会话，先清理（避免旧连接泄漏）。
   benchSessions.delete(id);
@@ -238,6 +352,35 @@ app.post('/api/cases/:id/bench/stream', async (req, reply) => {
 
   const send = (event: unknown): void => { res.write(`data: ${JSON.stringify(event)}\n\n`); };
 
+  // M7: onEvent 同时广播给 WebSocket 法庭房间
+  const broadcastEvent = (event: unknown): void => {
+    broadcastToRoom('court:' + id, { type: 'bench_event', event });
+    // 根据事件类型更新法庭房间状态
+    if (event && typeof event === 'object' && 'type' in event) {
+      const ev = event as { type: string; stage?: string; members?: unknown[]; speech?: unknown; plaintiff?: number; defendant?: number; verdict?: unknown; transcript?: unknown[] };
+      switch (ev.type) {
+        case 'bench_members':
+          updateCourtState(id, { members: ev.members as any[] });
+          break;
+        case 'speech': {
+          const cur = getCourtState(id);
+          const speeches = [...(cur?.speeches ?? []), ev.speech as any];
+          updateCourtState(id, { speeches });
+          break;
+        }
+        case 'vote_update':
+          updateCourtState(id, { votes: { plaintiff: ev.plaintiff ?? 0, defendant: ev.defendant ?? 0 } });
+          break;
+        case 'verdict':
+          updateCourtState(id, { phase: 'verdict', verdict: ev.verdict as Verdict });
+          break;
+        case 'stage':
+          updateCourtState(id, { currentStage: ev.stage as any });
+          break;
+      }
+    }
+  };
+
   let benchResult: Awaited<ReturnType<typeof runBenchTrial>> | undefined;
   try {
     benchResult = await runBenchTrial({
@@ -248,7 +391,7 @@ app.post('/api/cases/:id/bench/stream', async (req, reply) => {
       benchSize,
       chat: chatWithProviders,
       fallbackVerdict: fallback,
-      onEvent: (event) => send(event),
+      onEvent: (event) => { send(event); broadcastEvent(event); },
       getPendingInteractions: () => benchSessions.get(id)?.interactions ?? [],
       markInteractionHandled: (interactionId) => {
         const session = benchSessions.get(id);
@@ -273,6 +416,8 @@ app.post('/api/cases/:id/bench/stream', async (req, reply) => {
     record.updatedAt = new Date().toISOString();
   }
   await persistCases();
+  // 标记法庭房间为判决阶段
+  updateCourtState(id, { phase: 'verdict' });
   benchSessions.delete(id);
   res.end();
 });
@@ -425,15 +570,21 @@ app.get('/api/contents/:id', async (req, reply) => {
 });
 
 app.post('/api/contents', async (req, reply) => {
-  const body = (req.body ?? {}) as { title?: string; body?: string; topics?: string[]; scene?: string; author?: string };
+  const body = (req.body ?? {}) as { title?: string; body?: string; topics?: string[]; scene?: string; author?: string; userId?: string };
   const title = body.title?.trim();
   const text = body.body?.trim();
   if (!title || !text) return reply.code(400).send({ message: '标题和正文不能为空' });
-  const content: PlazaContent = {
+  // M7: 若传了 userId，从用户资料取昵称作为 author
+  let author = body.author?.trim() || '我';
+  if (body.userId) {
+    const user = db.getUser(body.userId);
+    if (user) author = user.nickname;
+  }
+  const content: StoredContent = {
     id: randomUUID(),
     type: 'text',
     scene: (body.scene as SceneId | "all") ?? "all",
-    author: body.author?.trim() || '我',
+    author,
     createdAt: new Date().toISOString(),
     topics: (body.topics ?? []).map((t) => t.trim()).filter(Boolean),
     title,
@@ -442,6 +593,7 @@ app.post('/api/contents', async (req, reply) => {
     dislikes: 0,
     views: 0,
     comments: [],
+    userId: body.userId ?? "",
   };
   contents.unshift(content);
   await saveContents(contents);
@@ -450,19 +602,25 @@ app.post('/api/contents', async (req, reply) => {
 
 app.post('/api/cases/:id/publish', async (req, reply) => {
   const id = (req.params as { id: string }).id;
-  const body = (req.body ?? {}) as { topics?: string[]; author?: string; participants?: number };
+  const body = (req.body ?? {}) as { topics?: string[]; author?: string; participants?: number; userId?: string };
   const record = cases.get(id);
   if (!record) return reply.code(404).send({ message: '案件不存在' });
   if (!record.verdict) return reply.code(409).send({ message: '判决尚未生成，暂时不能发布' });
   const existing = contents.find((c) => c.type === 'closed_court' && c.caseId === id);
   if (existing) return { content: existing };
+  // M7: 若传了 userId，从用户资料取昵称作为 author
+  let author = body.author?.trim() || '我';
+  if (body.userId) {
+    const user = db.getUser(body.userId);
+    if (user) author = user.nickname;
+  }
   const v = record.verdict;
   const closedAt = record.updatedAt ?? record.createdAt ?? new Date().toISOString();
-  const content: PlazaContent = {
+  const content: StoredContent = {
     id: randomUUID(),
     type: 'closed_court',
     scene: 'court',
-    author: body.author?.trim() || '我',
+    author,
     createdAt: closedAt,
     topics: body.topics ?? [],
     title: v.title,
@@ -471,6 +629,7 @@ app.post('/api/cases/:id/publish', async (req, reply) => {
     dislikes: 0,
     views: 0,
     comments: [],
+    userId: body.userId ?? "",
     court: {
       caseNo: v.caseNo,
       title: v.title,
@@ -490,24 +649,34 @@ app.post('/api/cases/:id/publish', async (req, reply) => {
 
 app.post('/api/contents/:id/react', async (req, reply) => {
   const id = (req.params as { id: string }).id;
-  const body = (req.body ?? {}) as { reaction?: string };
+  const body = (req.body ?? {}) as { reaction?: string; userId?: string };
   const content = contents.find((c) => c.id === id);
   if (!content) return reply.code(404).send({ message: '内容不存在' });
-  if (body.reaction === 'like') content.likes += 1;
-  else if (body.reaction === 'dislike') content.dislikes += 1;
-  else return reply.code(400).send({ message: 'reaction 必须是 like 或 dislike' });
+  if (body.reaction !== 'like' && body.reaction !== 'dislike') {
+    return reply.code(400).send({ message: 'reaction 必须是 like 或 dislike' });
+  }
+  // M7: 使用 reactions 表去重，返回最新计数
+  const counts = db.addReaction(id, body.userId ?? '', body.reaction);
+  content.likes = counts.likes;
+  content.dislikes = counts.dislikes;
   await saveContents(contents);
   return { likes: content.likes, dislikes: content.dislikes };
 });
 
 app.post('/api/contents/:id/comments', async (req, reply) => {
   const id = (req.params as { id: string }).id;
-  const body = (req.body ?? {}) as { text?: string; author?: string };
+  const body = (req.body ?? {}) as { text?: string; author?: string; userId?: string };
   const content = contents.find((c) => c.id === id);
   if (!content) return reply.code(404).send({ message: '内容不存在' });
   const text = body.text?.trim();
   if (!text) return reply.code(400).send({ message: '评论内容不能为空' });
-  const newComment = { id: randomUUID(), author: body.author?.trim() || '我', text, createdAt: new Date().toISOString() };
+  // M7: 若传了 userId，从用户资料取昵称作为评论作者
+  let author = body.author?.trim() || '我';
+  if (body.userId) {
+    const user = db.getUser(body.userId);
+    if (user) author = user.nickname;
+  }
+  const newComment = { id: randomUUID(), author, text, createdAt: new Date().toISOString() };
   content.comments.push(newComment);
   await saveContents(contents);
   return reply.code(201).send({ comment: newComment });

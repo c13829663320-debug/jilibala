@@ -1,37 +1,34 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+// ===== M7: content-storage.ts 改为 SQLite DAO 委托层，保持原有导出签名不变 =====
 import path from "node:path";
 import type { PlazaContent } from "@balabala/shared";
-
-type StoredContents = PlazaContent[];
+import * as db from "./db.js";
+import type { StoredContent } from "./db.js";
 
 export function getContentsFile(): string {
   return process.env.BALABALA_CONTENTS_FILE ?? path.join(process.cwd(), ".data", "contents.json");
 }
 
-export async function loadContents(): Promise<StoredContents> {
-  const file = getContentsFile();
-  try {
-    const raw = await readFile(file, "utf8");
-    const parsed = JSON.parse(raw) as { version?: number; contents?: StoredContents } | StoredContents;
-    if (Array.isArray(parsed)) return parsed;
-    return parsed.contents ?? [];
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
+/** 从 SQLite 读取全部内容。 */
+export async function loadContents(): Promise<StoredContent[]> {
+  db.initDb();
+  return db.getAllContents();
 }
 
-let writeQueue: Promise<void> = Promise.resolve();
-export function saveContents(contents: StoredContents): Promise<void> {
-  const run = writeQueue.then(async () => {
-    const file = getContentsFile();
-    await mkdir(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
-    await writeFile(tmp, JSON.stringify({ version: 1, contents }, null, 2), "utf8");
-    await rename(tmp, file);
+/**
+ * 全量覆盖：清空 contents/comments/reactions 表后批量插入。
+ * 保持与原 JSON 文件 saveContents 相同的语义。
+ */
+export function saveContents(contents: StoredContent[]): Promise<void> {
+  return Promise.resolve().then(() => {
+    db.initDb();
+    db.clearContents();
+    for (const c of contents) {
+      db.upsertContent(c);
+      for (const cm of c.comments ?? []) {
+        db.addComment(c.id, cm);
+      }
+    }
   });
-  writeQueue = run.catch(() => undefined);
-  return run;
 }
 
 const hoursAgo = (hours: number): string => new Date(Date.now() - hours * 3600 * 1000).toISOString();
@@ -43,8 +40,8 @@ const comment = (author: string, text: string, hours: number) => ({
   createdAt: hoursAgo(hours),
 });
 
-/** 首次启动（内容文件不存在）时填充的演示内容。 */
-export function makeSeedContents(): StoredContents {
+/** 首次启动（内容表为空）时填充的演示内容。 */
+export function makeSeedContents(): PlazaContent[] {
   return [
     {
       id: "seed-text-1",
@@ -165,3 +162,6 @@ export function makeSeedContents(): StoredContents {
     },
   ];
 }
+
+// 注册种子数据回调，db.ts 首次初始化时自动写入空表
+db.registerSeedContents(makeSeedContents);

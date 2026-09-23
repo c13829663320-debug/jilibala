@@ -9,6 +9,7 @@ import MyPage from './MyPage'
 import VideoStudio from './VideoStudio'
 import TopNav, { type TopView } from './TopNav'
 import CourtroomShell, { type EvidenceMeta } from './CourtroomShell'
+import { IdentityProvider, useIdentity } from './identity'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
@@ -46,11 +47,21 @@ function ApiHealthBanner() {
   )
 }
 
-function App() {
+/** Parse ?room=court:<caseId> from the URL; returns the caseId or null. */
+function parseRoomParam(): string | null {
+  const room = new URLSearchParams(window.location.search).get('room')
+  if (room && room.startsWith('court:')) return room.slice('court:'.length)
+  return null
+}
+
+function AppInner() {
+  const { phase } = useIdentity()
   const [view, setView] = useState<View>(() => {
+    if (parseRoomParam()) return 'court'
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
     return 'entry'
   })
+  const [roomId] = useState<string | null>(() => parseRoomParam())
   // 开庭前全局配置（合议庭流程在 CourtroomShell 内自治）
   const [caseText, setCaseText] = useState('泡泡借走了阿布的彩虹伞，但下雨后伞变成了会唱歌的蘑菇。')
   const [hearingMode, setHearingMode] = useState<HearingMode>('quick')
@@ -77,6 +88,9 @@ function App() {
       .then(async (res) => { if (!res.ok) throw new Error('分享内容不存在或已失效'); return res.json() as Promise<{ title: string; quote: string; charge: string; sentence: string; disclaimer: string }> })
       .then(setSharedCase).catch(() => setSharedCase(null))
   }, [shareId])
+
+  // Identity still loading: show nothing (the setup modal covers 'setup' phase)
+  if (phase === 'loading') return null
 
   const fetchArchives = async () => {
     setArchiveLoading(true); setArchiveError('')
@@ -179,8 +193,17 @@ function App() {
         evidenceFiles={evidenceFiles} onEvidenceFilesChange={setEvidenceFiles}
         onOpenAvatarStudio={() => setView('avatar')}
         onPublishToPlaza={() => setView('plaza')}
+        roomId={roomId ?? undefined}
       />
     </main>
+  )
+}
+
+function App() {
+  return (
+    <IdentityProvider>
+      <AppInner />
+    </IdentityProvider>
   )
 }
 

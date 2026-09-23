@@ -1,10 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { ChevronRight, Eye, Bot, Sparkles, Play, Scale, Upload, FileText, Gavel, WandSparkles, Users, Clock3, Check, Download } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent } from 'react'
+import { ChevronRight, Eye, Bot, Sparkles, Play, Scale, Upload, FileText, Gavel, WandSparkles, Users, Clock3, Check, Download, Link2 } from 'lucide-react'
 import {
   CELEBRITIES, getCelebrity,
   type BenchEvent, type BenchMember, type BenchSpeech, type BenchStage,
   type Celebrity, type Perspective, type Verdict,
+  type WSMessage,
 } from '@balabala/shared'
+import { useIdentity } from './identity'
 import BenchSelection from './BenchSelection'
 import LiveTranscript from './LiveTranscript'
 import TrialInteraction, { type TrialInteractPayload } from './TrialInteraction'
@@ -21,6 +23,8 @@ const STAGE_LABEL: Record<BenchStage, string> = {
   forming: '组建合议庭', opening: '开庭陈述', debate: '自由辩论', summary: '总结陈词', verdict: '宣判',
 }
 
+type UserSpeechEntry = { id: string; nickname: string; text: string; time: string }
+
 export type CourtroomShellProps = {
   caseText: string
   onCaseTextChange: (v: string) => void
@@ -32,13 +36,17 @@ export type CourtroomShellProps = {
   onEvidenceFilesChange: (f: EvidenceMeta[]) => void
   onOpenAvatarStudio: () => void
   onPublishToPlaza: () => void
+  /** When set, the shell joins an existing court room as a guest via WS. */
+  roomId?: string
 }
 
 export default function CourtroomShell({
   caseText, onCaseTextChange, hearingMode, onHearingModeChange, perspective, onPerspectiveChange,
-  evidenceFiles, onEvidenceFilesChange, onOpenAvatarStudio, onPublishToPlaza,
+  evidenceFiles, onEvidenceFilesChange, onOpenAvatarStudio, onPublishToPlaza, roomId,
 }: CourtroomShellProps) {
-  const [benchPhase, setBenchPhase] = useState<BenchPhase>('config')
+  const { user } = useIdentity()
+  const isGuest = Boolean(roomId)
+  const [benchPhase, setBenchPhase] = useState<BenchPhase>(isGuest ? 'streaming' : 'config')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [members, setMembers] = useState<BenchMember[]>([])
   const [speeches, setSpeeches] = useState<BenchSpeech[]>([])
@@ -46,8 +54,8 @@ export default function CourtroomShell({
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null)
   const [votes, setVotes] = useState({ plaintiff: 0, defendant: 0 })
   const [verdict, setVerdict] = useState<Verdict | null>(null)
-  const [caseId, setCaseId] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
+  const [caseId, setCaseId] = useState(isGuest ? roomId! : '')
+  const [isStreaming, setIsStreaming] = useState(isGuest)
   const [errorMessage, setErrorMessage] = useState('')
   const [shareStatus, setShareStatus] = useState('')
   const [polishingCase, setPolishingCase] = useState(false)
@@ -56,6 +64,14 @@ export default function CourtroomShell({
   const [appealOpen, setAppealOpen] = useState(false)
   const [appealNote, setAppealNote] = useState('')
   const [certOpen, setCertOpen] = useState(false)
+
+  // Multiplayer / room state
+  const [wsOnlineCount, setWsOnlineCount] = useState(1)
+  const [userSpeeches, setUserSpeeches] = useState<UserSpeechEntry[]>([])
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimer = useRef<number | null>(null)
+  const wsShouldReconnect = useRef(true)
+  const [roomCopyStatus, setRoomCopyStatus] = useState('')
 
   const [avatarPrompt, setAvatarPrompt] = useState('卡通风格、穿红色法官袍的猫咪')
   const [avatarStatus, setAvatarStatus] = useState('')
@@ -71,6 +87,94 @@ export default function CourtroomShell({
   }, [caseText])
 
   useEffect(() => () => { abortRef.current?.abort() }, [])
+
+  // ===== WebSocket room connection =====
+  // Guest mode: connect to ?room=court:<id> immediately.
+  // Host mode: connect after caseId is set (hearing started).
+  const activeRoomId = isGuest ? roomId! : caseId
+  useEffect(() => {
+    if (!user?.userId || !activeRoomId) return
+    wsShouldReconnect.current = true
+
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const url = `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(user.userId)}&room=court:${encodeURIComponent(activeRoomId)}`
+
+    const connect = () => {
+      const ws = new WebSocket(url)
+      wsRef.current = ws
+
+      ws.onmessage = (ev) => {
+        let msg: WSMessage
+        try { msg = JSON.parse(ev.data) as WSMessage } catch { return }
+        switch (msg.type) {
+          case 'welcome':
+            setWsOnlineCount(msg.users.length)
+            if (msg.courtState) applyCourtSnapshot(msg.courtState)
+            break
+          case 'user_joined':
+            setWsOnlineCount((n) => n + 1)
+            break
+          case 'user_left':
+            setWsOnlineCount((n) => Math.max(1, n - 1))
+            break
+          case 'court_snapshot':
+            applyCourtSnapshot(msg.state)
+            break
+          case 'bench_event':
+            handleBenchEvent(msg.event)
+            break
+          case 'user_speech':
+            setUserSpeeches((prev) => [...prev.slice(-30), { id: `${Date.now()}-${Math.random()}`, nickname: msg.nickname, text: msg.text, time: new Date().toISOString() }])
+            break
+          case 'user_vote':
+            setVotes((prev) => ({ ...prev, [msg.vote]: prev[msg.vote] + 1 }))
+            break
+        }
+      }
+
+      ws.onclose = () => {
+        wsRef.current = null
+        if (wsShouldReconnect.current) {
+          reconnectTimer.current = window.setTimeout(connect, 3000)
+        }
+      }
+      ws.onerror = () => { ws.close() }
+    }
+
+    connect()
+    return () => {
+      wsShouldReconnect.current = false
+      if (reconnectTimer.current) window.clearTimeout(reconnectTimer.current)
+      wsRef.current?.close()
+      wsRef.current = null
+    }
+  }, [user?.userId, activeRoomId])
+
+  /** Apply a court room snapshot (for late-joining guests). */
+  const applyCourtSnapshot = useCallback((state: {
+    phase: BenchPhase; members: BenchMember[]; speeches: BenchSpeech[]
+    currentStage: BenchStage; votes: { plaintiff: number; defendant: number }
+    verdict?: Verdict
+  }) => {
+    setMembers(state.members)
+    setSpeeches(state.speeches)
+    setCurrentStage(state.currentStage)
+    setVotes(state.votes)
+    if (state.verdict) setVerdict(state.verdict)
+    setBenchPhase(state.phase === 'config' ? 'streaming' : state.phase)
+    setIsStreaming(state.phase !== 'verdict')
+  }, [])
+
+  const copyRoomLink = useCallback(() => {
+    const link = `${window.location.origin}/?room=court:${encodeURIComponent(activeRoomId)}`
+    const done = () => { setRoomCopyStatus('链接已复制'); window.setTimeout(() => setRoomCopyStatus(''), 2000) }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(done).catch(() => { window.prompt('复制房间链接', link); done() })
+    } else {
+      window.prompt('复制房间链接', link)
+      done()
+    }
+  }, [activeRoomId])
 
   // ===== AI 帮写 =====
   const polishCase = async () => {
@@ -187,6 +291,20 @@ export default function CourtroomShell({
   // ===== 用户互动（fire-and-forget） =====
   const sendInteraction = (payload: TrialInteractPayload) => {
     if (!caseId) return
+    // Guest mode: send speech/vote via WS instead of POST
+    if (isGuest) {
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        if (payload.kind === 'vote' && payload.vote) {
+          setVotes((prev) => ({ ...prev, [payload.vote as 'plaintiff' | 'defendant']: prev[payload.vote as 'plaintiff' | 'defendant'] + 1 }))
+          ws.send(JSON.stringify({ type: 'user_vote', vote: payload.vote }))
+        } else if (payload.text) {
+          ws.send(JSON.stringify({ type: 'user_speech', text: payload.text }))
+        }
+      }
+      return
+    }
+    // Host mode: existing POST flow (server also broadcasts to WS room)
     if (payload.kind === 'vote' && payload.vote) {
       setVotes((prev) => ({ ...prev, [payload.vote as 'plaintiff' | 'defendant']: prev[payload.vote as 'plaintiff' | 'defendant'] + 1 }))
     }
@@ -254,6 +372,28 @@ export default function CourtroomShell({
     <div className="workspace">
       {/* ===== 左侧配置栏 ===== */}
       <aside className="sidebar">
+        {isGuest ? (
+          <>
+            <div className="eyebrow"><Eye size={14} /> 正在观赛</div>
+            <h1>房间直播中</h1>
+            <p className="intro">你已通过链接加入这场庭审，可以发表意见或站队投票。</p>
+            <div className="divider" />
+            <div className="section-title"><span>房间信息</span></div>
+            <div className="sidebar-footer">
+              <div><Users size={15} /> {wsOnlineCount} 人在线</div>
+              <div><Gavel size={15} /> {members.length || '—'} 位名人</div>
+            </div>
+            {benchPhase === 'verdict' && verdict && (
+              <>
+                <div className="divider" />
+                <div className="section-title"><span>判决结果</span></div>
+                <p style={{ fontSize: 14, color: '#c8c8c0' }}>“{verdict.quote}”</p>
+                <p style={{ fontSize: 13, color: '#9a9c92' }}>罪名：{verdict.charge}</p>
+              </>
+            )}
+          </>
+        ) : (
+        <>
         <div className="eyebrow"><Sparkles size={14} /> 今日趣味法庭</div>
         <h1>把小事说清楚，<br /><span>让快乐继续发生。</span></h1>
         <p className="intro">输入一件生活小事，挑几位名人当合议庭，让他们替你辩个明白。</p>
@@ -323,6 +463,8 @@ export default function CourtroomShell({
           <div><Users size={15} /> {members.length || selectedIds.length || '—'} 位名人</div>
           <div><Clock3 size={15} /> 约 {8 + members.length * 2} 分钟</div>
         </div>
+        </>
+        )}
       </aside>
 
       {/* ===== 右侧主舞台 ===== */}
@@ -339,6 +481,19 @@ export default function CourtroomShell({
           </div>
           <div className="stage-tools">
             <span className="scene-tag">3D 场景 · 趣味法庭</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(255,214,0,0.12)', color: '#FFD600', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>
+              <Users size={12} /> {wsOnlineCount} 人在线
+            </span>
+            {isGuest && (
+              <button type="button" className="secondary-button" onClick={copyRoomLink} style={{ fontSize: 12, padding: '4px 12px' }}>
+                <Link2 size={12} /> {roomCopyStatus || '复制房间链接'}
+              </button>
+            )}
+            {!isGuest && benchPhase !== 'config' && (
+              <button type="button" className="secondary-button" onClick={copyRoomLink} style={{ fontSize: 12, padding: '4px 12px' }}>
+                <Link2 size={12} /> {roomCopyStatus || '邀请他人'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -363,6 +518,16 @@ export default function CourtroomShell({
               <LiveTranscript speeches={speeches} members={members} currentStage={currentStage} activeSpeakerId={activeSpeakerId} />
               <TrialInteraction perspective={perspective} members={members} disabled={isStreaming === false} votes={votes} onInteract={sendInteraction} />
             </div>
+            {userSpeeches.length > 0 && (
+              <div className="user-speeches-panel" style={{ marginTop: 12, background: 'rgba(255,214,0,0.05)', border: '1px solid rgba(255,214,0,0.2)', borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12, color: '#FFD600', fontWeight: 600, marginBottom: 8, letterSpacing: 1 }}>观众发言</div>
+                {userSpeeches.map((us) => (
+                  <div key={us.id} style={{ marginBottom: 6, fontSize: 13, color: '#c8c8c0' }}>
+                    <b style={{ color: '#f4f2ec' }}>{us.nickname}</b>：{us.text}
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 

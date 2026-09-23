@@ -9,7 +9,7 @@ export default defineConfig({
       // The API exposes its liveness route at /health (no /api prefix); alias it
       // so the frontend can probe it through the same /api origin.
       '/api/health': { target: 'http://localhost:8787', rewrite: () => '/health' },
-      '/api': 'http://localhost:8787',
+      '/api': { target: 'http://localhost:8787', ws: true },
     },
   },
   build: {

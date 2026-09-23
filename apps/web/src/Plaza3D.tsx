@@ -1,9 +1,11 @@
-import { Suspense, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react'
+import { Suspense, useLayoutEffect, useEffect, useRef, useState, useCallback, type MutableRefObject } from 'react'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Billboard, Text, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
-import { ArrowLeft, MessagesSquare } from 'lucide-react'
+import { ArrowLeft, MessagesSquare, Users } from 'lucide-react'
 import { Plaza } from './Plaza'
+import { useIdentity, hashColor, getCelebrity } from './identity'
+import type { WSMessage, WSUser } from '@balabala/shared'
 import './plaza-3d.css'
 
 const BUILDINGS = [
@@ -20,6 +22,19 @@ const CAMERA_Y = 16
 
 type Marker = { id: number; x: number; z: number; born: number }
 
+/** A remote player tracked in the plaza. Positions are lerped toward targetX/targetZ. */
+type RemotePlayer = {
+  userId: string
+  nickname: string
+  avatarType: string
+  avatarRef: string
+  x: number
+  z: number
+  rotation: number
+  targetX: number
+  targetZ: number
+}
+
 function PlazaModel({ onPick }: { onPick: (e: ThreeEvent<MouseEvent>) => void }) {
   const { scene } = useGLTF('/models/balabala_plaza.glb', false, true)
   useLayoutEffect(() => {
@@ -28,9 +43,6 @@ function PlazaModel({ onPick }: { onPick: (e: ThreeEvent<MouseEvent>) => void })
       if (mesh.isMesh) {
         mesh.castShadow = true
         mesh.receiveShadow = true
-        // Let all clicks fall through to the invisible ground plane; we do
-        // distance-based building hit detection against the ray-ground point.
-        // useLayoutEffect runs before paint so no user click lands on these meshes.
         mesh.raycast = () => {}
       }
     })
@@ -69,7 +81,60 @@ function CameraRig({ target, lookAt }: { target: MutableRefObject<THREE.Vector3>
   return null
 }
 
-function PlazaScene({ onEnterCourt, toast }: { onEnterCourt: () => void; toast: (msg: string) => void }) {
+/** Single remote player avatar: colored capsule + floating name label. */
+function RemoteAvatar({ userId, playersRef }: { userId: string; playersRef: MutableRefObject<Map<string, RemotePlayer>> }) {
+  const groupRef = useRef<THREE.Group>(null)
+  const player = playersRef.current.get(userId)
+
+  // Resolve display color and name
+  let displayName = '玩家'
+  let avatarColor = hashColor(userId)
+  if (player) {
+    displayName = player.nickname
+    if (player.avatarType === 'celebrity' && player.avatarRef) {
+      const celeb = getCelebrity(player.avatarRef)
+      if (celeb) displayName = celeb.name
+    }
+    avatarColor = player.avatarType === 'capsule' ? hashColor(player.userId) : '#FFD600'
+  }
+
+  useFrame(() => {
+    const p = playersRef.current.get(userId)
+    if (!p || !groupRef.current) return
+    const g = groupRef.current
+    g.position.x = THREE.MathUtils.lerp(g.position.x, p.targetX, 0.12)
+    g.position.z = THREE.MathUtils.lerp(g.position.z, p.targetZ, 0.12)
+    g.rotation.y = p.rotation
+  })
+
+  if (!player) return null
+
+  return (
+    <group ref={groupRef} position={[player.x, 0, player.z]}>
+      {/* capsule body */}
+      <mesh position={[0, 0.6, 0]} castShadow>
+        <capsuleGeometry args={[0.25, 0.6, 8, 16]} />
+        <meshStandardMaterial color={avatarColor} roughness={0.4} metalness={0.1} />
+      </mesh>
+      {/* floating name label */}
+      <Billboard position={[0, 1.6, 0]}>
+        <Text fontSize={0.28} color="#FFFFFF" anchorX="center" anchorY="middle" outlineWidth={0.015} outlineColor="#000000" raycast={() => null}>
+          {displayName}
+        </Text>
+      </Billboard>
+    </group>
+  )
+}
+
+interface PlazaSceneProps {
+  onEnterCourt: () => void
+  toast: (msg: string) => void
+  playersRef: MutableRefObject<Map<string, RemotePlayer>>
+  remoteUserIds: string[]
+  onMove: (x: number, z: number) => void
+}
+
+function PlazaScene({ onEnterCourt, toast, playersRef, remoteUserIds, onMove }: PlazaSceneProps) {
   const targetRef = useRef(new THREE.Vector3(0, CAMERA_Y, 22))
   const lookRef = useRef(new THREE.Vector3(0, 0, 0))
   const [markers, setMarkers] = useState<Marker[]>([])
@@ -96,6 +161,8 @@ function PlazaScene({ onEnterCourt, toast }: { onEnterCourt: () => void; toast: 
     lookRef.current.set(e.point.x, 0, e.point.z)
     const id = Date.now() + Math.random()
     setMarkers((arr) => [...arr, { id, x: e.point.x, z: e.point.z, born: performance.now() }])
+    // Sync position to other users via WS
+    onMove(e.point.x, e.point.z)
   }
 
   const handleMove = (e: ThreeEvent<PointerEvent>) => {
@@ -126,15 +193,33 @@ function PlazaScene({ onEnterCourt, toast }: { onEnterCourt: () => void; toast: 
       {markers.map((m) => (
         <RingMarker key={m.id} marker={m} onDone={(id) => setMarkers((arr) => arr.filter((x) => x.id !== id))} />
       ))}
+      {/* Remote players */}
+      {remoteUserIds.map((uid) => (
+        <RemoteAvatar key={uid} userId={uid} playersRef={playersRef} />
+      ))}
       <CameraRig target={targetRef} lookAt={lookRef} />
     </>
   )
 }
 
+function buildWsUrl(room: string, userId: string): string {
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
+}
+
 export default function Plaza3D({ onBack, onEnterCourt }: { onBack: () => void; onEnterCourt: () => void }) {
+  const { user } = useIdentity()
   const [showDiscuss, setShowDiscuss] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
   const toastTimer = useRef<number | null>(null)
+  const [onlineCount, setOnlineCount] = useState(1)
+
+  // Remote players store: ref for high-frequency position updates, state for join/leave
+  const playersRef = useRef(new Map<string, RemotePlayer>())
+  const [remoteUserIds, setRemoteUserIds] = useState<string[]>([])
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimer = useRef<number | null>(null)
+  const shouldReconnect = useRef(true)
 
   const toast = (msg: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current)
@@ -142,10 +227,114 @@ export default function Plaza3D({ onBack, onEnterCourt }: { onBack: () => void; 
     toastTimer.current = window.setTimeout(() => setToastMsg(''), 2200)
   }
 
+  const upsertPlayer = useCallback((u: WSUser) => {
+    const existing = playersRef.current.get(u.userId)
+    playersRef.current.set(u.userId, {
+      userId: u.userId,
+      nickname: u.nickname,
+      avatarType: u.avatarType,
+      avatarRef: u.avatarRef,
+      x: existing?.x ?? u.x,
+      z: existing?.z ?? u.z,
+      rotation: u.rotation,
+      targetX: u.x,
+      targetZ: u.z,
+    })
+    setRemoteUserIds((prev) => (prev.includes(u.userId) ? prev : [...prev, u.userId]))
+  }, [])
+
+  const removePlayer = useCallback((userId: string) => {
+    playersRef.current.delete(userId)
+    setRemoteUserIds((prev) => prev.filter((id) => id !== userId))
+  }, [])
+
+  // WS connection lifecycle
+  useEffect(() => {
+    if (!user?.userId) return
+    shouldReconnect.current = true
+
+    const connect = () => {
+      const ws = new WebSocket(buildWsUrl('plaza', user.userId))
+      wsRef.current = ws
+
+      ws.onopen = () => { /* connected */ }
+
+      ws.onmessage = (ev) => {
+        let msg: WSMessage
+        try { msg = JSON.parse(ev.data) as WSMessage } catch { return }
+        switch (msg.type) {
+          case 'welcome': {
+            playersRef.current.clear()
+            const others = msg.users.filter((u) => u.userId !== user.userId)
+            for (const u of others) upsertPlayer(u)
+            setRemoteUserIds(others.map((u) => u.userId))
+            setOnlineCount(msg.users.length)
+            break
+          }
+          case 'user_joined':
+            upsertPlayer(msg.user)
+            setOnlineCount((n) => n + 1)
+            break
+          case 'user_left':
+            removePlayer(msg.userId)
+            setOnlineCount((n) => Math.max(1, n - 1))
+            break
+          case 'presence': {
+            for (const p of msg.users) {
+              const existing = playersRef.current.get(p.userId)
+              if (existing) {
+                existing.targetX = p.x
+                existing.targetZ = p.z
+                existing.rotation = p.rotation
+              }
+            }
+            break
+          }
+          case 'chat':
+            toast(`${msg.nickname}: ${msg.text}`)
+            break
+          case 'error':
+            break
+        }
+      }
+
+      ws.onclose = () => {
+        wsRef.current = null
+        if (shouldReconnect.current) {
+          reconnectTimer.current = window.setTimeout(connect, 3000)
+        }
+      }
+
+      ws.onerror = () => { ws.close() }
+    }
+
+    connect()
+
+    return () => {
+      shouldReconnect.current = false
+      if (reconnectTimer.current) window.clearTimeout(reconnectTimer.current)
+      wsRef.current?.close()
+      wsRef.current = null
+    }
+  }, [user?.userId, upsertPlayer, removePlayer, toast])
+
+  // Send move message when the player clicks the ground
+  const handleMove = useCallback((x: number, z: number) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({ type: 'move', x, z, rotation: 0 }))
+  }, [])
+
   return (
     <div className="plaza-3d-root">
       <Canvas shadows camera={{ position: [0, CAMERA_Y, 22], fov: 50, near: 0.1, far: 200 }} dpr={[1, 1.5]}>
-        <PlazaScene onEnterCourt={onEnterCourt} toast={toast} />
+        <PlazaScene
+          onEnterCourt={onEnterCourt}
+          toast={toast}
+          playersRef={playersRef}
+          remoteUserIds={remoteUserIds}
+          onMove={handleMove}
+        />
       </Canvas>
       <div className="plaza-3d-topbar">
         <button className="plaza-3d-back" onClick={onBack} aria-label="返回">
@@ -153,6 +342,14 @@ export default function Plaza3D({ onBack, onEnterCourt }: { onBack: () => void; 
         </button>
         <div className="plaza-3d-title">广场</div>
         <img className="plaza-3d-logo" src="/brand/balabala-mark-clean.jpg" alt="BalaBala" />
+      </div>
+      <div className="plaza-3d-online" style={{
+        position: 'absolute', top: 56, left: 16, zIndex: 10,
+        display: 'flex', alignItems: 'center', gap: 6,
+        background: 'rgba(20,18,10,0.8)', border: '1px solid #FFD600', borderRadius: 20,
+        padding: '4px 12px', color: '#FFD600', fontSize: 12, fontWeight: 600,
+      }}>
+        <Users size={13} /> 在线 {onlineCount} 人
       </div>
       <div className="plaza-3d-hint">点击地面移动 · 点击建筑进入</div>
       <button className="plaza-3d-discuss" onClick={() => setShowDiscuss(true)}>

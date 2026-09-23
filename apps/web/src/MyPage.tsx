@@ -4,6 +4,8 @@ import {
   Home, MessageSquare, PenLine, Settings, Sparkles, ThumbsUp, Trash2,
   Users, Volume2, VolumeX, Download, BadgeCheck, Scale, MessageCircle, Film,
 } from 'lucide-react'
+import type { CertRecord as ApiCertRecord, MsgRecord as ApiMsgRecord } from '@balabala/shared'
+import { useIdentity } from './identity'
 import './my-page.css'
 
 /* ---------- types ---------- */
@@ -42,11 +44,7 @@ export type MyPageProps = {
 }
 
 /* ---------- storage helpers ---------- */
-const LS_USER = 'balabala.username'
 const LS_SOUND = 'balabala.sound'
-const LS_CERTS = 'balabala.certificates'
-const LS_MSGS = 'balabala.messages'
-const LS_SEED = 'balabala.mypage-seeded'
 
 const readJSON = <T,>(key: string, fallback: T): T => {
   try {
@@ -72,14 +70,16 @@ const fmtDay = (value?: string) => {
 }
 const shortText = (text: string, n = 60) => (text.length > n ? `${text.slice(0, n)}…` : text)
 
-const seedMessages = (): MsgRecord[] => {
-  const now = Date.now()
-  const mk = (h: number) => new Date(now - h * 3600 * 1000).toISOString()
-  return [
-    { id: 'sys-1', kind: 'system', title: '欢迎来到「我的」', summary: '这里汇集你的庭审、发布、证书与消息。', time: mk(1), read: false },
-    { id: 'sys-2', kind: 'court', title: '庭审完成通知', summary: '完成一次趣味庭审后，判决书会自动归档在这里。', time: mk(6), read: true },
-  ]
-}
+/** Map API CertRecord to the local display shape (SVG uses `date`). */
+const mapCert = (c: ApiCertRecord): CertRecord => ({
+  id: c.id, caseId: c.caseId, caseTitle: c.caseTitle,
+  verdict: c.verdict, charge: c.charge, date: c.createdAt,
+})
+/** Map API MsgRecord to the local display shape (UI uses `time`). */
+const mapMsg = (m: ApiMsgRecord): MsgRecord => ({
+  id: m.id, kind: m.kind, title: m.title, summary: m.summary,
+  time: m.createdAt, read: m.read,
+})
 
 /* ---------- certificate SVG ---------- */
 function CertificateSvg({ cert }: { cert: CertRecord }) {
@@ -126,24 +126,18 @@ function CertificateSvg({ cert }: { cert: CertRecord }) {
 
 /* ---------- main component ---------- */
 export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProps) {
+  const { user, updateProfile } = useIdentity()
+  const userId = user?.userId ?? ''
   const [tab, setTab] = useState<'cases' | 'posts' | 'certs' | 'msgs' | 'settings'>('cases')
-  const [username, setUsername] = useState(() => readJSON(LS_USER, '我') as string)
+  const username = user?.nickname ?? '我'
   const [sound, setSound] = useState(() => (readJSON(LS_SOUND, 'on') as string) === 'on')
   const [archives, setArchives] = useState<MyArchive[]>([])
   const [posts, setPosts] = useState<MyContent[]>([])
   const [loadingCases, setLoadingCases] = useState(false)
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [openCaseId, setOpenCaseId] = useState<string | null>(null)
-  const [certs, setCerts] = useState<CertRecord[]>(() => readJSON(LS_CERTS, []))
-  const [msgs, setMsgs] = useState<MsgRecord[]>(() => {
-    if (!readJSON(LS_SEED, false)) {
-      const seeded = seedMessages()
-      writeJSON(LS_MSGS, seeded)
-      try { window.localStorage.setItem(LS_SEED, '1') } catch { /* ignore */ }
-      return seeded
-    }
-    return readJSON(LS_MSGS, [])
-  })
+  const [certs, setCerts] = useState<CertRecord[]>([])
+  const [msgs, setMsgs] = useState<MsgRecord[]>([])
   const [previewCert, setPreviewCert] = useState<CertRecord | null>(null)
   const [toast, setToast] = useState('')
   const [nameDraft, setNameDraft] = useState(username)
@@ -153,23 +147,28 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProp
     window.setTimeout(() => setToast(''), 2000)
   }, [])
 
-  /* load archives (cases) */
+  // Sync nameDraft once the user profile loads
+  useEffect(() => { if (user?.nickname) setNameDraft(user.nickname) }, [user?.nickname])
+
+  /* load my cases */
   const loadCases = useCallback(async () => {
+    if (!userId) return
     setLoadingCases(true)
     try {
-      const res = await fetch('/api/archives')
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/cases`)
       if (!res.ok) throw new Error('案卷加载失败')
       setArchives(await res.json() as MyArchive[])
     } catch {
       setArchives([])
     } finally { setLoadingCases(false) }
-  }, [])
+  }, [userId])
 
-  /* load contents and filter by current author */
+  /* load my published contents */
   const loadPosts = useCallback(async () => {
+    if (!userId) return
     setLoadingPosts(true)
     try {
-      const res = await fetch('/api/contents')
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/contents`)
       if (!res.ok) throw new Error('内容加载失败')
       const json = await res.json() as { contents?: MyContent[] }
       const list = Array.isArray(json) ? (json as unknown as MyContent[]) : (json.contents ?? [])
@@ -177,64 +176,81 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProp
     } catch {
       setPosts([])
     } finally { setLoadingPosts(false) }
-  }, [])
+  }, [userId])
+
+  /* load my certificates */
+  const loadCerts = useCallback(async () => {
+    if (!userId) return
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/certificates`)
+      if (!res.ok) return
+      const list = await res.json() as ApiCertRecord[]
+      setCerts(list.map(mapCert))
+    } catch { /* ignore */ }
+  }, [userId])
+
+  /* load my messages */
+  const loadMsgs = useCallback(async () => {
+    if (!userId) return
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/messages`)
+      if (!res.ok) return
+      const list = await res.json() as ApiMsgRecord[]
+      setMsgs(list.map(mapMsg))
+    } catch { /* ignore */ }
+  }, [userId])
 
   useEffect(() => { void loadCases() }, [loadCases])
   useEffect(() => { void loadPosts() }, [loadPosts])
+  useEffect(() => { void loadCerts() }, [loadCerts])
+  useEffect(() => { void loadMsgs() }, [loadMsgs])
 
-  const myPosts = useMemo(
-    () => posts.filter((c) => (c.author ?? '') === (username ?? '我')),
-    [posts, username],
-  )
   const unread = useMemo(() => msgs.filter((m) => !m.read).length, [msgs])
 
-  const pushMessage = useCallback((kind: MsgRecord['kind'], title: string, summary: string) => {
-    setMsgs((prev) => {
-      const next = [{ id: crypto.randomUUID(), kind, title, summary, time: new Date().toISOString(), read: false }, ...prev]
-      writeJSON(LS_MSGS, next)
-      return next
-    })
-  }, [])
-
-  const generateCert = (record: MyArchive) => {
+  const generateCert = async (record: MyArchive) => {
+    if (!userId) return
     const existing = certs.find((c) => c.caseId === record.id)
     if (existing) { setPreviewCert(existing); return }
-    const cert: CertRecord = {
-      id: `BALA-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      caseId: record.id,
-      caseTitle: record.verdict?.title || shortText(record.input, 20),
-      verdict: record.verdict?.quote || record.verdict?.sentence || record.input,
-      charge: record.verdict?.charge,
-      date: record.updatedAt ?? record.createdAt ?? new Date().toISOString(),
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/certificates`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caseId: record.id,
+          caseTitle: record.verdict?.title || shortText(record.input, 20),
+          verdict: record.verdict?.quote || record.verdict?.sentence || record.input,
+          charge: record.verdict?.charge,
+        }),
+      })
+      if (!res.ok) throw new Error('证书创建失败')
+      const created = mapCert(await res.json() as ApiCertRecord)
+      setCerts((prev) => [created, ...prev])
+      setPreviewCert(created)
+      void loadMsgs()
+      flash('证书已生成')
+    } catch {
+      flash('证书生成失败')
     }
-    const next = [cert, ...certs]
-    setCerts(next)
-    writeJSON(LS_CERTS, next)
-    pushMessage('cert', '证书已生成', `《${cert.caseTitle}》的趣味证书已加入证书墙。`)
-    setPreviewCert(cert)
-    flash('证书已生成')
   }
 
-  const markRead = (id: string) => {
-    setMsgs((prev) => {
-      const next = prev.map((m) => (m.id === id ? { ...m, read: true } : m))
-      writeJSON(LS_MSGS, next)
-      return next
-    })
+  const markRead = async (id: string) => {
+    if (!userId) return
+    setMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, read: true } : m)))
+    try { await fetch(`/api/users/${encodeURIComponent(userId)}/messages/${encodeURIComponent(id)}/read`, { method: 'PUT' }) } catch { /* ignore */ }
   }
-  const markAllRead = () => {
-    setMsgs((prev) => {
-      const next = prev.map((m) => ({ ...m, read: true }))
-      writeJSON(LS_MSGS, next)
-      return next
-    })
+  const markAllRead = async () => {
+    if (!userId) return
+    setMsgs((prev) => prev.map((m) => ({ ...m, read: true })))
+    try { await fetch(`/api/users/${encodeURIComponent(userId)}/messages/read-all`, { method: 'PUT' }) } catch { /* ignore */ }
   }
 
-  const saveUsername = () => {
+  const saveUsername = async () => {
     const v = nameDraft.trim() || '我'
-    setUsername(v)
-    writeJSON(LS_USER, v)
-    flash('用户名已保存')
+    try {
+      await updateProfile(v, user?.avatarType ?? 'capsule', user?.avatarRef ?? '')
+      flash('用户名已保存')
+    } catch {
+      flash('保存失败')
+    }
   }
   const toggleSound = () => {
     const next = !sound
@@ -242,18 +258,10 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProp
     writeJSON(LS_SOUND, next ? 'on' : 'off')
   }
   const clearLocal = () => {
-    if (!window.confirm('确定清除本地案件、消息与证书数据吗？此操作不可恢复。')) return
-    try {
-      window.localStorage.removeItem(LS_CERTS)
-      window.localStorage.removeItem(LS_MSGS)
-      window.localStorage.removeItem(LS_SEED)
-    } catch { /* ignore */ }
-    setCerts([])
-    const seeded = seedMessages()
-    setMsgs(seeded)
-    writeJSON(LS_MSGS, seeded)
-    try { window.localStorage.setItem(LS_SEED, '1') } catch { /* ignore */ }
-    flash('本地数据已清除')
+    if (!window.confirm('确定清除本地偏好设置吗？案件、证书与消息已保存在服务端。')) return
+    try { window.localStorage.removeItem(LS_SOUND) } catch { /* ignore */ }
+    setSound(true)
+    flash('本地偏好已清除')
   }
 
   const downloadCert = (cert: CertRecord) => {
@@ -359,16 +367,16 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProp
           <div className="my-panel">
             <div className="my-panel__head"><h2>我发布的内容</h2><button type="button" className="my-ghost-btn" onClick={() => void loadPosts()}><Clock3 size={13} /> 刷新</button></div>
             {loadingPosts && <div className="my-empty">正在加载内容…</div>}
-            {!loadingPosts && myPosts.length === 0 && (
+            {!loadingPosts && posts.length === 0 && (
               <div className="my-empty">
                 <PenLine size={28} />
                 <h3>还没有发布内容</h3>
-                <p>当前用户名「{username}」下没有发布记录，去广场发布第一条吧。</p>
+                <p>去广场发布第一条吧。</p>
                 <button type="button" className="my-primary-btn" onClick={onPlaza}><PenLine size={14} /> 去广场发布</button>
               </div>
             )}
             <div className="my-post-list">
-              {myPosts.map((post) => (
+              {posts.map((post) => (
                 <article className="my-post-card" key={post.id} onClick={onPlaza}>
                   <div className="my-post-card__head">
                     <b>{post.title}</b>
