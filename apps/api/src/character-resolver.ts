@@ -23,6 +23,8 @@ export interface ResolvedCharacter {
   /** 预置名人有，自定义可为空。 */
   era?: string;
   isCustom: boolean;
+  /** StepFun 官方预置音色（M13 第五轮），空串/缺省表示用默认音色。 */
+  voice?: string;
 }
 
 /** 默认头像（自定义人物未上传头像时回退）。 */
@@ -57,6 +59,7 @@ export function resolveCharacter(ref: string): ResolvedCharacter | undefined {
       portrait: toAssetUrl(rec.id, rec.portraitPath) ?? FALLBACK_PORTRAIT,
       model: toAssetUrl(rec.id, rec.modelPath),
       isCustom: true,
+      voice: rec.voice || undefined,
     };
   }
   const celeb = getCelebrity(ref);
@@ -74,6 +77,7 @@ export function resolveCharacter(ref: string): ResolvedCharacter | undefined {
     field: celeb.field,
     era: celeb.era,
     isCustom: false,
+    voice: celeb.voice,
   };
 }
 

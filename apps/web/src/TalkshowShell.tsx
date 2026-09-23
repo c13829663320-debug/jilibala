@@ -1,7 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Users, Mic, Sparkles, Crown, Send, Upload, MessageCircle } from 'lucide-react'
-import { CELEBRITIES, getCelebrity, type Celebrity, type WSMessage } from '@balabala/shared'
+import { CELEBRITIES, getCelebrity, resolveCharacterVoice, type Celebrity, type WSMessage } from '@balabala/shared'
 import { useIdentity } from './identity'
+import { playTts } from './tts'
+import { getVoiceEnabled } from './voice-settings'
 
 const TalkshowView = lazy(() => import('./TalkshowView'))
 
@@ -29,7 +31,7 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
   const [inputText, setInputText] = useState('')
   const [performing, setPerforming] = useState(false)
   const [lastResult, setLastResult] = useState<{ score: number; reactions: string[]; comment: string } | null>(null)
-  const [ttsOn, setTtsOn] = useState(false)
+  const [ttsOn, setTtsOn] = useState(() => getVoiceEnabled())
 
   // ===== AI 帮写 =====
   const [aiTopic, setAiTopic] = useState('')
@@ -54,6 +56,15 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
   const pushEntry = useCallback((entry: TranscriptEntry) => {
     setTranscript((prev) => [...prev.slice(-40), entry])
   }, [])
+
+  // ===== TTS 朗读 =====
+  // 脱口秀本地开关默认跟随全局语音开关；上台观众本人用默认音色，名人用其专属音色。
+  const speak = useCallback(async (text: string, voice?: string) => {
+    if (!ttsOn || !text) return
+    try {
+      await playTts(text, voice)
+    } catch { /* 浏览器自动播放限制等，忽略 */ }
+  }, [ttsOn])
 
   // ===== WebSocket 连接 talkshow:lobby =====
   useEffect(() => {
@@ -100,14 +111,17 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
                 setStageCelebrities([celeb])
                 setActiveSpeakerId(cid)
               }
+              const jokes = Array.isArray(ev.jokes) ? (ev.jokes as unknown[]).map(String) : []
               pushEntry({
                 id: `${Date.now()}-${Math.random()}`,
                 kind: 'celebrity',
                 name: String(ev.name ?? '名人'),
-                jokes: Array.isArray(ev.jokes) ? (ev.jokes as unknown[]).map(String) : [],
+                jokes,
                 score: Number(ev.score ?? 0),
                 time: new Date().toISOString(),
               })
+              // 名人才艺秀：用该名人的专属音色朗读第一条段子。
+              if (jokes.length) void speak(jokes[0], resolveCharacterVoice(cid))
             }
             break
           }
@@ -126,21 +140,7 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [user?.userId, pushEntry])
-
-  // ===== TTS 朗读 =====
-  const speak = useCallback(async (text: string) => {
-    if (!ttsOn || !text) return
-    try {
-      const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
-      if (!res.ok) return
-      const blob = await res.blob()
-      const audioUrl = URL.createObjectURL(blob)
-      const audio = new Audio(audioUrl)
-      audio.play().catch(() => { /* 浏览器自动播放限制 */ })
-      audio.onended = () => URL.revokeObjectURL(audioUrl)
-    } catch { /* ignore */ }
-  }, [ttsOn])
+  }, [user?.userId, pushEntry, speak])
 
   // ===== 上台讲一段 =====
   const perform = async () => {

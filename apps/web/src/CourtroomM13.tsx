@@ -1,12 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Link2, Users } from 'lucide-react'
 import type { CourtCase, CourtRecord, CourtTrialEvent, CourtTurn, CourtVerdict, Perspective, WSMessage } from '@balabala/shared'
+import { resolveCharacterVoice } from '@balabala/shared'
 import { useIdentity } from './identity'
 import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSocket'
 import CourtCreationWizard, { type DefenderInfo, type WizardStartPayload } from './CourtCreationWizard'
 import CourtTrialPanel, { type TrialSubmitInput } from './CourtTrialPanel'
 import CourtVerdictPanel from './CourtVerdictPanel'
 import type { CourtSeat } from './CourtroomView'
+import { playTts, stopTts } from './tts'
+import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
 import './courtroom-fullscreen.css'
 
 const CourtroomView = lazy(() => import('./CourtroomView'))
@@ -63,6 +66,13 @@ export default function CourtroomM13({
         if (seenTurnIds.current.has(event.turn.id)) break
         seenTurnIds.current.add(event.turn.id)
         setTurns((prev) => [...prev, event.turn])
+        // M13 第五轮：新发言自动朗读（仅在全局语音开关开启时）。
+        // turns 即当前视角可见发言，观众底牌隔离天然成立——不可见的发言不会到达这里。
+        // playTts 为单例：新发言自动打断上一条。
+        if (getVoiceEnabled()) {
+          const voice = resolveCharacterVoice(event.turn.speaker)
+          void playTts(event.turn.content, voice).catch(() => { /* 自动播放被拦截等，忽略 */ })
+        }
         break
       }
       case 'court_record':
@@ -147,7 +157,7 @@ export default function CourtroomM13({
     return () => { alive = false }
   }, [isGuest, roomId, user?.userId])
 
-  useEffect(() => () => { abortRef.current?.abort() }, [])
+  useEffect(() => () => { abortRef.current?.abort(); stopTts() }, [])
 
   // ===== 开始庭审（SSE 流） =====
   const startTrial = useCallback(async (payload: WizardStartPayload) => {
@@ -329,6 +339,7 @@ export default function CourtroomM13({
           </div>
           <div className="cr-topbar__right">
             <span className="cr-pill"><Users size={12} /> {onlineCount} 人在线</span>
+            <VoiceToggleButton className="cr-btn cr-btn--sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} />
             <button type="button" className="cr-btn cr-btn--sm" onClick={copyRoomLink}><Link2 size={12} /> {copyStatus || '邀请他人'}</button>
             <button type="button" className="cr-btn cr-btn--sm" onClick={onBack}><ArrowLeft size={12} /> 返回</button>
           </div>

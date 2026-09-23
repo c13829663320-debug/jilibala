@@ -7,7 +7,7 @@ import {
   Play, Flag, Volume2, RefreshCw, Trophy, Quote, CheckCircle2,
 } from 'lucide-react'
 import {
-  CELEBRITIES, getCelebrity,
+  CELEBRITIES, getCelebrity, resolveCharacterVoice,
   type GymEquipmentId, type GymExercise, type GymGoal, type GymPlan,
   type GymAchievement, type GymCheckinRecord, type GymStats, type WSMessage,
 } from '@balabala/shared'
@@ -571,7 +571,7 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
                   <div style={{ color: ACCENT, fontSize: 12, marginBottom: 6 }}>{celebName} 说：</div>
                   <div style={{ fontSize: 14, lineHeight: 1.7, color: '#e6f2ea' }}>“{celebReply}”</div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                    <TtsPlayButton text={celebReply} />
+                    <TtsPlayButton text={celebReply} voice={resolveCharacterVoice(celebId)} />
                     <button style={secBtn} onClick={() => { setSavedQuote(celebReply); flash('已保存金句，发布时带上它') }}>
                       <Quote size={12} /> 收藏金句
                     </button>

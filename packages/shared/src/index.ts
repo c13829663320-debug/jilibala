@@ -125,6 +125,7 @@ export interface CustomCharacterCard {
   intro: string;
   portrait: string;
   model?: string;
+  voice?: string;
 }
 
 // ===== M11: 健身房 Gym =====
@@ -558,3 +559,4 @@ export type CourtTrialEvent =
 
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";
+export * from "./character-voices.js";

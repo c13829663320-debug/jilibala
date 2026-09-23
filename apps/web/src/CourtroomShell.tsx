@@ -4,7 +4,7 @@ import {
   CELEBRITIES, getCelebrity,
   type BenchEvent, type BenchMember, type BenchSpeech, type BenchStage,
   type Celebrity, type Perspective, type Verdict,
-  type WSMessage,
+  type WSMessage, resolveCharacterVoice,
 } from '@balabala/shared'
 import { useIdentity } from './identity'
 import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSocket'
@@ -13,6 +13,8 @@ import LiveTranscript from './LiveTranscript'
 import TrialInteraction, { type TrialInteractPayload } from './TrialInteraction'
 import VerdictCard from './VerdictCard'
 import CourtroomM13 from './CourtroomM13'
+import { playTts, stopTts } from './tts'
+import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
 
 const CourtroomView = lazy(() => import('./CourtroomView'))
 
@@ -89,7 +91,7 @@ export default function CourtroomShell({
     return (firstSentence.slice(0, 18) || '生活小事案')
   }, [caseText])
 
-  useEffect(() => () => { abortRef.current?.abort() }, [])
+  useEffect(() => () => { abortRef.current?.abort(); stopTts() }, [])
 
   // ===== WebSocket room connection（指数退避自动重连） =====
   // Guest mode: connect to ?room=court:<id> immediately.
@@ -260,7 +262,13 @@ export default function CourtroomShell({
       case 'speech_start':
         setActiveSpeakerId(event.speakerId); break
       case 'speech':
-        setSpeeches((prev) => [...prev, event.speech]); setActiveSpeakerId(event.speech.speakerId); break
+        setSpeeches((prev) => [...prev, event.speech]); setActiveSpeakerId(event.speech.speakerId);
+        // M13 第五轮：合议庭新发言自动朗读（受全局语音开关控制）。
+        // 旁听者/观众不发言，不会进入 speech 事件。
+        if (getVoiceEnabled()) {
+          void playTts(event.speech.text, resolveCharacterVoice(event.speech.speakerId)).catch(() => {})
+        }
+        break
       case 'vote_update':
         setVotes({ plaintiff: event.plaintiff, defendant: event.defendant }); break
       case 'verdict':
@@ -480,6 +488,7 @@ export default function CourtroomShell({
           </div>
           <div className="stage-tools">
             <span className="scene-tag">3D 场景 · 趣味法庭</span>
+            <VoiceToggleButton className="secondary-button" style={{ fontSize: 12, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 }} />
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(255,214,0,0.12)', color: '#FFD600', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>
               <Users size={12} /> {wsOnlineCount} 人在线
             </span>

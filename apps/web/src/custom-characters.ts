@@ -21,6 +21,8 @@ export type UiCharacter = {
   era?: string
   isCustom: boolean
   visibility?: 'private' | 'public'
+  /** StepFun 官方预置音色 id（M13 第五轮） */
+  voice?: string
   /** 自定义人物所属用户，用于判断是否 owner */
   userId?: string
 }
@@ -36,6 +38,7 @@ export type CustomCharacterApi = {
   greeting: string
   modelPath?: string
   portraitPath?: string
+  voice?: string
   visibility: 'private' | 'public'
   createdAt: string
   updatedAt: string
@@ -65,6 +68,7 @@ export function celebrityToUi(c: Celebrity): UiCharacter {
     field: c.field,
     era: c.era,
     isCustom: false,
+    voice: c.voice,
   }
 }
 
@@ -82,6 +86,7 @@ export function customToUi(c: CustomCharacterApi): UiCharacter {
     model: c.modelPath ? assetUrl(c.id, c.modelPath) : undefined,
     isCustom: true,
     visibility: c.visibility,
+    voice: c.voice,
   }
 }
 

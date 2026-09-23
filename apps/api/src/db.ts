@@ -73,8 +73,7 @@ function migrateContentsTable(): void {
 }
 
 /** M13: 在现有 cases 表上 ALTER TABLE 加列（列已存在则跳过）。 */
-function migrateCourtCasesTable(): void {
-  const cols: Array<[string, string]> = [
+function migrateCourtCasesTable(): void {  const cols: Array<[string, string]> = [
     ["status", "TEXT DEFAULT 'DRAFT'"],
     ["title", "TEXT DEFAULT ''"],
     ["facts", "TEXT DEFAULT '[]'"],
@@ -92,6 +91,13 @@ function migrateCourtCasesTable(): void {
     if (!tableHasColumn("cases", col)) {
       db.exec(`ALTER TABLE cases ADD COLUMN ${col} ${def}`);
     }
+  }
+}
+
+/** M13 第五轮：在现有 custom_characters 表上 ALTER TABLE 加 voice 列（列已存在则跳过）。 */
+function migrateCustomCharactersTable(): void {
+  if (!tableHasColumn("custom_characters", "voice")) {
+    db.exec("ALTER TABLE custom_characters ADD COLUMN voice TEXT DEFAULT ''");
   }
 }
 
@@ -302,6 +308,7 @@ function createTables(): void {
   `);
   migrateContentsTable();
   migrateCourtCasesTable();
+  migrateCustomCharactersTable();
 }
 
 // ===== JSON 辅助 =====
@@ -947,6 +954,8 @@ export type CustomCharacterRecord = {
   modelPath: string;
   portraitPath: string;
   visibility: "private" | "public";
+  /** StepFun 官方预置音色 id（M13 第五轮），空串表示未设置→默认音色。 */
+  voice: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -955,6 +964,7 @@ type CustomCharacterRow = {
   id: string; user_id: string; name: string; title: string; intro: string;
   tags: string; persona: string; greeting: string;
   model_path: string; portrait_path: string; visibility: string;
+  voice?: string;
   created_at: string; updated_at: string;
 };
 
@@ -971,6 +981,7 @@ function rowToCustomCharacter(row: CustomCharacterRow): CustomCharacterRecord {
     modelPath: row.model_path || "",
     portraitPath: row.portrait_path || "",
     visibility: (row.visibility === "public" ? "public" : "private") as "private" | "public",
+    voice: row.voice || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -980,12 +991,12 @@ export function createCustomCharacter(c: CustomCharacterRecord): CustomCharacter
   initDb();
   db.prepare(`
     INSERT OR REPLACE INTO custom_characters
-      (id, user_id, name, title, intro, tags, persona, greeting, model_path, portrait_path, visibility, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, name, title, intro, tags, persona, greeting, model_path, portrait_path, visibility, voice, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     c.id, c.userId, c.name, c.title, c.intro,
     safeStringify(c.tags), c.persona, c.greeting,
-    c.modelPath, c.portraitPath, c.visibility,
+    c.modelPath, c.portraitPath, c.visibility, c.voice ?? "",
     c.createdAt, c.updatedAt,
   );
   return c;
@@ -1016,12 +1027,12 @@ export function updateCustomCharacter(
   db.prepare(`
     UPDATE custom_characters SET
       user_id = ?, name = ?, title = ?, intro = ?, tags = ?, persona = ?,
-      greeting = ?, model_path = ?, portrait_path = ?, visibility = ?, updated_at = ?
+      greeting = ?, model_path = ?, portrait_path = ?, visibility = ?, voice = ?, updated_at = ?
     WHERE id = ?
   `).run(
     next.userId, next.name, next.title, next.intro,
     safeStringify(next.tags), next.persona, next.greeting,
-    next.modelPath, next.portraitPath, next.visibility, next.updatedAt,
+    next.modelPath, next.portraitPath, next.visibility, next.voice ?? "", next.updatedAt,
     next.id,
   );
   return next;

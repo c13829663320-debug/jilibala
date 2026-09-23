@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ArrowLeft, Check, ImagePlus, RefreshCw, Sparkles, Upload, WandSparkles,
+  ArrowLeft, Check, ImagePlus, Play, RefreshCw, Sparkles, Upload, WandSparkles,
 } from 'lucide-react'
 import './custom-character-studio.css'
 import TripoModelPreview from './TripoModelPreview'
 import { findTripoAssetUrl, readTripoTask } from './tripo-assets'
 import { useIdentity } from './identity'
+import { VOICE_OPTIONS } from '@balabala/shared'
+import { playTts, stopTts } from './tts'
 
 type CustomCharacterStudioProps = {
   onBack: () => void
@@ -63,7 +65,9 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
     tags: '',
     persona: '',
     greeting: '',
+    voice: '',
   })
+  const [previewingVoice, setPreviewingVoice] = useState(false)
 
   const pollRef = useRef<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -221,6 +225,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
           tripoTaskId: task.taskId,
           portraitDataUrl: mode === 'image' ? (imageData?.dataUrl ?? '') : '',
           visibility: 'private',
+          ...(form.voice ? { voice: form.voice } : {}),
         }),
       })
       const data = await response.json() as (SavedCharacter & { message?: string })
@@ -245,7 +250,8 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
     setFormMessage('')
     setSaveError('')
     setSavedCharacter(null)
-    setForm({ name: '', title: '', intro: '', tags: '', persona: '', greeting: '' })
+    setForm({ name: '', title: '', intro: '', tags: '', persona: '', greeting: '', voice: '' })
+    setPreviewingVoice(false)
   }
 
   /* ---------- 派生状态 ---------- */
@@ -432,6 +438,42 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
               <span>开场白</span>
               <input value={form.greeting} maxLength={80} onChange={(e) => setForm({ ...form, greeting: e.target.value })}
                 placeholder="TA 见到你时说的第一句话" />
+            </label>
+            <label className="ccs__field-full">
+              <span>音色（官方预置 · 不克隆真人声音）</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select
+                  value={form.voice}
+                  onChange={(e) => setForm({ ...form, voice: e.target.value })}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">默认音色（经典女声）</option>
+                  <optgroup label="女声">
+                    {VOICE_OPTIONS.filter((v) => v.gender === 'female').map((v) => (
+                      <option key={v.id} value={v.id}>{v.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="男声">
+                    {VOICE_OPTIONS.filter((v) => v.gender === 'male').map((v) => (
+                      <option key={v.id} value={v.id}>{v.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <button
+                  type="button"
+                  className="ccs__ghost"
+                  disabled={!form.voice || previewingVoice}
+                  onClick={() => {
+                    stopTts()
+                    setPreviewingVoice(true)
+                    void playTts('你好，我是这个角色的声音，听听还合适吗？', form.voice)
+                      .catch(() => {})
+                      .finally(() => setPreviewingVoice(false))
+                  }}
+                >
+                  <Play size={13} /> {previewingVoice ? '试听中…' : '试听'}
+                </button>
+              </div>
             </label>
           </div>
 

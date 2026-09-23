@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { extname, join, resolve as pathResolve } from "node:path";
 import type { ChatFn } from "./bench-orchestrator.js";
 import { getTask, findAssetUrl } from "./tripo.js";
+import { isValidVoice } from "@balabala/shared";
 import {
   createCustomCharacter,
   getCustomCharacter,
@@ -67,6 +68,7 @@ export function registerCustomCharacterRoutes(
       modelPath?: string;
       portraitPath?: string;
       visibility?: string;
+      voice?: string;
     };
     const name = (body.name ?? "").trim();
     const persona = (body.persona ?? "").trim();
@@ -86,6 +88,7 @@ export function registerCustomCharacterRoutes(
       modelPath: (body.modelPath ?? "").trim(),
       portraitPath: (body.portraitPath ?? "").trim(),
       visibility: body.visibility === "public" ? "public" : "private",
+      voice: isValidVoice(body.voice) ? (body.voice as string) : "",
       createdAt: now,
       updatedAt: now,
     };
@@ -125,6 +128,7 @@ export function registerCustomCharacterRoutes(
       tripoTaskId?: string;
       portraitDataUrl?: string;
       visibility?: string;
+      voice?: string;
     };
     const userId = (body.userId ?? "").trim();
     const name = (body.name ?? "").trim();
@@ -193,6 +197,7 @@ export function registerCustomCharacterRoutes(
       modelPath: `custom-characters/${id}/model.glb`,
       portraitPath,
       visibility: body.visibility === "public" ? "public" : "private",
+      voice: isValidVoice(body.voice) ? (body.voice as string) : "",
       createdAt: now,
       updatedAt: now,
     };
@@ -253,6 +258,7 @@ export function registerCustomCharacterRoutes(
       persona?: string;
       greeting?: string;
       visibility?: string;
+      voice?: string;
     };
     const userId = (body.userId ?? "").trim();
     if (!userId || userId !== record.userId) {
@@ -266,6 +272,7 @@ export function registerCustomCharacterRoutes(
     if (body.persona !== undefined) patch.persona = body.persona.trim();
     if (body.greeting !== undefined) patch.greeting = body.greeting.trim();
     if (body.visibility === "public" || body.visibility === "private") patch.visibility = body.visibility;
+    if (body.voice !== undefined) patch.voice = isValidVoice(body.voice) ? (body.voice as string) : "";
     const updated = updateCustomCharacter(id, patch);
     if (!updated) return reply.code(404).send({ message: "人物不存在" });
     return toPublic(updated);
@@ -362,6 +369,7 @@ export function registerCustomCharacterRoutes(
         intro: resolved.intro,
         portrait: resolved.portrait,
         ...(resolved.model ? { model: resolved.model } : {}),
+        ...(record.voice ? { voice: record.voice } : {}),
       },
       likes: 0,
       dislikes: 0,

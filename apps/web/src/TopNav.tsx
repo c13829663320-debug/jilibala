@@ -1,4 +1,5 @@
 import { RotateCcw } from 'lucide-react'
+import { VoiceToggleButton } from './voice-settings'
 
 /**
  * 统一顶部导航：左侧品牌 + 三大入口（角色档案 / 场景 / 广场），
@@ -54,6 +55,7 @@ export default function TopNav({ currentView, onNavigate, inCourtroom, onOpenArc
 
       <div className="topnav__actions">
         <span className="topnav__status"><span className="topnav__dot" /> {inCourtroom ? '庭审进行中' : '在线'}</span>
+        <VoiceToggleButton className="topnav__icon" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} />
         <button type="button" className="topnav__archive" onClick={onOpenArchive}>案卷库</button>
         <button type="button" className="topnav__icon" title="重置体验" onClick={onReset}><RotateCcw size={16} /></button>
         <div className="topnav__avatar">林<span>△</span></div>

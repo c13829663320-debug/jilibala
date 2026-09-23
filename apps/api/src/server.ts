@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective, type User, type CertRecord, type MsgRecord } from "@balabala/shared";
+import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective, type User, type CertRecord, type MsgRecord, isValidVoice, DEFAULT_VOICE } from "@balabala/shared";
 import { runBenchTrial } from "./bench-orchestrator.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -747,14 +747,18 @@ app.post('/api/avatars/generate-from-image', async (req, reply) => {
 });
 
 // ===== M5: TTS 语音合成（StepFun） =====
-const DEFAULT_TTS_VOICE = process.env.STEPFUN_TTS_VOICE ?? 'jingdiannvsheng';
+// voice 入参做白名单校验，非法/缺失一律回退默认，避免把任意字符串透传给上游。
+const DEFAULT_TTS_VOICE = process.env.STEPFUN_TTS_VOICE && isValidVoice(process.env.STEPFUN_TTS_VOICE)
+  ? process.env.STEPFUN_TTS_VOICE
+  : DEFAULT_VOICE;
 app.post('/api/tts', async (req, reply) => {
   const body = (req.body ?? {}) as { text?: string; voice?: string; format?: string };
   const text = (body.text ?? '').trim();
   if (!text) return reply.code(400).send({ message: 'text 不能为空。' });
   if (text.length > 1000) return reply.code(400).send({ message: '单次合成不超过 1000 字。' });
   if (!stepfunKey) return reply.code(503).send({ message: '语音服务未配置。' });
-  const voice = body.voice?.trim() || DEFAULT_TTS_VOICE;
+  // 白名单校验：非法音色静默回退默认，不向上游透传未知 voice。
+  const voice = isValidVoice(body.voice) ? (body.voice as string) : DEFAULT_TTS_VOICE;
   const format = (body.format ?? 'mp3').toLowerCase();
   try {
     const response = await fetch(`${stepfunBase.replace(/\/$/, '')}/audio/speech`, {

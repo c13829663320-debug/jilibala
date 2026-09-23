@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Volume2, VolumeX } from 'lucide-react'
 import { playTts, subscribeTts } from './tts'
 
-export function TtsPlayButton({ text, label, className }: { text: string; label?: string; className?: string }) {
+export function TtsPlayButton({ text, voice, label, className }: { text: string; voice?: string; label?: string; className?: string }) {
   const [playing, setPlaying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -13,7 +13,7 @@ export function TtsPlayButton({ text, label, className }: { text: string; label?
     setError('')
     setLoading(true)
     try {
-      await playTts(text)
+      await playTts(text, voice)
     } catch (e) {
       setError(e instanceof Error ? e.message : '语音播放失败')
     } finally {

@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, ContactShadows, useGLTF } from '@react-three/drei'
 import { Box3, Group, Vector3 } from 'three'
 import { ChevronRight, Gavel, Loader2, MessageCircle, Pencil, Plus, RotateCw, Search, Trash2, Upload, X } from 'lucide-react'
-import { CELEBRITIES, CELEBRITY_FIELDS, type CelebrityField } from '@balabala/shared'
+import { CELEBRITIES, CELEBRITY_FIELDS, resolveCharacterVoice, type CelebrityField } from '@balabala/shared'
 import { TtsPlayButton } from './TtsPlayButton'
 import { useSceneCleanup } from './useSceneCleanup'
 import { useIdentity } from './identity'
@@ -551,7 +551,7 @@ export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: Charact
                     <div className={`character-chat ${m.from}`} key={`${m.from}-${i}`}>
                       <span>{m.from === 'me' ? '你' : selected.name}</span>
                       <p>{m.text}</p>
-                      {m.from === 'character' && <TtsPlayButton text={m.text} label="朗读" className="character-chat__tts" />}
+                      {m.from === 'character' && <TtsPlayButton text={m.text} voice={resolveCharacterVoice(selected.id, selected.voice)} label="朗读" className="character-chat__tts" />}
                     </div>
                   ))}
                   {sending && (
