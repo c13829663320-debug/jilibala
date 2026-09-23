@@ -132,13 +132,14 @@ interface PlazaSceneProps {
   onEnterWerewolf: () => void
   onEnterBar: () => void
   onEnterLibrary: () => void
+  onEnterGym: () => void
   toast: (msg: string) => void
   playersRef: MutableRefObject<Map<string, RemotePlayer>>
   remoteUserIds: string[]
   onMove: (x: number, z: number) => void
 }
 
-function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, toast, playersRef, remoteUserIds, onMove, tapRef }: PlazaSceneProps & { tapRef: MutableRefObject<{ downX: number; downY: number; downT: number }> }) {
+function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, toast, playersRef, remoteUserIds, onMove, tapRef }: PlazaSceneProps & { tapRef: MutableRefObject<{ downX: number; downY: number; downT: number }> }) {
   const targetRef = useRef(new THREE.Vector3(0, CAMERA_Y, 22))
   const lookRef = useRef(new THREE.Vector3(0, 0, 0))
   const [markers, setMarkers] = useState<Marker[]>([])
@@ -173,7 +174,7 @@ function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar
       else if (b.id === 'werewolf') onEnterWerewolf()
       else if (b.id === 'bar') onEnterBar()
       else if (b.id === 'library') onEnterLibrary()
-      else toast(`${b.name} 即将开放，敬请期待`)
+      else if (b.id === 'gym') onEnterGym()
       return
     }
     targetRef.current.set(e.point.x, CAMERA_Y, e.point.z)
@@ -226,13 +227,14 @@ function buildWsUrl(room: string, userId: string): string {
   return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
 }
 
-export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary }: {
+export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym }: {
   onBack: () => void
   onEnterCourt: () => void
   onEnterTalkshow?: () => void
   onEnterWerewolf?: () => void
   onEnterBar?: () => void
   onEnterLibrary?: () => void
+  onEnterGym?: () => void
 }) {
   const { user } = useIdentity()
   const [showDiscuss, setShowDiscuss] = useState(false)
@@ -370,6 +372,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           onEnterWerewolf={onEnterWerewolf ?? (() => toast('狼人杀馆即将开放'))}
           onEnterBar={onEnterBar ?? (() => toast('酒吧辩论即将开放'))}
           onEnterLibrary={onEnterLibrary ?? (() => toast('图书馆即将开放'))}
+          onEnterGym={onEnterGym ?? (() => toast('健身房即将开放'))}
           toast={toast}
           playersRef={playersRef}
           remoteUserIds={remoteUserIds}

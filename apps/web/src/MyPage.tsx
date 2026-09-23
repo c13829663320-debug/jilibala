@@ -4,9 +4,10 @@ import {
   Home, MessageSquare, PenLine, Settings, Sparkles, ThumbsUp, Trash2,
   Users, Volume2, VolumeX, Download, BadgeCheck, Scale, MessageCircle, Film,
 } from 'lucide-react'
-import type { CertRecord as ApiCertRecord, MsgRecord as ApiMsgRecord } from '@balabala/shared'
+import type { CertRecord as ApiCertRecord, MsgRecord as ApiMsgRecord, GymStats, GymAchievement } from '@balabala/shared'
 import { useIdentity } from './identity'
 import './my-page.css'
+import { Dumbbell } from 'lucide-react'
 
 /* ---------- types ---------- */
 type MyVerdict = {
@@ -41,6 +42,7 @@ export type MyPageProps = {
   onCourt: (input?: string) => void
   onPlaza: () => void
   onVideo?: () => void
+  onEnterGym?: () => void
 }
 
 /* ---------- storage helpers ---------- */
@@ -125,7 +127,7 @@ function CertificateSvg({ cert }: { cert: CertRecord }) {
 }
 
 /* ---------- main component ---------- */
-export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProps) {
+export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym }: MyPageProps) {
   const { user, updateProfile } = useIdentity()
   const userId = user?.userId ?? ''
   const [tab, setTab] = useState<'cases' | 'posts' | 'certs' | 'msgs' | 'settings'>('cases')
@@ -141,6 +143,8 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProp
   const [previewCert, setPreviewCert] = useState<CertRecord | null>(null)
   const [toast, setToast] = useState('')
   const [nameDraft, setNameDraft] = useState(username)
+  const [gymStats, setGymStats] = useState<GymStats | null>(null)
+  const [gymBadges, setGymBadges] = useState<GymAchievement[]>([])
 
   const flash = useCallback((msg: string) => {
     setToast(msg)
@@ -204,6 +208,24 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProp
   useEffect(() => { void loadPosts() }, [loadPosts])
   useEffect(() => { void loadCerts() }, [loadCerts])
   useEffect(() => { void loadMsgs() }, [loadMsgs])
+
+  /* load gym stats & achievements */
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const [s, a] = await Promise.all([
+          fetch(`/api/gym/stats/${encodeURIComponent(userId)}`).then((r) => (r.ok ? r.json() as Promise<GymStats> : null)),
+          fetch(`/api/gym/achievements/${encodeURIComponent(userId)}`).then((r) => (r.ok ? r.json() as Promise<{ achievements: GymAchievement[] }> : null)),
+        ])
+        if (cancelled) return
+        if (s) setGymStats(s)
+        if (a) setGymBadges(a.achievements ?? [])
+      } catch { /* 后端未就绪 */ }
+    })()
+    return () => { cancelled = true }
+  }, [userId])
 
   const unread = useMemo(() => msgs.filter((m) => !m.read).length, [msgs])
 
@@ -310,6 +332,29 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo }: MyPageProp
           <button type="button" className="my-video-entry" onClick={onVideo}>
             <span className="my-video-entry__icon"><Film size={18} /></span>
             <span className="my-video-entry__text"><b>AI 视频工坊</b><small>一句话生成短视频，支持文生视频 / 图生视频</small></span>
+            <ChevronRight size={16} />
+          </button>
+        )}
+
+        {/* ---------- 健身板块 ---------- */}
+        {onEnterGym && (
+          <button type="button" className="my-video-entry" onClick={onEnterGym}>
+            <span className="my-video-entry__icon" style={{ background: 'rgba(95,220,144,0.15)', color: '#3fdc80' }}><Dumbbell size={18} /></span>
+            <span className="my-video-entry__text" style={{ textAlign: 'left' }}>
+              <b>健身打卡</b>
+              <small>
+                {gymStats
+                  ? `🔥 连续 ${gymStats.currentStreak} 天 · ${gymStats.totalCheckins} 次打卡 · ${gymStats.totalMinutes} 分钟`
+                  : 'AI 教练计划 · 名人带练 · 多人云健身'}
+              </small>
+              {gymBadges.some((b) => b.unlockedAt) && (
+                <span style={{ display: 'inline-flex', gap: 4, marginTop: 2, fontSize: 13 }}>
+                  {gymBadges.filter((b) => b.unlockedAt).slice(0, 6).map((b) => (
+                    <span key={b.id} title={b.name}>{b.emoji}</span>
+                  ))}
+                </span>
+              )}
+            </span>
             <ChevronRight size={16} />
           </button>
         )}

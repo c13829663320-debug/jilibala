@@ -15,6 +15,7 @@ import { registerBarRoutes } from './bar-routes.js';
 import { registerTalkshowRoutes } from './talkshow-routes.js';
 import { registerLibraryRoutes } from './library-routes.js';
 import { registerWerewolfRoutes } from './werewolf-routes.js';
+import { registerGymRoutes } from './gym-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
@@ -848,6 +849,9 @@ setBroadcastCallbacks(
 // 注入 LLM chat 供 AI 名人玩家决策（串行、带兜底）。
 setChatProvider(chatWithProviders);
 registerWerewolfRoutes(app, { chat: chatWithProviders, contents });
+
+// ===== M11: 健身房 =====
+registerGymRoutes(app, { chat: chatWithProviders, contents });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

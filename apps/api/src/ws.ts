@@ -42,8 +42,17 @@ export function _resetRoomsForTest(): void {
 
 const rooms = new Map<string, Room>();
 
+/** gym:lobby 最近打卡广播缓冲（最多保留 5 条）。 */
+const gymRecentCheckins: Array<{ userId: string; nickname: string; exerciseName: string; createdAt: string }> = [];
+const GYM_CHECKIN_BUFFER_MAX = 5;
+
+function pushGymRecentCheckin(entry: { userId: string; nickname: string; exerciseName: string; createdAt: string }): void {
+  gymRecentCheckins.push(entry);
+  if (gymRecentCheckins.length > GYM_CHECKIN_BUFFER_MAX) gymRecentCheckins.shift();
+}
+
 /** M8: 合法房间前缀。plaza 为全局广场，其余为按场景/案件的房间。 */
-const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:", "werewolf:"];
+const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:", "werewolf:", "gym:"];
 
 export function isValidRoom(roomId: string): boolean {
   return VALID_ROOM_PREFIXES.some((p) => (p.endsWith(":") ? roomId.startsWith(p) : roomId === p));
@@ -192,7 +201,7 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     // 验证 room 格式
     if (!isValidRoom(roomId)) {
-      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<id>/talkshow:<id>/bar:<id>/library:<id>/werewolf:<id>" });
+      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<id>/talkshow:<id>/bar:<id>/library:<id>/werewolf:<id>/gym:lobby" });
       socket.close();
       return;
     }
@@ -238,8 +247,32 @@ export function registerWebSocket(app: FastifyInstance): void {
       }
     }
 
+    // 健身房房间：发送 gym_state（在线用户 + 最近打卡广播）
+    if (roomId.startsWith("gym:")) {
+      safeSend(socket, {
+        type: "gym_state",
+        users: [...room.users.values()].map((u) => ({
+          userId: u.userId,
+          nickname: u.nickname,
+          avatarType: u.avatarType,
+          avatarRef: u.avatarRef,
+          x: u.x,
+          z: u.z,
+          rotation: u.rotation,
+        })),
+        recentCheckins: [...gymRecentCheckins],
+      } satisfies WSMessage);
+    }
+
     // 通知其他人
-    broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser) } satisfies WSMessage);
+    if (roomId.startsWith("gym:")) {
+      broadcastToRoom(roomId, {
+        type: "gym_user_joined",
+        user: { userId, nickname, avatarType, avatarRef, x: roomUser.x, z: roomUser.z, rotation: roomUser.rotation },
+      } satisfies WSMessage);
+    } else {
+      broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser) } satisfies WSMessage);
+    }
 
     // ===== 消息处理 =====
     socket.on("message", (raw: Buffer) => {
@@ -263,11 +296,18 @@ export function registerWebSocket(app: FastifyInstance): void {
           roomUser.z = z;
           roomUser.rotation = rotation;
           roomUser.lastMove = now;
-          // 广播给房间内其他人
-          const others = [...room.users.values()]
-            .filter((u) => u.userId !== userId)
-            .map((u) => ({ userId: u.userId, x: u.x, z: u.z, rotation: u.rotation }));
-          broadcastToRoom(roomId, { type: "presence", users: others } satisfies WSMessage);
+          if (roomId.startsWith("gym:")) {
+            const gymUsers = [...room.users.values()]
+              .filter((u) => u.userId !== userId)
+              .map((u) => ({ userId: u.userId, x: u.x, z: u.z, rotation: u.rotation }));
+            broadcastToRoom(roomId, { type: "gym_presence", users: gymUsers } satisfies WSMessage);
+          } else {
+            // 广播给房间内其他人
+            const others = [...room.users.values()]
+              .filter((u) => u.userId !== userId)
+              .map((u) => ({ userId: u.userId, x: u.x, z: u.z, rotation: u.rotation }));
+            broadcastToRoom(roomId, { type: "presence", users: others } satisfies WSMessage);
+          }
           break;
         }
         case "chat": {
@@ -323,6 +363,34 @@ export function registerWebSocket(app: FastifyInstance): void {
           werewolfHandleAction(gameId, userId, action);
           break;
         }
+        case "gym_cheer": {
+          // M11: 健身加油广播
+          if (!roomId.startsWith("gym:")) return;
+          const text = String(data.text ?? "").slice(0, 200);
+          if (!text) return;
+          broadcastToRoom(roomId, {
+            type: "gym_cheer",
+            userId,
+            nickname,
+            text,
+          } satisfies WSMessage);
+          break;
+        }
+        case "gym_checkin_notify": {
+          // M11: 客户端主动通知打卡，广播给房间其他人
+          if (!roomId.startsWith("gym:")) return;
+          const exerciseName = String(data.exerciseName ?? "训练").slice(0, 60);
+          const entry = { userId, nickname, exerciseName, createdAt: new Date().toISOString() };
+          pushGymRecentCheckin(entry);
+          broadcastToRoom(roomId, {
+            type: "gym_checkin_broadcast",
+            userId,
+            nickname,
+            exerciseName,
+            createdAt: entry.createdAt,
+          } satisfies WSMessage);
+          break;
+        }
         case "ping": {
           safeSend(socket, { type: "pong" } satisfies WSMessage);
           break;
@@ -335,7 +403,11 @@ export function registerWebSocket(app: FastifyInstance): void {
       const r = rooms.get(roomId);
       if (r) {
         r.users.delete(userId);
-        broadcastToRoom(roomId, { type: "user_left", userId } satisfies WSMessage);
+        if (roomId.startsWith("gym:")) {
+          broadcastToRoom(roomId, { type: "gym_user_left", userId } satisfies WSMessage);
+        } else {
+          broadcastToRoom(roomId, { type: "user_left", userId } satisfies WSMessage);
+        }
         // 房间空了可清理（保留 court 房间状态以便重连）
         if (r.users.size === 0 && roomId === "plaza") {
           rooms.delete(roomId);

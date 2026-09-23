@@ -1,8 +1,8 @@
 # 叽里呱啦 · BalaBala 社交世界
 
-把生活里的小小争议，变成一场温柔又好玩的趣味庭审。平台包含趣味法庭、脱口秀剧场、狼人杀馆、酒吧辩论、图书馆五大互动场景，支持名人合议庭、3D 广场、实时多人联机与数据持久化。
+把生活里的小小争议，变成一场温柔又好玩的趣味庭审。平台包含趣味法庭、脱口秀剧场、狼人杀馆、酒吧辩论、健身房、图书馆六大互动场景，支持名人合议庭、3D 广场、实时多人联机与数据持久化。
 
-## 场景玩法（M9）
+## 场景玩法（M9–M11）
 
 ### 🎤 脱口秀剧场
 - 上台讲段子（文字输入，可选 TTS 朗读），AI 虚拟观众实时打分（0-100）并给出反应（笑声/鼓掌/起哄/冷场/欢呼）和评论
@@ -35,7 +35,15 @@
 - 对局结束公布胜负与全员身份，一键发布「狼人杀战报」到广场（版型/身份/存活/胜负/复盘）
 - 断线重连后按该玩家视角补发当前局面快照
 
-> 健身房即将开放。
+### 🏋️ 健身房（M11）
+- **AI 健身教练**：选择训练目标（增肌/减脂/拉伸/耐力/力量）+ 水平 + 时长，一键生成结构化训练计划（动作、组数、次数、休息、动作要领、安全提示），逐项完成打卡，计划进度实时追踪
+- **器械互动**：3D 场景内 6 件可点击器械（跑步机、哑铃架、杠铃卧推凳、瑜伽垫、划船机、动感单车），点击弹出动作要领，开始一组走倒计时/计数小动画，完成自动打卡
+- **名人教练/挑战**：选择自律榜样名人（马斯克、乔布斯、图灵等），以其 persona 风格带练打气、产运动金句，支持 TTS 朗读；名人挑战模式设定小目标完成打卡
+- **多人云健身**：WebSocket 房间 `gym:lobby` 实时同步在线人数、他人化身位置与活动状态，可互相加油（飘字消息），他人打卡实时通知
+- **训练记录与成就**：打卡记录入 SQLite，自动计算连续天数 streak、最长连续、累计次数/分钟；10 枚成就徽章（首次打卡、连续3/7/30天、累计10/50/100次、增肌达人/有氧之王/柔韧大师），达成自动解锁；「我的」页面展示健身统计与徽章
+- 打卡与成就可一键发布到广场（`gym_checkin` 内容类型），广场卡片展示动作、组数次数、连续天数与金句
+
+> **未来扩展**：基于摄像头的实时姿态识别（如 MediaPipe / BlazePose），用于动作计数与姿态纠正——当前版本暂不实现，列为后续迭代方向。
 
 ## 本地启动
 
@@ -63,7 +71,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 
 ## 自动化测试（M10）
 
-后端核心纯逻辑使用 **Vitest** 覆盖，共 54 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
+后端核心纯逻辑使用 **Vitest** 覆盖，共 69 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
 
 | 测试文件 | 用例数 | 覆盖范围 |
 |---|---|---|
@@ -71,6 +79,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 | `db.test.ts` | 17 | 案件/内容/评论/反应去重/用户/证书/消息/场景记录 DAO + 重启持久化 |
 | `bench-orchestrator.test.ts` | 9 | 合议庭流程事件序列、投票统计、互动消费、非法 JSON 兜底 |
 | `ws.test.ts` | 8 | 房间广播隔离、私密单发、场景房间状态、scene_event 广播 |
+| `gym-orchestrator.test.ts` | 15 | 训练计划生成、streak 连续天数计算（含跨月/断档）、成就解锁判定（器械分类/累计阈值） |
 
 测试使用临时 SQLite 文件（`process.env.DB_PATH` 覆盖），每个测试文件独立数据库，`afterAll` 清理。GitHub Actions 在 push/PR 时自动运行 `npm test` + `npm run build`。
 
@@ -86,6 +95,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 - 证书、消息
 - 场景交互记录（脱口秀表演、酒吧发言、图书馆问答）
 - 狼人杀对局记录与战报
+- 健身训练计划、打卡记录、连续天数 streak、成就徽章
 
 首次启动自动填充广场演示内容。
 
@@ -177,9 +187,19 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - `GET /api/werewolf/:gameId/state?userId=` — 获取该玩家视角快照（断线重连用）
 - `POST /api/werewolf/:gameId/publish` — 发布战报到广场（游戏结束后）
 
+### 健身房
+- `POST /api/gym/plans` — 生成训练计划（`{ goal, level?, durationMinutes?, userId? }`）
+- `GET /api/gym/plans?userId=` — 用户最近训练计划
+- `POST /api/gym/checkins` — 打卡（自动重算 streak + 解锁成就），返回 `{ checkin, stats, newAchievements }`
+- `GET /api/gym/checkins?userId=&limit=` — 打卡记录
+- `GET /api/gym/stats/:userId` — 健身统计（连续天数/最长/累计次数/分钟）
+- `GET /api/gym/achievements/:userId` — 成就徽章列表（含解锁状态）
+- `POST /api/gym/celebrity-coach` — 名人风格健身教练对话（`{ celebrityId, message, goal? }`）
+- `POST /api/gym/publish` — 发布打卡到广场（`gym_checkin` 类型）
+
 ### WebSocket
-- `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>` — 实时连接
-- 场景房间：脱口秀/酒吧/图书馆各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby`，通过 `scene_event` 广播场景内事件（表演、发言、问答等）
+- `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>|gym:lobby` — 实时连接
+- 场景房间：脱口秀/酒吧/图书馆/健身房各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby` / `gym:lobby`，通过场景专属事件广播（表演、发言、问答、打卡、加油等）
 - 狼人杀房间：`werewolf:<gameId>`，客户端发送 `werewolf_action`（夜晚行动/发言/投票），服务端对每个玩家单独下发 `werewolf_snapshot`（含私密信息），对全员广播 `werewolf_event`（公开阶段/死亡/发言/投票/胜负）
 
 ### 其他
@@ -200,13 +220,14 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 
 ## 3D 场景
 
-平台使用 Three.js + React Three Fiber 实时渲染。广场为 3D 可交互场景（点击地面移动、点击建筑进入），六个建筑环绕广场：趣味法庭、脱口秀剧场、狼人杀馆、酒吧辩论、健身房（即将开放）、图书馆。
+平台使用 Three.js + React Three Fiber 实时渲染。广场为 3D 可交互场景（点击地面移动、点击建筑进入），六个建筑环绕广场：趣味法庭、脱口秀剧场、狼人杀馆、酒吧辩论、健身房、图书馆。
 
 室内场景均为程序化 3D 建模（三面布景 + 主题道具），延续 Q 版圆润 + 纯黑明黄视觉语言：
 - 趣味法庭：写实法庭 + 多席位合议庭
 - 脱口秀剧场：舞台 + 麦克风 + 观众席 + 聚光灯
 - 狼人杀馆：夜晚圆桌 + 9 号码位 + 昼夜光照切换 + 死亡标记 + 发言者高亮
 - 酒吧辩论：吧台 + 酒瓶 + 圆桌 + 暖光氛围
+- 健身房：明亮运动风 + 6 件可交互器械（跑步机/哑铃架/杠铃卧推凳/瑜伽垫/划船机/动感单车）+ 镜子墙 + 分区地面
 - 图书馆：三面书架 + 阅览桌 + 台灯 + 安静氛围
 
 ## 移动端适配与 PWA（M10）
@@ -274,6 +295,8 @@ apps/
       library-routes.ts  # 图书馆路由
       werewolf-orchestrator.ts  # 狼人杀状态机 + AI 玩家 + 视角过滤
       werewolf-routes.ts  # 狼人杀路由
+      gym-orchestrator.ts  # 健身房纯逻辑（计划生成/streak计算/成就判定）
+      gym-routes.ts  # 健身房路由
       tripo.ts        # Tripo 3D API 封装
   web/          # Vite + React 18 + R3F 前端
     src/
@@ -289,6 +312,8 @@ apps/
       LibraryView.tsx     # 图书馆 3D 场景
       WerewolfShell.tsx   # 狼人杀 UI 壳 + 游戏状态 + 多人
       WerewolfView.tsx    # 狼人杀 3D 圆桌场景
+      GymShell.tsx        # 健身房 UI 壳 + AI教练/器械/名人/多人/记录 + WS
+      GymView.tsx         # 健身房 3D 场景（6 件可交互器械）
       Plaza3D.tsx     # 3D 广场 + presence
       RoomEntry.tsx   # 场景入口大厅
       MyPage.tsx      # 我的页面
@@ -300,7 +325,7 @@ packages/
 
 - **后端**：Fastify 5 + node:sqlite + @fastify/websocket + undici
 - **前端**：Vite 5 + React 18 + React Three Fiber + drei + three + vite-plugin-pwa
-- **测试**：Vitest（后端核心逻辑，54 用例）
+- **测试**：Vitest（后端核心逻辑，69 用例）
 - **共享**：TypeScript 类型 + 名人数据
 - **CI**：GitHub Actions（push/PR 自动跑 test + build）
 - **AI**：StepFun / EvoMap（庭审生成、名人对话、润色）、Tripo（3D 模型）、StepFun TTS

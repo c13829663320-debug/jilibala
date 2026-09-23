@@ -4,7 +4,7 @@ import { RotateCcw } from 'lucide-react'
  * 统一顶部导航：左侧品牌 + 三大入口（角色档案 / 场景 / 广场），
  * 右侧案卷库、重置、用户头像。庭审页也复用同一条导航并高亮当前位置。
  */
-export type TopView = 'court' | 'characters' | 'plaza' | 'mypage' | 'video' | 'archive' | 'talkshow' | 'werewolf' | 'bar' | 'library'
+export type TopView = 'court' | 'characters' | 'plaza' | 'mypage' | 'video' | 'archive' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym'
 
 export type TopNavProps = {
   currentView: TopView
@@ -23,7 +23,7 @@ const NAV_ITEMS: Array<{ view: TopView; label: string }> = [
 
 /** 场景内页（脱口秀/酒吧/图书馆）高亮「场景」导航。 */
 const activeNavView = (v: TopView): TopView =>
-  v === 'talkshow' || v === 'werewolf' || v === 'bar' || v === 'library' ? 'court' : v
+  v === 'talkshow' || v === 'werewolf' || v === 'bar' || v === 'library' || v === 'gym' ? 'court' : v
 
 export default function TopNav({ currentView, onNavigate, inCourtroom, onOpenArchive, onReset }: TopNavProps) {
   const navActive = activeNavView(currentView)

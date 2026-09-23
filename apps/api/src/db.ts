@@ -14,7 +14,14 @@ import type {
   CertRecord,
   MsgRecord,
   SceneId,
+  GymGoal,
+  GymPlan,
+  GymCheckinRecord,
+  GymStats,
+  GymAchievement,
+  GymAchievementId,
 } from "@balabala/shared";
+import { calculateStreak } from "./gym-orchestrator.js";
 
 // ===== StoredCase 本地类型（与 storage.ts 保持一致）=====
 export type StoredCase = {
@@ -47,7 +54,7 @@ function tableHasColumn(table: string, column: string): boolean {
 }
 
 function migrateContentsTable(): void {
-  for (const col of ["talkshow", "bar", "library", "werewolf"]) {
+  for (const col of ["talkshow", "bar", "library", "werewolf", "gym"]) {
     if (!tableHasColumn("contents", col)) {
       db.exec(`ALTER TABLE contents ADD COLUMN ${col} TEXT DEFAULT ''`);
     }
@@ -97,7 +104,8 @@ function createTables(): void {
       talkshow TEXT DEFAULT '',
       bar TEXT DEFAULT '',
       library TEXT DEFAULT '',
-      werewolf TEXT DEFAULT ''
+      werewolf TEXT DEFAULT '',
+      gym TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS comments (
@@ -156,6 +164,39 @@ function createTables(): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS gym_plans (
+      id TEXT PRIMARY KEY,
+      user_id TEXT DEFAULT '',
+      goal TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      exercises TEXT DEFAULT '[]',
+      estimated_minutes INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gym_checkins (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      plan_id TEXT DEFAULT '',
+      exercise_id TEXT DEFAULT '',
+      exercise_name TEXT DEFAULT '',
+      equipment TEXT DEFAULT '',
+      sets_completed INTEGER NOT NULL DEFAULT 0,
+      reps_completed INTEGER NOT NULL DEFAULT 0,
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
+      note TEXT DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gym_achievements (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      achievement_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,
+      UNIQUE(user_id, achievement_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cases_user ON cases(user_id);
     CREATE INDEX IF NOT EXISTS idx_contents_user ON contents(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_content ON comments(content_id);
@@ -164,6 +205,9 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_scene_records_user ON scene_records(user_id);
     CREATE INDEX IF NOT EXISTS idx_scene_records_scene ON scene_records(scene);
     CREATE INDEX IF NOT EXISTS idx_werewolf_games_user ON werewolf_games(user_id);
+    CREATE INDEX IF NOT EXISTS idx_gym_plans_user ON gym_plans(user_id);
+    CREATE INDEX IF NOT EXISTS idx_gym_checkins_user ON gym_checkins(user_id);
+    CREATE INDEX IF NOT EXISTS idx_gym_achievements_user ON gym_achievements(user_id);
   `);
   migrateContentsTable();
 }
@@ -206,7 +250,7 @@ type ContentRow = {
   author: string; created_at: string; topics: string;
   title: string; body: string; case_id: string;
   likes: number; dislikes: number; views: number; court: string;
-  talkshow: string; bar: string; library: string; werewolf: string;
+  talkshow: string; bar: string; library: string; werewolf: string; gym: string;
 };
 function rowToContent(row: ContentRow): StoredContent {
   const content: StoredContent = {
@@ -235,6 +279,8 @@ function rowToContent(row: ContentRow): StoredContent {
   if (library) content.library = library;
   const werewolf = safeParse<PlazaContent["werewolf"]>(row.werewolf, undefined);
   if (werewolf) content.werewolf = werewolf;
+  const gym = safeParse<PlazaContent["gym"]>(row.gym, undefined);
+  if (gym) content.gym = gym;
   return content;
 }
 
@@ -251,8 +297,8 @@ function seedIfEmpty(): void {
   const seeds = seedContentsFn();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf)
-    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym)
+    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const c of seeds) {
     insert.run(
@@ -264,6 +310,7 @@ function seedIfEmpty(): void {
       safeStringify(c.bar ?? ""),
       safeStringify(c.library ?? ""),
       safeStringify(c.werewolf ?? ""),
+      safeStringify(c.gym ?? ""),
     );
     // 种子评论写入 comments 表
     if (c.comments?.length) {
@@ -346,8 +393,8 @@ export function upsertContent(c: StoredContent): void {
   initDb();
   db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     c.id, c.userId ?? "", c.type, c.scene, c.author, c.createdAt,
     safeStringify(c.topics), c.title, c.body ?? "", c.caseId ?? "",
@@ -357,6 +404,7 @@ export function upsertContent(c: StoredContent): void {
     safeStringify(c.bar ?? ""),
     safeStringify(c.library ?? ""),
     safeStringify(c.werewolf ?? ""),
+    safeStringify(c.gym ?? ""),
   );
 }
 
@@ -604,4 +652,177 @@ export function getWerewolfGamesByUser(userId: string): WerewolfGameRecord[] {
     "SELECT * FROM werewolf_games WHERE user_id = ? ORDER BY created_at DESC",
   ).all(userId) as WerewolfGameRow[];
   return rows.map(rowToWerewolfGame);
+}
+
+// ===== M11: 健身房 Gym DAO =====
+
+/** 成就定义表（内置常量，与 checkAchievements 判定对应）。 */
+export const ACHIEVEMENT_DEFS: Array<{
+  id: GymAchievementId;
+  name: string;
+  description: string;
+  emoji: string;
+}> = [
+  { id: "first_checkin", name: "首次打卡", description: "完成第一次健身打卡", emoji: "🥇" },
+  { id: "streak_3", name: "连续3天", description: "连续打卡 3 天", emoji: "🔥" },
+  { id: "streak_7", name: "连续7天", description: "连续打卡 7 天", emoji: "💪" },
+  { id: "streak_30", name: "连续30天", description: "连续打卡 30 天", emoji: "🏆" },
+  { id: "checkin_10", name: "累计10次", description: "累计打卡 10 次", emoji: "⭐" },
+  { id: "checkin_50", name: "累计50次", description: "累计打卡 50 次", emoji: "🌟" },
+  { id: "checkin_100", name: "累计100次", description: "累计打卡 100 次", emoji: "👑" },
+  { id: "muscle_master", name: "增肌达人", description: "使用哑铃/卧推器械打卡 5 次以上", emoji: "💪" },
+  { id: "cardio_king", name: "有氧之王", description: "使用跑步机/单车/划船机打卡 5 次以上", emoji: "🏃" },
+  { id: "flexibility_guru", name: "柔韧大师", description: "瑜伽垫或拉伸类打卡 5 次以上", emoji: "🧘" },
+];
+
+type GymPlanRow = {
+  id: string; user_id: string; goal: string; title: string;
+  description: string; exercises: string; estimated_minutes: number; created_at: string;
+};
+
+function rowToGymPlan(row: GymPlanRow): GymPlan {
+  return {
+    id: row.id,
+    goal: row.goal as GymGoal,
+    title: row.title,
+    description: row.description,
+    exercises: safeParse<GymPlan["exercises"]>(row.exercises, []),
+    estimatedMinutes: row.estimated_minutes,
+    createdAt: row.created_at,
+  };
+}
+
+export function saveGymPlan(plan: GymPlan & { userId?: string }): void {
+  initDb();
+  db.prepare(`
+    INSERT OR REPLACE INTO gym_plans
+      (id, user_id, goal, title, description, exercises, estimated_minutes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    plan.id, plan.userId ?? "", plan.goal, plan.title, plan.description,
+    safeStringify(plan.exercises), plan.estimatedMinutes, plan.createdAt,
+  );
+}
+
+export function getGymPlansByUser(userId: string, limit = 10): GymPlan[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM gym_plans WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+  ).all(userId, limit) as GymPlanRow[];
+  return rows.map(rowToGymPlan);
+}
+
+type GymCheckinRow = {
+  id: string; user_id: string; plan_id: string; exercise_id: string;
+  exercise_name: string; equipment: string; sets_completed: number;
+  reps_completed: number; duration_seconds: number; note: string; created_at: string;
+};
+
+function rowToGymCheckin(row: GymCheckinRow): GymCheckinRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    planId: row.plan_id || undefined,
+    exerciseId: row.exercise_id || undefined,
+    exerciseName: row.exercise_name || undefined,
+    equipment: (row.equipment || undefined) as GymCheckinRecord["equipment"],
+    setsCompleted: row.sets_completed,
+    repsCompleted: row.reps_completed,
+    durationSeconds: row.duration_seconds,
+    note: row.note || undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function addGymCheckin(checkin: GymCheckinRecord): void {
+  initDb();
+  db.prepare(`
+    INSERT OR REPLACE INTO gym_checkins
+      (id, user_id, plan_id, exercise_id, exercise_name, equipment,
+       sets_completed, reps_completed, duration_seconds, note, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    checkin.id, checkin.userId, checkin.planId ?? "", checkin.exerciseId ?? "",
+    checkin.exerciseName ?? "", checkin.equipment ?? "",
+    checkin.setsCompleted, checkin.repsCompleted, checkin.durationSeconds,
+    checkin.note ?? "", checkin.createdAt,
+  );
+}
+
+export function getGymCheckinsByUser(userId: string, limit = 50): GymCheckinRecord[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM gym_checkins WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+  ).all(userId, limit) as GymCheckinRow[];
+  return rows.map(rowToGymCheckin);
+}
+
+export function getGymCheckinById(id: string): GymCheckinRecord | undefined {
+  initDb();
+  const row = db.prepare("SELECT * FROM gym_checkins WHERE id = ?").get(id) as GymCheckinRow | undefined;
+  return row ? rowToGymCheckin(row) : undefined;
+}
+
+export function getGymStats(userId: string): GymStats {
+  initDb();
+  const rows = db.prepare(
+    "SELECT created_at, duration_seconds FROM gym_checkins WHERE user_id = ? ORDER BY created_at ASC",
+  ).all(userId) as Array<{ created_at: string; duration_seconds: number }>;
+
+  const totalCheckins = rows.length;
+  const totalSeconds = rows.reduce((sum, r) => sum + (r.duration_seconds || 0), 0);
+  const totalMinutes = Math.round(totalSeconds / 60);
+  const lastCheckinDate = totalCheckins > 0 ? rows[rows.length - 1].created_at : "";
+
+  const streak = calculateStreak(rows.map((r) => r.created_at));
+
+  return {
+    userId,
+    currentStreak: streak.current,
+    longestStreak: streak.longest,
+    totalCheckins,
+    totalMinutes,
+    lastCheckinDate,
+  };
+}
+
+export function getGymAchievements(userId: string): GymAchievement[] {
+  initDb();
+  const unlockedRows = db.prepare(
+    "SELECT achievement_id, unlocked_at FROM gym_achievements WHERE user_id = ?",
+  ).all(userId) as Array<{ achievement_id: string; unlocked_at: string }>;
+  const unlockedMap = new Map(unlockedRows.map((r) => [r.achievement_id, r.unlocked_at]));
+
+  return ACHIEVEMENT_DEFS.map((def) => ({
+    id: def.id,
+    name: def.name,
+    description: def.description,
+    emoji: def.emoji,
+    ...(unlockedMap.has(def.id) ? { unlockedAt: unlockedMap.get(def.id) } : {}),
+  }));
+}
+
+export function unlockGymAchievement(
+  userId: string,
+  achievementId: GymAchievementId,
+): GymAchievement | null {
+  initDb();
+  const def = ACHIEVEMENT_DEFS.find((d) => d.id === achievementId);
+  if (!def) return null;
+
+  // 幂等：已解锁则返回已有记录
+  const existing = db.prepare(
+    "SELECT unlocked_at FROM gym_achievements WHERE user_id = ? AND achievement_id = ?",
+  ).get(userId, achievementId) as { unlocked_at: string } | undefined;
+  if (existing) {
+    return { id: def.id, name: def.name, description: def.description, emoji: def.emoji, unlockedAt: existing.unlocked_at };
+  }
+
+  const unlockedAt = new Date().toISOString();
+  db.prepare(`
+    INSERT OR IGNORE INTO gym_achievements (id, user_id, achievement_id, unlocked_at)
+    VALUES (?, ?, ?, ?)
+  `).run(`${userId}:${achievementId}`, userId, achievementId, unlockedAt);
+
+  return { id: def.id, name: def.name, description: def.description, emoji: def.emoji, unlockedAt };
 }

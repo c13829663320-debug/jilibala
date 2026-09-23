@@ -63,7 +63,7 @@ export interface BenchStartRequest {
 }
 
 // ===== 广场 Plaza =====
-export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note" | "werewolf_report";
+export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note" | "werewolf_report" | "gym_checkin";
 export type SceneId = "court" | "talkshow" | "werewolf" | "bar" | "gym" | "library";
 export type ContentSort = "recommended" | "hot" | "latest";
 
@@ -114,6 +114,81 @@ export interface LibraryNoteData {
   book?: string;
   question?: string;
   answer: string;
+  createdAt: string;
+}
+
+// ===== M11: 健身房 Gym =====
+export type GymGoal = "muscle" | "fat_loss" | "stretch" | "endurance" | "strength";
+export type GymEquipmentId = "treadmill" | "dumbbell" | "bench_press" | "yoga_mat" | "rowing" | "bike";
+
+export interface GymExercise {
+  id: string;
+  name: string;
+  equipment?: GymEquipmentId;
+  sets: number;
+  reps: number;
+  restSeconds: number;
+  tips: string;
+  safety: string;
+}
+
+export interface GymPlan {
+  id: string;
+  goal: GymGoal;
+  title: string;
+  description: string;
+  exercises: GymExercise[];
+  estimatedMinutes: number;
+  createdAt: string;
+}
+
+export interface GymCheckinRecord {
+  id: string;
+  userId: string;
+  planId?: string;
+  exerciseId?: string;
+  exerciseName?: string;
+  equipment?: GymEquipmentId;
+  setsCompleted: number;
+  repsCompleted: number;
+  durationSeconds: number;
+  note?: string;
+  createdAt: string;
+}
+
+export interface GymStats {
+  userId: string;
+  currentStreak: number;
+  longestStreak: number;
+  totalCheckins: number;
+  totalMinutes: number;
+  lastCheckinDate: string;
+}
+
+export type GymAchievementId =
+  | "first_checkin" | "streak_3" | "streak_7" | "streak_30"
+  | "checkin_10" | "checkin_50" | "checkin_100"
+  | "muscle_master" | "cardio_king" | "flexibility_guru";
+
+export interface GymAchievement {
+  id: GymAchievementId;
+  name: string;
+  description: string;
+  emoji: string;
+  unlockedAt?: string;
+}
+
+/** gym_checkin 类型广场内容携带的健身打卡数据。 */
+export interface GymCheckinData {
+  planTitle?: string;
+  exerciseName?: string;
+  equipment?: GymEquipmentId;
+  setsCompleted: number;
+  repsCompleted: number;
+  durationSeconds: number;
+  streakDays: number;
+  celebrityCoach?: string;
+  quote?: string;
   createdAt: string;
 }
 
@@ -220,6 +295,7 @@ export interface PlazaContent {
   bar?: BarQuoteData;
   library?: LibraryNoteData;
   werewolf?: WerewolfReportData;
+  gym?: GymCheckinData;
   caseId?: string;
   likes: number;
   dislikes: number;
@@ -232,7 +308,7 @@ export const SCENE_META: Array<{ id: SceneId; label: string; emoji: string; lock
   { id: "talkshow", label: "脱口秀剧场", emoji: "🎤" },
   { id: "werewolf", label: "狼人杀馆", emoji: "🐺" },
   { id: "bar", label: "酒吧辩论", emoji: "🍺" },
-  { id: "gym", label: "健身房", emoji: "🏋️", locked: true },
+  { id: "gym", label: "健身房", emoji: "🏋️" },
   { id: "library", label: "图书馆", emoji: "📚" },
 ];
 
@@ -312,6 +388,12 @@ export type WSMessage =
   | { type: 'werewolf_snapshot'; snapshot: WerewolfPlayerSnapshot }
   | { type: 'werewolf_event'; event: WerewolfBroadcastEvent }
   | { type: 'werewolf_action'; action: WerewolfClientAction }
+  | { type: 'gym_state'; users: Array<{ userId: string; nickname: string; avatarType: string; avatarRef: string; x: number; z: number; rotation: number; activity?: string }>; recentCheckins: Array<{ userId: string; nickname: string; exerciseName: string; createdAt: string }> }
+  | { type: 'gym_user_joined'; user: { userId: string; nickname: string; avatarType: string; avatarRef: string; x: number; z: number; rotation: number } }
+  | { type: 'gym_user_left'; userId: string }
+  | { type: 'gym_presence'; users: Array<{ userId: string; x: number; z: number; rotation: number; activity?: string }> }
+  | { type: 'gym_cheer'; userId: string; nickname: string; text: string }
+  | { type: 'gym_checkin_broadcast'; userId: string; nickname: string; exerciseName: string; createdAt: string }
   | { type: 'pong' }
   | { type: 'error'; message: string };
 

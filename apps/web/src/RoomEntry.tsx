@@ -16,6 +16,7 @@ export type RoomEntryProps = {
   onEnterWerewolf?: () => void
   onEnterBar?: () => void
   onEnterLibrary?: () => void
+  onEnterGym?: () => void
 }
 
 type Item = { id: string; label: string; eyebrow: string; hint: string; color: string; locked?: boolean }
@@ -26,7 +27,7 @@ const SCENES: Item[] = [
   { id: 'talkshow', label: '脱口秀剧场', eyebrow: 'SCENE 02 · ONLINE', hint: '上台讲段子，AI 观众实时反应', color: '#ff5b61' },
   { id: 'werewolf', label: '狼人杀馆', eyebrow: 'SCENE 03 · ONLINE', hint: '夜晚圆桌，身份迷局，AI 名人陪玩', color: '#357be8' },
   { id: 'bar', label: '酒吧辩论赛', eyebrow: 'SCENE 04 · ONLINE', hint: '与名人围坐对辩，酒保总结金句', color: '#11c99a' },
-  { id: 'gym', label: '健身房', eyebrow: 'SCENE 05 · LOCKED', hint: '即将开放', color: '#f18820', locked: true },
+  { id: 'gym', label: '健身房', eyebrow: 'SCENE 05 · ONLINE', hint: 'AI 教练 + 名人带练，多人云健身', color: '#f18820' },
   { id: 'library', label: '图书馆', eyebrow: 'SCENE 06 · ONLINE', hint: '名人读书会与深度问答', color: '#7e52c7' },
 ]
 
@@ -129,7 +130,7 @@ function ScenesCarousel({ activeId, onSelect, onOpen }: CarouselProps) {
   )
 }
 
-export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza, onMyPage, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza, onMyPage, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
@@ -140,6 +141,7 @@ export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, 
     if (scene.id === 'werewolf') { onEnterWerewolf?.(); return }
     if (scene.id === 'bar') { onEnterBar?.(); return }
     if (scene.id === 'library') { onEnterLibrary?.(); return }
+    if (scene.id === 'gym') { onEnterGym?.(); return }
     if (scene.locked) setNotice(`${scene.label} · 该场景即将开放`)
   }
   return <main className="main-home" aria-label="BalaBala 平台主界面">
@@ -160,6 +162,6 @@ export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, 
     </section>
     <section className="main-home__modules" aria-label="快捷入口">{items.map((item) => { const QuickIcon = item.locked ? Lock : ArrowUpRight; return <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} style={{ '--module-color': item.color } as CSSProperties} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => { setActiveId(item.id); openScene(item) }}><QuickIcon size={14} aria-hidden="true" /><b>{item.label}</b></button> })}</section>
     {notice && <button type="button" className="main-home__notice" onClick={() => setNotice('')}>{notice}<span>×</span></button>}
-    <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>5 / 6 个场景已解锁</span></footer>
+    <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>6 / 6 个场景已解锁</span></footer>
   </main>
 }

@@ -1,0 +1,262 @@
+/* M11: 健身房场景样式 — 明亮运动风 */
+
+.gym-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0c1411;
+  color: #eaf4ee;
+  font-family: inherit;
+}
+
+.gym-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(120, 220, 160, 0.16);
+  background: rgba(10, 18, 15, 0.92);
+  flex-shrink: 0;
+}
+
+.gym-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.gym-panel {
+  width: 400px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 14px;
+  border-right: 1px solid rgba(120, 220, 160, 0.12);
+  background: rgba(8, 14, 12, 0.92);
+}
+
+.gym-canvas-wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+.gym-tabbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.gym-card {
+  background: rgba(20, 30, 26, 0.85);
+  border: 1px solid rgba(120, 220, 160, 0.16);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+/* 目标选择 chips */
+.gym-chip {
+  padding: 5px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border: 1px solid #2c3a33;
+  background: transparent;
+  color: #a8c0b0;
+}
+.gym-chip.is-active {
+  background: rgba(80, 220, 140, 0.16);
+  border-color: #5fdc90;
+  color: #8ff0b0;
+}
+
+/* 动作列表 */
+.gym-exercise {
+  border: 1px solid #2c3a33;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: rgba(12, 20, 17, 0.6);
+}
+.gym-exercise.is-done {
+  border-color: rgba(95, 220, 144, 0.5);
+  opacity: 0.75;
+}
+.gym-exercise.is-current {
+  border-color: #5fdc90;
+  box-shadow: 0 0 0 1px rgba(95, 220, 144, 0.4);
+}
+
+/* 进度条 */
+.gym-progress {
+  height: 8px;
+  border-radius: 4px;
+  background: #1a2a22;
+  overflow: hidden;
+}
+.gym-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3fdc80, #8ff0b0);
+  transition: width 0.4s ease;
+}
+
+/* 训练倒计时/计数大浮层 */
+.gym-workout-overlay {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+.gym-workout-num {
+  font-size: 96px;
+  font-weight: 800;
+  color: #8ff0b0;
+  text-shadow: 0 0 30px rgba(95, 220, 144, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.gym-workout-label {
+  font-size: 15px;
+  color: #c8e8d4;
+  letter-spacing: 2px;
+}
+
+/* 成就徽章墙 */
+.gym-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.gym-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: 10px;
+  border: 1px solid #2c3a33;
+  background: rgba(12, 20, 17, 0.6);
+  text-align: center;
+}
+.gym-badge.is-unlocked {
+  border-color: rgba(255, 210, 63, 0.5);
+  background: rgba(255, 210, 63, 0.08);
+}
+.gym-badge__emoji {
+  font-size: 26px;
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.gym-badge.is-unlocked .gym-badge__emoji {
+  filter: none;
+  opacity: 1;
+}
+.gym-badge__name {
+  font-size: 11px;
+  color: #8aa898;
+}
+.gym-badge.is-unlocked .gym-badge__name {
+  color: #ffd23f;
+}
+
+/* 在线玩家列表 */
+.gym-player-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(12, 20, 17, 0.6);
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+/* 飘字通知（HTML 层） */
+.gym-toast {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 70px;
+  z-index: 40;
+  padding: 8px 18px;
+  border-radius: 20px;
+  background: rgba(20, 30, 26, 0.92);
+  border: 1px solid rgba(120, 220, 160, 0.3);
+  color: #d8f0e0;
+  font-size: 13px;
+  pointer-events: none;
+  animation: gym-toast-in 0.25s ease;
+}
+@keyframes gym-toast-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* 名人教练卡片 */
+.gym-celeb-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid #2c3a33;
+  background: rgba(12, 20, 17, 0.6);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  color: #eaf4ee;
+  margin-bottom: 6px;
+}
+.gym-celeb-pick.is-active {
+  border-color: #5fdc90;
+  background: rgba(95, 220, 144, 0.1);
+}
+.gym-celeb-pick img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* 打卡记录 */
+.gym-checkin-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(12, 20, 17, 0.6);
+  margin-bottom: 6px;
+  font-size: 12.5px;
+}
+
+.gym-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.gym-stat {
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(12, 20, 17, 0.6);
+  text-align: center;
+}
+.gym-stat__num {
+  font-size: 22px;
+  font-weight: 700;
+  color: #8ff0b0;
+}
+.gym-stat__label {
+  font-size: 11px;
+  color: #8aa898;
+  margin-top: 2px;
+}

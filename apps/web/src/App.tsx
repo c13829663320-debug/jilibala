@@ -19,9 +19,10 @@ const TalkshowShell = lazy(() => import('./TalkshowShell'))
 const WerewolfShell = lazy(() => import('./WerewolfShell'))
 const BarShell = lazy(() => import('./BarShell'))
 const LibraryShell = lazy(() => import('./LibraryShell'))
+const GymShell = lazy(() => import('./GymShell'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'werewolf' | 'bar' | 'library'
+type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -129,6 +130,7 @@ function AppInner() {
       onEnterWerewolf={() => setView('werewolf')}
       onEnterBar={() => setView('bar')}
       onEnterLibrary={() => setView('library')}
+      onEnterGym={() => setView('gym')}
     />
   }
 
@@ -176,6 +178,7 @@ function AppInner() {
           onEnterWerewolf: () => setView('werewolf'),
           onEnterBar: () => setView('bar'),
           onEnterLibrary: () => setView('library'),
+          onEnterGym: () => setView('gym'),
         }} />
     </>
   }
@@ -216,11 +219,20 @@ function AppInner() {
     </>
   }
 
+  // ===== M11: 健身房 =====
+  if (view === 'gym') {
+    return <>
+      <TopNav {...navProps} currentView="gym" />
+      <LazyScene component={GymShell} label="健身房"
+        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
+    </>
+  }
+
   // ===== 我的 =====
   if (view === 'mypage') {
     return <>
       <TopNav {...navProps} currentView="mypage" />
-      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} />
+      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} onEnterGym={() => setView('gym')} />
     </>
   }
 

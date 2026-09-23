@@ -20,6 +20,7 @@ const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   bar_quote: "🍺 酒吧金句",
   library_note: "📚 读书笔记",
   werewolf_report: "🐺 狼人杀战报",
+  gym_checkin: "🏋️ 健身打卡",
 };
 
 export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen: (id: string) => void }) {
@@ -29,6 +30,18 @@ export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen
     if (content.type === "bar_quote" && content.bar) return `${content.bar.speaker}："${content.bar.quote}"`;
     if (content.type === "library_note" && content.library) return content.library.answer;
     if (content.type === "werewolf_report" && content.werewolf) return `${content.werewolf.winner === 'wolf' ? '🐺狼人胜利' : '☀️好人胜利'} · ${content.werewolf.totalDays}天 · ${content.werewolf.summary}`;
+    if (content.type === "gym_checkin" && content.gym) {
+      const g = content.gym;
+      const parts = [
+        g.exerciseName ? `完成「${g.exerciseName}」` : '完成训练',
+        g.setsCompleted > 0 ? `${g.setsCompleted} 组` : '',
+        g.repsCompleted > 0 ? `${g.repsCompleted} 次` : '',
+        g.durationSeconds > 0 ? `${Math.round(g.durationSeconds / 60 * 10) / 10} 分钟` : '',
+        g.streakDays > 0 ? `🔥 连续 ${g.streakDays} 天` : '',
+      ].filter(Boolean);
+      const quote = g.quote ? ` 金句："${g.quote}"` : '';
+      return parts.join(' · ') + quote;
+    }
     return content.body ?? "";
   })();
   return (
