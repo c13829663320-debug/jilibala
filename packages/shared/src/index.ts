@@ -63,7 +63,7 @@ export interface BenchStartRequest {
 }
 
 // ===== 广场 Plaza =====
-export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note";
+export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note" | "werewolf_report";
 export type SceneId = "court" | "talkshow" | "werewolf" | "bar" | "gym" | "library";
 export type ContentSort = "recommended" | "hot" | "latest";
 
@@ -117,6 +117,95 @@ export interface LibraryNoteData {
   createdAt: string;
 }
 
+// ===== M9: 狼人杀 Werewolf =====
+export type WerewolfRole = "werewolf" | "seer" | "witch" | "hunter" | "villager";
+export type WerewolfPhase = "lobby" | "night" | "day_announce" | "speech" | "vote" | "ended";
+export type WerewolfSide = "wolf" | "good";
+export type WerewolfWinner = WerewolfSide | null;
+
+/** 公开玩家信息（不含身份，全员可见）。 */
+export interface WerewolfPublicPlayer {
+  seat: number;
+  userId: string;        // AI 玩家为 "ai:<seat>"
+  nickname: string;
+  celebrityId?: string;
+  avatarType: string;
+  avatarRef: string;
+  alive: boolean;
+  isAI: boolean;
+}
+
+/** 狼人杀公开日志条目。 */
+export interface WerewolfLogEntry {
+  id: string;
+  day: number;
+  phase: WerewolfPhase;
+  text: string;
+  speakerSeat?: number;
+  timestamp: string;
+}
+
+/** 狼人杀战报（广场内容）。 */
+export interface WerewolfReportData {
+  gameId: string;
+  setup: string;
+  winner: WerewolfWinner;
+  totalDays: number;
+  players: Array<{ seat: number; nickname: string; role: WerewolfRole; survived: boolean }>;
+  summary: string;
+  createdAt: string;
+}
+
+/**
+ * 单玩家视角快照——服务端按身份过滤后单独发给该玩家。
+ * 绝不能把 myRole / wolfTeammates / seerResults 等私密字段广播给他人。
+ */
+export interface WerewolfPlayerSnapshot {
+  gameId: string;
+  phase: WerewolfPhase;
+  day: number;
+  players: WerewolfPublicPlayer[];
+  winner: WerewolfWinner;
+  currentSpeakerSeat?: number;
+  lastNightDeaths: number[];
+  lastVoteResult?: { lynchedSeat: number | null; votes: Record<string, number> };
+  log: WerewolfLogEntry[];
+  // —— 以下为该玩家私密信息，旁观者/其他玩家均为 undefined ——
+  mySeat?: number;
+  myRole?: WerewolfRole;
+  wolfTeammates?: number[];
+  wolfKillTarget?: number | null;
+  seerResults?: Array<{ seat: number; isWolf: boolean; day: number }>;
+  witchPotions?: { heal: boolean; poison: boolean };
+  witchTonightKill?: number | null;
+  /** 当前阶段该玩家需要执行的行动提示，如 "kill" | "check" | "heal_poison" | "speak" | "vote" | null */
+  pendingAction?: string | null;
+  actionDeadlineMs?: number;
+}
+
+/** 狼人杀广播事件（公开信息，全员含旁观可见）。 */
+export type WerewolfBroadcastEvent =
+  | { type: "phase_change"; phase: WerewolfPhase; day: number }
+  | { type: "death"; seats: number[]; cause: "night" | "lynch" | "hunter_shot" }
+  | { type: "speech"; seat: number; nickname: string; text: string }
+  | { type: "vote_cast"; seat: number; targetSeat: number | null }
+  | { type: "vote_result"; lynchedSeat: number | null; votes: Record<string, number> }
+  | { type: "game_end"; winner: WerewolfWinner; report?: WerewolfReportData }
+  | { type: "player_joined"; player: WerewolfPublicPlayer }
+  | { type: "player_left"; seat: number }
+  | { type: "log"; entry: WerewolfLogEntry };
+
+/** 客户端 → 服务端 狼人杀行动。 */
+export type WerewolfClientAction =
+  | { type: "start_game" }
+  | { type: "night_kill"; targetSeat: number }
+  | { type: "night_check"; targetSeat: number }
+  | { type: "night_witch"; heal: boolean; poisonTargetSeat: number | null }
+  | { type: "day_speech"; text: string }
+  | { type: "day_vote"; targetSeat: number | null }
+  | { type: "hunter_shot"; targetSeat: number | null }
+  | { type: "request_snapshot" };
+
 export interface PlazaContent {
   id: string;
   type: ContentType;
@@ -130,6 +219,7 @@ export interface PlazaContent {
   talkshow?: TalkshowClipData;
   bar?: BarQuoteData;
   library?: LibraryNoteData;
+  werewolf?: WerewolfReportData;
   caseId?: string;
   likes: number;
   dislikes: number;
@@ -140,7 +230,7 @@ export interface PlazaContent {
 export const SCENE_META: Array<{ id: SceneId; label: string; emoji: string; locked?: boolean }> = [
   { id: "court", label: "趣味法庭", emoji: "⚖️" },
   { id: "talkshow", label: "脱口秀剧场", emoji: "🎤" },
-  { id: "werewolf", label: "狼人杀馆", emoji: "🐺", locked: true },
+  { id: "werewolf", label: "狼人杀馆", emoji: "🐺" },
   { id: "bar", label: "酒吧辩论", emoji: "🍺" },
   { id: "gym", label: "健身房", emoji: "🏋️", locked: true },
   { id: "library", label: "图书馆", emoji: "📚" },
@@ -219,6 +309,9 @@ export type WSMessage =
   | { type: 'court_snapshot'; state: CourtRoomState }
   | { type: 'scene_event'; scene: SceneId; event: Record<string, unknown> }
   | { type: 'scene_snapshot'; scene: SceneId; state: SceneRoomState }
+  | { type: 'werewolf_snapshot'; snapshot: WerewolfPlayerSnapshot }
+  | { type: 'werewolf_event'; event: WerewolfBroadcastEvent }
+  | { type: 'werewolf_action'; action: WerewolfClientAction }
   | { type: 'pong' }
   | { type: 'error'; message: string };
 

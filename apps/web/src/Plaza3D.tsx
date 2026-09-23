@@ -129,6 +129,7 @@ function RemoteAvatar({ userId, playersRef }: { userId: string; playersRef: Muta
 interface PlazaSceneProps {
   onEnterCourt: () => void
   onEnterTalkshow: () => void
+  onEnterWerewolf: () => void
   onEnterBar: () => void
   onEnterLibrary: () => void
   toast: (msg: string) => void
@@ -137,7 +138,7 @@ interface PlazaSceneProps {
   onMove: (x: number, z: number) => void
 }
 
-function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterBar, onEnterLibrary, toast, playersRef, remoteUserIds, onMove }: PlazaSceneProps) {
+function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, toast, playersRef, remoteUserIds, onMove }: PlazaSceneProps) {
   const targetRef = useRef(new THREE.Vector3(0, CAMERA_Y, 22))
   const lookRef = useRef(new THREE.Vector3(0, 0, 0))
   const [markers, setMarkers] = useState<Marker[]>([])
@@ -158,6 +159,7 @@ function PlazaScene({ onEnterCourt, onEnterTalkshow, onEnterBar, onEnterLibrary,
     if (b) {
       if (b.id === 'court') onEnterCourt()
       else if (b.id === 'talkshow') onEnterTalkshow()
+      else if (b.id === 'werewolf') onEnterWerewolf()
       else if (b.id === 'bar') onEnterBar()
       else if (b.id === 'library') onEnterLibrary()
       else toast(`${b.name} 即将开放，敬请期待`)
@@ -213,10 +215,11 @@ function buildWsUrl(room: string, userId: string): string {
   return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
 }
 
-export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterBar, onEnterLibrary }: {
+export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary }: {
   onBack: () => void
   onEnterCourt: () => void
   onEnterTalkshow?: () => void
+  onEnterWerewolf?: () => void
   onEnterBar?: () => void
   onEnterLibrary?: () => void
 }) {
@@ -343,6 +346,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         <PlazaScene
           onEnterCourt={onEnterCourt}
           onEnterTalkshow={onEnterTalkshow ?? (() => toast('脱口秀剧场即将开放'))}
+          onEnterWerewolf={onEnterWerewolf ?? (() => toast('狼人杀馆即将开放'))}
           onEnterBar={onEnterBar ?? (() => toast('酒吧辩论即将开放'))}
           onEnterLibrary={onEnterLibrary ?? (() => toast('图书馆即将开放'))}
           toast={toast}

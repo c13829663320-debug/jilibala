@@ -14,11 +14,12 @@ import { IdentityProvider, useIdentity } from './identity'
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
 const TalkshowShell = lazy(() => import('./TalkshowShell'))
+const WerewolfShell = lazy(() => import('./WerewolfShell'))
 const BarShell = lazy(() => import('./BarShell'))
 const LibraryShell = lazy(() => import('./LibraryShell'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'bar' | 'library'/**
+type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'werewolf' | 'bar' | 'library'/**
  * Lightweight non-blocking backend health probe. On failure shows a fixed yellow
  * overlay bar (portal to body) and retries every 5s; clicking the bar retries immediately.
  */
@@ -134,6 +135,7 @@ function AppInner() {
       onPlaza={() => setView('plaza')}
       onMyPage={() => setView('mypage')}
       onEnterTalkshow={() => setView('talkshow')}
+      onEnterWerewolf={() => setView('werewolf')}
       onEnterBar={() => setView('bar')}
       onEnterLibrary={() => setView('library')}
     />
@@ -178,6 +180,7 @@ function AppInner() {
         onBack={() => setView('entry')}
         onEnterCourt={() => setView('court')}
         onEnterTalkshow={() => setView('talkshow')}
+        onEnterWerewolf={() => setView('werewolf')}
         onEnterBar={() => setView('bar')}
         onEnterLibrary={() => setView('library')}
       /></Suspense>
@@ -189,6 +192,14 @@ function AppInner() {
     return <>
       <TopNav {...navProps} currentView="talkshow" />
       <Suspense fallback={null}><TalkshowShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
+    </>
+  }
+
+  // ===== M9: 狼人杀馆 =====
+  if (view === 'werewolf') {
+    return <>
+      <TopNav {...navProps} currentView="werewolf" />
+      <Suspense fallback={null}><WerewolfShell onBack={() => setView('entry')} onPlaza={() => setView('plaza')} /></Suspense>
     </>
   }
 

@@ -19,6 +19,7 @@ const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   talkshow_clip: "🎤 脱口秀片段",
   bar_quote: "🍺 酒吧金句",
   library_note: "📚 读书笔记",
+  werewolf_report: "🐺 狼人杀战报",
 };
 
 export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen: (id: string) => void }) {
@@ -27,6 +28,7 @@ export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen
     if (content.type === "talkshow_clip" && content.talkshow) return `${content.talkshow.performer} · 观众评分 ${content.talkshow.audienceScore}：${content.talkshow.text}`;
     if (content.type === "bar_quote" && content.bar) return `${content.bar.speaker}："${content.bar.quote}"`;
     if (content.type === "library_note" && content.library) return content.library.answer;
+    if (content.type === "werewolf_report" && content.werewolf) return `${content.werewolf.winner === 'wolf' ? '🐺狼人胜利' : '☀️好人胜利'} · ${content.werewolf.totalDays}天 · ${content.werewolf.summary}`;
     return content.body ?? "";
   })();
   return (

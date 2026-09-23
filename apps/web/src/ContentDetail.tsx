@@ -9,6 +9,7 @@ const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   talkshow_clip: "🎤 脱口秀片段",
   bar_quote: "🍺 酒吧金句",
   library_note: "📚 读书笔记",
+  werewolf_report: "🐺 狼人杀战报",
 };
 
 export function ContentDetail({ id, author, onBack, onChanged }: {

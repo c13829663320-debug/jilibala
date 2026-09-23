@@ -10,10 +10,12 @@ import { loadCases as loadStoredCases, saveCases as saveStoredCases, type Stored
 import { loadContents, saveContents, makeSeedContents } from './content-storage.js';
 import * as db from './db.js';
 import type { StoredContent } from './db.js';
-import { registerWebSocket, broadcastToRoom, updateCourtState, getCourtState } from './ws.js';
+import { registerWebSocket, broadcastToRoom, updateCourtState, getCourtState, sendToUserInRoom } from './ws.js';
 import { registerBarRoutes } from './bar-routes.js';
 import { registerTalkshowRoutes } from './talkshow-routes.js';
 import { registerLibraryRoutes } from './library-routes.js';
+import { registerWerewolfRoutes } from './werewolf-routes.js';
+import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
 for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
@@ -836,6 +838,16 @@ registerBarRoutes(app, { chat: chatWithProviders, contents });
 
 // ===== M8: 图书馆路由 =====
 registerLibraryRoutes(app, { chat: chatWithProviders, contents });
+
+// ===== M9: 狼人杀馆 =====
+// 注入广播/单发回调：公开事件走广播，私密快照走 sendToUserInRoom 单发。
+setBroadcastCallbacks(
+  (gameId, event) => broadcastToRoom(`werewolf:${gameId}`, { type: "werewolf_event", event }),
+  (gameId, userId, msg) => sendToUserInRoom(`werewolf:${gameId}`, userId, msg),
+);
+// 注入 LLM chat 供 AI 名人玩家决策（串行、带兜底）。
+setChatProvider(chatWithProviders);
+registerWerewolfRoutes(app, { chat: chatWithProviders, contents });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

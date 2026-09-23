@@ -1,8 +1,8 @@
 # 叽里呱啦 · BalaBala 社交世界
 
-把生活里的小小争议，变成一场温柔又好玩的趣味庭审。平台包含趣味法庭、脱口秀剧场、酒吧辩论、图书馆四大互动场景，支持名人合议庭、3D 广场、实时多人联机与数据持久化。
+把生活里的小小争议，变成一场温柔又好玩的趣味庭审。平台包含趣味法庭、脱口秀剧场、狼人杀馆、酒吧辩论、图书馆五大互动场景，支持名人合议庭、3D 广场、实时多人联机与数据持久化。
 
-## 场景玩法（M8）
+## 场景玩法（M9）
 
 ### 🎤 脱口秀剧场
 - 上台讲段子（文字输入，可选 TTS 朗读），AI 虚拟观众实时打分（0-100）并给出反应（笑声/鼓掌/起哄/冷场/欢呼）和评论
@@ -24,7 +24,18 @@
 - AI 馆员：按主题（15 个知识主题）回答知识性问题，可发布笔记
 - 安静氛围，多人一起参加读书会，提问实时同步
 
-> 狼人杀馆、健身房即将开放。
+### 🐺 狼人杀馆
+- 9 人局标准版型：3 狼人 + 1 预言家 + 1 女巫 + 1 猎人 + 3 村民
+- 真人不足时由 AI 名人补位（马斯克、诸葛亮、莎士比亚等按 persona 参与）
+- 完整回合制状态机：夜晚（狼人刀人 → 预言家查验 → 女巫用药）→ 白天（公布死亡 → 依次发言 → 投票放逐）→ 循环，直到分出胜负
+- 猎人死亡可开枪带走一人；女巫拥有解药和毒药各一瓶
+- **信息严格保密**：服务端按玩家视角单独下发快照，每人只能看到自己的身份牌和夜晚结果；狼人见队友与刀法，预言家只见查验，女巫只见自己的药水与被刀者；其他玩家身份与夜晚私密行动绝不广播
+- AI 玩家夜晚决策（刀/查验/用药）、白天发言（好人找狼、狼人伪装）、投票均由 LLM 生成，输出结构化 JSON，解析失败自动规则兜底
+- 每阶段设超时，真人未行动自动随机或弃权推进，游戏不卡死
+- 对局结束公布胜负与全员身份，一键发布「狼人杀战报」到广场（版型/身份/存活/胜负/复盘）
+- 断线重连后按该玩家视角补发当前局面快照
+
+> 健身房即将开放。
 
 ## 本地启动
 
@@ -55,6 +66,7 @@ npm run build        # 全量构建（shared + api + web）
 - 广场内容、评论、点赞/反对
 - 证书、消息
 - 场景交互记录（脱口秀表演、酒吧发言、图书馆问答）
+- 狼人杀对局记录与战报
 
 首次启动自动填充广场演示内容。
 
@@ -139,9 +151,17 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - `POST /api/library/librarian` — AI 馆员答疑
 - `POST /api/library/publish` — 发布笔记/金句到广场
 
+### 狼人杀馆
+- `POST /api/werewolf/create` — 创建房间（`{ userId }`）
+- `POST /api/werewolf/:gameId/join` — 加入房间（`{ userId }`）
+- `POST /api/werewolf/:gameId/start` — 房主开始游戏（`{ userId }`）
+- `GET /api/werewolf/:gameId/state?userId=` — 获取该玩家视角快照（断线重连用）
+- `POST /api/werewolf/:gameId/publish` — 发布战报到广场（游戏结束后）
+
 ### WebSocket
-- `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>` — 实时连接
+- `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>` — 实时连接
 - 场景房间：脱口秀/酒吧/图书馆各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby`，通过 `scene_event` 广播场景内事件（表演、发言、问答等）
+- 狼人杀房间：`werewolf:<gameId>`，客户端发送 `werewolf_action`（夜晚行动/发言/投票），服务端对每个玩家单独下发 `werewolf_snapshot`（含私密信息），对全员广播 `werewolf_event`（公开阶段/死亡/发言/投票/胜负）
 
 ### 其他
 - `GET /health` — 服务健康与配置状态
@@ -161,11 +181,12 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 
 ## 3D 场景
 
-平台使用 Three.js + React Three Fiber 实时渲染。广场为 3D 可交互场景（点击地面移动、点击建筑进入），六个建筑环绕广场：趣味法庭、脱口秀剧场、狼人杀馆（即将开放）、酒吧辩论、健身房（即将开放）、图书馆。
+平台使用 Three.js + React Three Fiber 实时渲染。广场为 3D 可交互场景（点击地面移动、点击建筑进入），六个建筑环绕广场：趣味法庭、脱口秀剧场、狼人杀馆、酒吧辩论、健身房（即将开放）、图书馆。
 
 室内场景均为程序化 3D 建模（三面布景 + 主题道具），延续 Q 版圆润 + 纯黑明黄视觉语言：
 - 趣味法庭：写实法庭 + 多席位合议庭
 - 脱口秀剧场：舞台 + 麦克风 + 观众席 + 聚光灯
+- 狼人杀馆：夜晚圆桌 + 9 号码位 + 昼夜光照切换 + 死亡标记 + 发言者高亮
 - 酒吧辩论：吧台 + 酒瓶 + 圆桌 + 暖光氛围
 - 图书馆：三面书架 + 阅览桌 + 台灯 + 安静氛围
 
@@ -187,6 +208,8 @@ apps/
       bar-routes.ts   # 酒吧辩论路由
       library-orchestrator.ts  # 图书馆 AI 编排
       library-routes.ts  # 图书馆路由
+      werewolf-orchestrator.ts  # 狼人杀状态机 + AI 玩家 + 视角过滤
+      werewolf-routes.ts  # 狼人杀路由
       tripo.ts        # Tripo 3D API 封装
   web/          # Vite + React 18 + R3F 前端
     src/
@@ -200,6 +223,8 @@ apps/
       BarView.tsx         # 酒吧 3D 场景
       LibraryShell.tsx    # 图书馆 UI 壳 + 多人
       LibraryView.tsx     # 图书馆 3D 场景
+      WerewolfShell.tsx   # 狼人杀 UI 壳 + 游戏状态 + 多人
+      WerewolfView.tsx    # 狼人杀 3D 圆桌场景
       Plaza3D.tsx     # 3D 广场 + presence
       RoomEntry.tsx   # 场景入口大厅
       MyPage.tsx      # 我的页面

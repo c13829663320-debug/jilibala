@@ -13,6 +13,7 @@ import {
   type SceneId,
 } from "@balabala/shared";
 import * as db from "./db.js";
+import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
 
 // ===== 房间数据结构 =====
 type RoomUser = {
@@ -37,7 +38,7 @@ type Room = {
 const rooms = new Map<string, Room>();
 
 /** M8: 合法房间前缀。plaza 为全局广场，其余为按场景/案件的房间。 */
-const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:"];
+const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:", "werewolf:"];
 
 function isValidRoom(roomId: string): boolean {
   return VALID_ROOM_PREFIXES.some((p) => (p.endsWith(":") ? roomId.startsWith(p) : roomId === p));
@@ -61,7 +62,7 @@ function getOrCreateRoom(roomId: string): Room {
       };
     }
     // M8: 场景房间初始化 sceneState
-    for (const prefix of ["talkshow:", "bar:", "library:"] as const) {
+    for (const prefix of ["talkshow:", "bar:", "library:", "werewolf:"] as const) {
       if (roomId.startsWith(prefix)) {
         const scene = prefix.slice(0, -1) as SceneId;
         room.sceneState = {
@@ -115,6 +116,15 @@ export function broadcastToRoom(roomId: string, message: unknown): void {
       // 忽略
     }
   }
+}
+
+/** 向房间内指定用户单独发送（用于狼人杀私密快照，不广播给他人）。 */
+export function sendToUserInRoom(roomId: string, userId: string, msg: WSMessage): void {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const user = room.users.get(userId);
+  if (!user) return;
+  safeSend(user.socket, msg);
 }
 
 /** 局部更新法庭房间状态。 */
@@ -177,7 +187,7 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     // 验证 room 格式
     if (!isValidRoom(roomId)) {
-      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<id>/talkshow:<id>/bar:<id>/library:<id>" });
+      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<id>/talkshow:<id>/bar:<id>/library:<id>/werewolf:<id>" });
       socket.close();
       return;
     }
@@ -213,6 +223,15 @@ export function registerWebSocket(app: FastifyInstance): void {
       ...(room.sceneState ? { sceneState: room.sceneState } : {}),
     };
     safeSend(socket, welcome);
+
+    // 狼人杀房间：若用户已加入对局，补发该视角的私密快照（断线重连/初始加载）。
+    if (roomId.startsWith("werewolf:")) {
+      const gameId = roomId.slice("werewolf:".length);
+      const snap = werewolfSnapshot(gameId, userId);
+      if (snap.players.length > 0) {
+        safeSend(socket, { type: "werewolf_snapshot", snapshot: snap } satisfies WSMessage);
+      }
+    }
 
     // 通知其他人
     broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser) } satisfies WSMessage);
@@ -288,6 +307,15 @@ export function registerWebSocket(app: FastifyInstance): void {
           const event = (data.event ?? {}) as Record<string, unknown>;
           if (!scene) return;
           broadcastToRoom(roomId, { type: "scene_event", scene, event } satisfies WSMessage);
+          break;
+        }
+        case "werewolf_action": {
+          // M9: 狼人杀行动，服务端按身份与阶段校验后推进状态机。
+          if (!roomId.startsWith("werewolf:")) return;
+          const gameId = roomId.slice("werewolf:".length);
+          const action = data.action as import("@balabala/shared").WerewolfClientAction | undefined;
+          if (!action || typeof action !== "object" || typeof action.type !== "string") return;
+          werewolfHandleAction(gameId, userId, action);
           break;
         }
         case "ping": {

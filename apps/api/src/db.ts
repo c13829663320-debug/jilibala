@@ -46,7 +46,7 @@ function tableHasColumn(table: string, column: string): boolean {
 }
 
 function migrateContentsTable(): void {
-  for (const col of ["talkshow", "bar", "library"]) {
+  for (const col of ["talkshow", "bar", "library", "werewolf"]) {
     if (!tableHasColumn("contents", col)) {
       db.exec(`ALTER TABLE contents ADD COLUMN ${col} TEXT DEFAULT ''`);
     }
@@ -95,7 +95,8 @@ function createTables(): void {
       court TEXT DEFAULT '',
       talkshow TEXT DEFAULT '',
       bar TEXT DEFAULT '',
-      library TEXT DEFAULT ''
+      library TEXT DEFAULT '',
+      werewolf TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS comments (
@@ -146,6 +147,14 @@ function createTables(): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS werewolf_games (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT '',
+      game_id TEXT NOT NULL,
+      payload TEXT DEFAULT '{}',
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cases_user ON cases(user_id);
     CREATE INDEX IF NOT EXISTS idx_contents_user ON contents(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_content ON comments(content_id);
@@ -153,6 +162,7 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
     CREATE INDEX IF NOT EXISTS idx_scene_records_user ON scene_records(user_id);
     CREATE INDEX IF NOT EXISTS idx_scene_records_scene ON scene_records(scene);
+    CREATE INDEX IF NOT EXISTS idx_werewolf_games_user ON werewolf_games(user_id);
   `);
   migrateContentsTable();
 }
@@ -195,7 +205,7 @@ type ContentRow = {
   author: string; created_at: string; topics: string;
   title: string; body: string; case_id: string;
   likes: number; dislikes: number; views: number; court: string;
-  talkshow: string; bar: string; library: string;
+  talkshow: string; bar: string; library: string; werewolf: string;
 };
 function rowToContent(row: ContentRow): StoredContent {
   const content: StoredContent = {
@@ -222,6 +232,8 @@ function rowToContent(row: ContentRow): StoredContent {
   if (bar) content.bar = bar;
   const library = safeParse<PlazaContent["library"]>(row.library, undefined);
   if (library) content.library = library;
+  const werewolf = safeParse<PlazaContent["werewolf"]>(row.werewolf, undefined);
+  if (werewolf) content.werewolf = werewolf;
   return content;
 }
 
@@ -238,8 +250,8 @@ function seedIfEmpty(): void {
   const seeds = seedContentsFn();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library)
-    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf)
+    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const c of seeds) {
     insert.run(
@@ -250,6 +262,7 @@ function seedIfEmpty(): void {
       safeStringify(c.talkshow ?? ""),
       safeStringify(c.bar ?? ""),
       safeStringify(c.library ?? ""),
+      safeStringify(c.werewolf ?? ""),
     );
     // 种子评论写入 comments 表
     if (c.comments?.length) {
@@ -332,8 +345,8 @@ export function upsertContent(c: StoredContent): void {
   initDb();
   db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     c.id, c.userId ?? "", c.type, c.scene, c.author, c.createdAt,
     safeStringify(c.topics), c.title, c.body ?? "", c.caseId ?? "",
@@ -342,6 +355,7 @@ export function upsertContent(c: StoredContent): void {
     safeStringify(c.talkshow ?? ""),
     safeStringify(c.bar ?? ""),
     safeStringify(c.library ?? ""),
+    safeStringify(c.werewolf ?? ""),
   );
 }
 
@@ -540,4 +554,53 @@ export function getSceneRecord(id: string): SceneRecord | undefined {
   initDb();
   const row = db.prepare("SELECT * FROM scene_records WHERE id = ?").get(id) as SceneRecordRow | undefined;
   return row ? rowToSceneRecord(row) : undefined;
+}
+
+// ===== M9: 狼人杀对局记录 DAO =====
+export type WerewolfGameRecord = {
+  id: string;
+  userId: string;
+  gameId: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
+
+type WerewolfGameRow = {
+  id: string; user_id: string; game_id: string; payload: string; created_at: string;
+};
+
+function rowToWerewolfGame(row: WerewolfGameRow): WerewolfGameRecord {
+  return {
+    id: row.id,
+    userId: row.user_id || "",
+    gameId: row.game_id,
+    payload: safeParse<Record<string, unknown>>(row.payload, {}),
+    createdAt: row.created_at,
+  };
+}
+
+export function addWerewolfGame(
+  rec: Omit<WerewolfGameRecord, "id" | "createdAt"> & { id?: string; createdAt?: string },
+): WerewolfGameRecord {
+  initDb();
+  const record: WerewolfGameRecord = {
+    id: rec.id ?? randomUUID(),
+    userId: rec.userId,
+    gameId: rec.gameId,
+    payload: rec.payload,
+    createdAt: rec.createdAt ?? new Date().toISOString(),
+  };
+  db.prepare(`
+    INSERT OR REPLACE INTO werewolf_games (id, user_id, game_id, payload, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(record.id, record.userId, record.gameId, safeStringify(record.payload), record.createdAt);
+  return record;
+}
+
+export function getWerewolfGamesByUser(userId: string): WerewolfGameRecord[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM werewolf_games WHERE user_id = ? ORDER BY created_at DESC",
+  ).all(userId) as WerewolfGameRow[];
+  return rows.map(rowToWerewolfGame);
 }
