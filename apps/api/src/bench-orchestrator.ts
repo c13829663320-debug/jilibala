@@ -4,7 +4,6 @@
 import {
   CELEBRITIES,
   getCelebrity,
-  type Celebrity,
   type BenchMember,
   type BenchSpeech,
   type BenchEvent,
@@ -13,6 +12,7 @@ import {
   type BenchInteraction,
   type Verdict,
 } from "@balabala/shared";
+import { resolveCharacter, type ResolvedCharacter } from "./character-resolver.js";
 import { randomUUID } from "node:crypto";
 
 /** 通用聊天函数签名（由 server.ts 的 chatWithProviders 注入，避免循环依赖）。 */
@@ -140,7 +140,7 @@ const JARGON_RULE =
  * 让某位名人发表一段合议庭发言。注入 persona 作为 system prompt。
  */
 export const celebritySpeak = async (
-  celebrity: Celebrity,
+  celebrity: ResolvedCharacter,
   context: string,
   chat: ChatFn,
   maxTokens = 800,
@@ -234,7 +234,8 @@ export const runBenchTrial = async (
   // ---- 1. forming 阶段 ----
   onEvent({ type: "stage", stage: "forming" });
   const size = Math.min(5, Math.max(3, opts.benchSize || 3));
-  let chosenIds = opts.celebrityIds.filter((id) => getCelebrity(id));
+  // 用户指定的评委：用统一解析器（支持 custom- 前缀的自定义人物）。
+  let chosenIds = opts.celebrityIds.filter((id) => resolveCharacter(id));
   if (chosenIds.length === 0) {
     chosenIds = await recommendCelebrities(input, size, chat);
   }
@@ -244,8 +245,8 @@ export const runBenchTrial = async (
   // 为每位成员分配 stance（尽量均衡）和 seatIndex。
   const stances: BenchStance[] = ["plaintiff", "defendant", "neutral"];
   const members: BenchMember[] = chosenIds
-    .map((id) => getCelebrity(id))
-    .filter((c): c is Celebrity => Boolean(c))
+    .map((id) => resolveCharacter(id))
+    .filter((c): c is ResolvedCharacter => Boolean(c))
     .map((c, index) => ({
       celebrityId: c.id,
       name: c.name,
@@ -278,7 +279,7 @@ export const runBenchTrial = async (
 
   /** 让某位成员发言一次（带退避容错），返回是否成功。 */
   const speakAsMember = async (member: BenchMember, stage: BenchSpeech["stage"], userNotes: string[]): Promise<void> => {
-    const celeb = getCelebrity(member.celebrityId)!;
+    const celeb = resolveCharacter(member.celebrityId)!;
     onEvent({ type: "speech_start", speakerId: member.celebrityId, speakerName: member.name });
     const context = buildContext(member, stage, userNotes);
     const text = await withRetry(

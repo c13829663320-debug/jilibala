@@ -40,6 +40,12 @@
 .plaza-card__author { color: #888; font-size: 10px; }
 .plaza-card__title { margin: 0 0 9px; color: #f2f2f2; font-size: 16px; line-height: 1.35; }
 .plaza-card__summary { margin: 0 0 12px; color: #999; font-size: 11.5px; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.plaza-card__character { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.plaza-card__character img { width: 48px; height: 60px; border-radius: 8px; object-fit: cover; background: #222; }
+.plaza-card__character-fallback { width: 48px; height: 60px; border-radius: 8px; display: grid; place-items: center; color: #FFD600; font-size: 22px; font-weight: 700; background: linear-gradient(145deg,#3a2f5a,#14101f); flex: 0 0 48px; }
+.plaza-card__character div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.plaza-card__character b { color: #f2f2f2; font-size: 14px; }
+.plaza-card__character small { color: #999; font-size: 11px; }
 .plaza-card__topics { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .plaza-card__topics i { font-style: normal; font-size: 10px; color: #FFD600; }
 .plaza-card__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 13px; color: #888; font-size: 10px; padding-top: 11px; border-top: 1px solid rgba(255,255,255,.1); }

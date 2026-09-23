@@ -88,6 +88,10 @@ button { cursor: pointer; }
 .bench-selection__card.is-locked{opacity:.45;cursor:not-allowed}
 .bench-selection__avatar{position:relative;width:100%;aspect-ratio:1;border-radius:9px;overflow:hidden;background:#222}
 .bench-selection__avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.bench-selection__avatar-fallback{display:grid;place-items:center;width:100%;height:100%;color:#FDE047;font-size:28px;font-weight:700;background:linear-gradient(145deg,#3a2f5a,#14101f)}
+.bench-selection__loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:40px;color:#999;font-size:13px}
+.bench-selection__loading .spin{animation:bench-spin 1s linear infinite}
+@keyframes bench-spin{to{transform:rotate(360deg)}}
 .bench-selection__check{position:absolute;top:6px;right:6px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;color:#1a1a1a;background:#FFD600}
 .bench-selection__meta{display:flex;flex-direction:column;gap:2px;min-width:0}
 .bench-selection__meta b{font-size:12px}

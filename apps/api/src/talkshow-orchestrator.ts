@@ -1,7 +1,7 @@
 // ===== 脱口秀剧场编排器 Talkshow Orchestrator (M8) =====
 // 纯 AI 逻辑层：虚拟观众反应、名人 open-mic、AI 帮写段子。
 // 所有 LLM 调用串行执行，失败重试 1 次后用兜底文本，绝不中断流程。
-import { getCelebrity, type Celebrity } from "@balabala/shared";
+import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -107,7 +107,7 @@ export const celebrityOpenMic = async (
   celebrityId: string,
   chat: ChatFn,
 ): Promise<CelebrityOpenMic> => {
-  const celeb: Celebrity | undefined = getCelebrity(celebrityId);
+  const celeb = resolveCharacter(celebrityId);
   if (!celeb) {
     return { celebrityId, name: "神秘嘉宾", jokes: ["（这位嘉宾今天状态不佳，下次再来。）"], score: 40 };
   }
@@ -121,7 +121,7 @@ export const celebrityOpenMic = async (
 
   const fallbackJokes = [
     `${celeb.greeting}（今天我先讲个暖场段子。）`,
-    `说实话，我这辈子见过最离谱的事，就是有人把 ${celeb.field} 当成随便聊聊。`,
+    `说实话，我这辈子见过最离谱的事，就是有人把 ${celeb.field ?? "我所从事的领域"} 当成随便聊聊。`,
     `下次我再给你们讲更狠的，今天先到这儿。`,
   ];
 

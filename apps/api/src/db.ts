@@ -54,7 +54,7 @@ function tableHasColumn(table: string, column: string): boolean {
 }
 
 function migrateContentsTable(): void {
-  for (const col of ["talkshow", "bar", "library", "werewolf", "gym"]) {
+  for (const col of ["talkshow", "bar", "library", "werewolf", "gym", "custom_character"]) {
     if (!tableHasColumn("contents", col)) {
       db.exec(`ALTER TABLE contents ADD COLUMN ${col} TEXT DEFAULT ''`);
     }
@@ -105,7 +105,8 @@ function createTables(): void {
       bar TEXT DEFAULT '',
       library TEXT DEFAULT '',
       werewolf TEXT DEFAULT '',
-      gym TEXT DEFAULT ''
+      gym TEXT DEFAULT '',
+      custom_character TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS comments (
@@ -197,6 +198,22 @@ function createTables(): void {
       UNIQUE(user_id, achievement_id)
     );
 
+    CREATE TABLE IF NOT EXISTS custom_characters (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL,
+      title TEXT DEFAULT '',
+      intro TEXT DEFAULT '',
+      tags TEXT DEFAULT '[]',
+      persona TEXT NOT NULL DEFAULT '',
+      greeting TEXT DEFAULT '',
+      model_path TEXT DEFAULT '',
+      portrait_path TEXT DEFAULT '',
+      visibility TEXT NOT NULL DEFAULT 'private',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cases_user ON cases(user_id);
     CREATE INDEX IF NOT EXISTS idx_contents_user ON contents(user_id);
     CREATE INDEX IF NOT EXISTS idx_comments_content ON comments(content_id);
@@ -208,6 +225,8 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_gym_plans_user ON gym_plans(user_id);
     CREATE INDEX IF NOT EXISTS idx_gym_checkins_user ON gym_checkins(user_id);
     CREATE INDEX IF NOT EXISTS idx_gym_achievements_user ON gym_achievements(user_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_chars_user ON custom_characters(user_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_chars_visibility ON custom_characters(visibility);
   `);
   migrateContentsTable();
 }
@@ -250,7 +269,7 @@ type ContentRow = {
   author: string; created_at: string; topics: string;
   title: string; body: string; case_id: string;
   likes: number; dislikes: number; views: number; court: string;
-  talkshow: string; bar: string; library: string; werewolf: string; gym: string;
+  talkshow: string; bar: string; library: string; werewolf: string; gym: string; custom_character: string;
 };
 function rowToContent(row: ContentRow): StoredContent {
   const content: StoredContent = {
@@ -281,6 +300,8 @@ function rowToContent(row: ContentRow): StoredContent {
   if (werewolf) content.werewolf = werewolf;
   const gym = safeParse<PlazaContent["gym"]>(row.gym, undefined);
   if (gym) content.gym = gym;
+  const customCharacter = safeParse<PlazaContent["customCharacter"]>(row.custom_character, undefined);
+  if (customCharacter) content.customCharacter = customCharacter;
   return content;
 }
 
@@ -297,8 +318,8 @@ function seedIfEmpty(): void {
   const seeds = seedContentsFn();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym)
-    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym, custom_character)
+    VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const c of seeds) {
     insert.run(
@@ -311,6 +332,7 @@ function seedIfEmpty(): void {
       safeStringify(c.library ?? ""),
       safeStringify(c.werewolf ?? ""),
       safeStringify(c.gym ?? ""),
+      safeStringify(c.customCharacter ?? ""),
     );
     // 种子评论写入 comments 表
     if (c.comments?.length) {
@@ -393,8 +415,8 @@ export function upsertContent(c: StoredContent): void {
   initDb();
   db.prepare(`
     INSERT OR REPLACE INTO contents
-      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, type, scene, author, created_at, topics, title, body, case_id, likes, dislikes, views, court, talkshow, bar, library, werewolf, gym, custom_character)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     c.id, c.userId ?? "", c.type, c.scene, c.author, c.createdAt,
     safeStringify(c.topics), c.title, c.body ?? "", c.caseId ?? "",
@@ -405,6 +427,7 @@ export function upsertContent(c: StoredContent): void {
     safeStringify(c.library ?? ""),
     safeStringify(c.werewolf ?? ""),
     safeStringify(c.gym ?? ""),
+    safeStringify(c.customCharacter ?? ""),
   );
 }
 
@@ -825,4 +848,120 @@ export function unlockGymAchievement(
   `).run(`${userId}:${achievementId}`, userId, achievementId, unlockedAt);
 
   return { id: def.id, name: def.name, description: def.description, emoji: def.emoji, unlockedAt };
+}
+
+// ===== M12: 自定义人物 Custom Character DAO =====
+
+/** 自定义人物持久化记录（persona 仅服务端使用，绝不下发前端）。 */
+export type CustomCharacterRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  title: string;
+  intro: string;
+  tags: string[];
+  persona: string;
+  greeting: string;
+  modelPath: string;
+  portraitPath: string;
+  visibility: "private" | "public";
+  createdAt: string;
+  updatedAt: string;
+};
+
+type CustomCharacterRow = {
+  id: string; user_id: string; name: string; title: string; intro: string;
+  tags: string; persona: string; greeting: string;
+  model_path: string; portrait_path: string; visibility: string;
+  created_at: string; updated_at: string;
+};
+
+function rowToCustomCharacter(row: CustomCharacterRow): CustomCharacterRecord {
+  return {
+    id: row.id,
+    userId: row.user_id || "",
+    name: row.name,
+    title: row.title || "",
+    intro: row.intro || "",
+    tags: safeParse<string[]>(row.tags, []),
+    persona: row.persona || "",
+    greeting: row.greeting || "",
+    modelPath: row.model_path || "",
+    portraitPath: row.portrait_path || "",
+    visibility: (row.visibility === "public" ? "public" : "private") as "private" | "public",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function createCustomCharacter(c: CustomCharacterRecord): CustomCharacterRecord {
+  initDb();
+  db.prepare(`
+    INSERT OR REPLACE INTO custom_characters
+      (id, user_id, name, title, intro, tags, persona, greeting, model_path, portrait_path, visibility, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    c.id, c.userId, c.name, c.title, c.intro,
+    safeStringify(c.tags), c.persona, c.greeting,
+    c.modelPath, c.portraitPath, c.visibility,
+    c.createdAt, c.updatedAt,
+  );
+  return c;
+}
+
+export function getCustomCharacter(id: string): CustomCharacterRecord | undefined {
+  initDb();
+  const row = db.prepare("SELECT * FROM custom_characters WHERE id = ?").get(id) as CustomCharacterRow | undefined;
+  return row ? rowToCustomCharacter(row) : undefined;
+}
+
+export function updateCustomCharacter(
+  id: string,
+  patch: Partial<Omit<CustomCharacterRecord, "id" | "createdAt">>,
+): CustomCharacterRecord | undefined {
+  initDb();
+  const existing = getCustomCharacter(id);
+  if (!existing) return undefined;
+  const next: CustomCharacterRecord = {
+    ...existing,
+    ...patch,
+    tags: Array.isArray(patch.tags) ? patch.tags : existing.tags,
+    visibility: patch.visibility === "public" ? "public" : (patch.visibility === "private" ? "private" : existing.visibility),
+    updatedAt: new Date().toISOString(),
+    id: existing.id,
+    createdAt: existing.createdAt,
+  };
+  db.prepare(`
+    UPDATE custom_characters SET
+      user_id = ?, name = ?, title = ?, intro = ?, tags = ?, persona = ?,
+      greeting = ?, model_path = ?, portrait_path = ?, visibility = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    next.userId, next.name, next.title, next.intro,
+    safeStringify(next.tags), next.persona, next.greeting,
+    next.modelPath, next.portraitPath, next.visibility, next.updatedAt,
+    next.id,
+  );
+  return next;
+}
+
+export function deleteCustomCharacter(id: string): void {
+  initDb();
+  db.prepare("DELETE FROM custom_characters WHERE id = ?").run(id);
+}
+
+export function getCustomCharactersByUser(userId: string): CustomCharacterRecord[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM custom_characters WHERE user_id = ? ORDER BY updated_at DESC",
+  ).all(userId) as CustomCharacterRow[];
+  return rows.map(rowToCustomCharacter);
+}
+
+export function getPublicCustomCharacters(limit = 50): CustomCharacterRecord[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM custom_characters WHERE visibility = 'public' ORDER BY updated_at DESC LIMIT ?",
+  ).all(limit) as CustomCharacterRow[];
+  return rows.map(rowToCustomCharacter);
 }

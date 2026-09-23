@@ -21,6 +21,7 @@ const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   library_note: "📚 读书笔记",
   werewolf_report: "🐺 狼人杀战报",
   gym_checkin: "🏋️ 健身打卡",
+  custom_character: "🎭 自定义人物",
 };
 
 export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen: (id: string) => void }) {
@@ -42,6 +43,10 @@ export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen
       const quote = g.quote ? ` 金句："${g.quote}"` : '';
       return parts.join(' · ') + quote;
     }
+    if (content.type === "custom_character" && content.customCharacter) {
+      const cc = content.customCharacter;
+      return `${cc.title || '自定义人物'}：${cc.intro}`;
+    }
     return content.body ?? "";
   })();
   return (
@@ -52,6 +57,24 @@ export function ContentCard({ content, onOpen }: { content: PlazaContent; onOpen
         <span className="plaza-card__author">{content.author}</span>
       </header>
       <h3 className="plaza-card__title">{content.title}</h3>
+      {content.type === "custom_character" && content.customCharacter && (
+        <div className="plaza-card__character">
+          {content.customCharacter.portrait ? (
+            <img
+              src={content.customCharacter.portrait}
+              alt={content.customCharacter.name}
+              loading="lazy"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <span className="plaza-card__character-fallback">{content.customCharacter.name[0]}</span>
+          )}
+          <div>
+            <b>{content.customCharacter.name}</b>
+            <small>{content.customCharacter.title}</small>
+          </div>
+        </div>
+      )}
       <p className="plaza-card__summary">{summary}</p>
       {content.topics.length > 0 && (
         <div className="plaza-card__topics">{content.topics.map((topic) => <i key={topic}>#{topic}</i>)}</div>

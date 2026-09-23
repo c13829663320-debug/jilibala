@@ -63,7 +63,7 @@ export interface BenchStartRequest {
 }
 
 // ===== 广场 Plaza =====
-export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note" | "werewolf_report" | "gym_checkin";
+export type ContentType = "text" | "closed_court" | "talkshow_clip" | "bar_quote" | "library_note" | "werewolf_report" | "gym_checkin" | "custom_character";
 export type SceneId = "court" | "talkshow" | "werewolf" | "bar" | "gym" | "library";
 export type ContentSort = "recommended" | "hot" | "latest";
 
@@ -115,6 +115,16 @@ export interface LibraryNoteData {
   question?: string;
   answer: string;
   createdAt: string;
+}
+
+/** custom_character 类型广场内容携带的自定义人物卡片。 */
+export interface CustomCharacterCard {
+  characterId: string;
+  name: string;
+  title: string;
+  intro: string;
+  portrait: string;
+  model?: string;
 }
 
 // ===== M11: 健身房 Gym =====
@@ -296,6 +306,7 @@ export interface PlazaContent {
   library?: LibraryNoteData;
   werewolf?: WerewolfReportData;
   gym?: GymCheckinData;
+  customCharacter?: CustomCharacterCard;
   caseId?: string;
   likes: number;
   dislikes: number;

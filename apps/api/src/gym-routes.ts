@@ -4,7 +4,6 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import {
-  getCelebrity,
   type GymGoal,
   type GymPlan,
   type GymCheckinRecord,
@@ -12,6 +11,7 @@ import {
   type GymAchievement,
   type GymCheckinData,
 } from "@balabala/shared";
+import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 import { generatePlan, checkAchievements } from "./gym-orchestrator.js";
 import { broadcastToRoom } from "./ws.js";
@@ -149,8 +149,8 @@ export function registerGymRoutes(
   // ---- 名人健身教练 ----
   app.post("/api/gym/celebrity-coach", async (req, reply) => {
     const body = (req.body ?? {}) as { celebrityId?: string; message?: string; goal?: GymGoal };
-    const celebrity = getCelebrity(body.celebrityId ?? "");
-    if (!celebrity) return reply.code(404).send({ message: "名人不存在" });
+    const celebrity = resolveCharacter(body.celebrityId ?? "");
+    if (!celebrity) return reply.code(404).send({ message: "角色不存在" });
 
     const message = (body.message ?? "").trim();
     if (!message) return reply.code(400).send({ message: "message 不能为空" });

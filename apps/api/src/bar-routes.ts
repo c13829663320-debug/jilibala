@@ -2,7 +2,8 @@
 // 负责端点、房间状态、WebSocket 广播与持久化。纯 AI 逻辑在 bar-orchestrator.ts。
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { getCelebrity, type BarQuoteData, type SceneId } from "@balabala/shared";
+import { type BarQuoteData, type SceneId } from "@balabala/shared";
+import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 import {
   TOPIC_LIBRARY,
@@ -61,13 +62,13 @@ export function registerBarRoutes(app: FastifyInstance, deps: { chat: ChatFn; co
     room.proPoints = [];
     room.conPoints = [];
 
-    // 用户指定了辩手：过滤有效 id，按顺序轮流分配正反方。
+    // 用户指定了辩手：过滤有效 id（支持自定义人物），按顺序轮流分配正反方。
     const provided = Array.isArray(body.celebrityIds)
-      ? body.celebrityIds.filter((id) => getCelebrity(id))
+      ? body.celebrityIds.filter((id) => resolveCharacter(id))
       : [];
     if (provided.length > 0) {
       room.debaters = provided.slice(0, 4).map((id, i) => ({
-        ...getCelebrity(id)!,
+        ...resolveCharacter(id)!,
         side: (i % 2 === 0 ? "pro" : "con") as DebateSide,
       }));
     } else {
@@ -106,8 +107,8 @@ export function registerBarRoutes(app: FastifyInstance, deps: { chat: ChatFn; co
       context?: string[];
     };
     const celebrityId = (body.celebrityId ?? "").trim();
-    const celebrity = getCelebrity(celebrityId);
-    if (!celebrity) return reply.code(404).send({ message: "名人不存在" });
+    const celebrity = resolveCharacter(celebrityId);
+    if (!celebrity) return reply.code(404).send({ message: "角色不存在" });
     const side = isValidSide(body.side) ? body.side : "pro";
     const topic = (body.topic ?? room.topic).trim() || "酒吧闲谈";
     const context = Array.isArray(body.context)

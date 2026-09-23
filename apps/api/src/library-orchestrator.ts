@@ -1,7 +1,7 @@
 // ===== M8: 图书馆 AI 编排器 =====
 // 纯 AI 逻辑层：名人深度问答、著作推荐、读书会开场、AI 馆员答疑。
 // 所有 LLM 调用串行、失败兜底；不持有 HTTP/WS 状态，便于单测与复用。
-import type { Celebrity } from "@balabala/shared";
+import type { ResolvedCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -54,7 +54,7 @@ export const LIBRARY_TOPICS: string[] = [
  * 注入 persona，允许展开论述、引用著作与观点，回复 200-400 字。
  */
 export const celebrityDeepChat = async (
-  celebrity: Celebrity,
+  celebrity: ResolvedCharacter,
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   chat: ChatFn,
 ): Promise<string> => {
@@ -90,14 +90,14 @@ const FALLBACK_BOOK: Record<string, { book: string; author: string; reason: stri
 
 /** 让名人按其领域推荐一本著作，并说明推荐理由。 */
 export const bookRecommendation = async (
-  celebrity: Celebrity,
+  celebrity: ResolvedCharacter,
   chat: ChatFn,
 ): Promise<{ book: string; author: string; reason: string }> => {
   const system =
     "你在图书馆主持一场读书会。请从你最熟悉的领域中，为读者推荐一本真正值得一读的著作。" +
     "只返回 JSON：{\"book\":\"书名（含书名号）\",\"author\":\"作者\",\"reason\":\"80-150字推荐理由，结合你自己的经历或观点\"}。" +
     "不要 Markdown，不要解释。";
-  const user = `你是 ${celebrity.name}（${celebrity.title}，领域：${celebrity.field}）。请推荐一本对你影响最深、或最想推荐给读者的书。`;
+  const user = `你是 ${celebrity.name}（${celebrity.title}，领域：${celebrity.field ?? "综合"}）。请推荐一本对你影响最深、或最想推荐给读者的书。`;
 
   try {
     const raw = await chat([{ role: "system", content: system }, { role: "user", content: user }], 800);
@@ -110,7 +110,7 @@ export const bookRecommendation = async (
     }
     throw new Error("推荐结果不完整");
   } catch {
-    const fb = FALLBACK_BOOK[celebrity.field] ?? FALLBACK_BOOK["科学"];
+    const fb = FALLBACK_BOOK[celebrity.field ?? "科学"] ?? FALLBACK_BOOK["科学"];
     return { ...fb };
   }
 };
@@ -118,7 +118,7 @@ export const bookRecommendation = async (
 // ===== 3. 读书会开场 =====
 /** 名人读书会开场：介绍这本书、为什么选它、抛出 2-3 个讨论问题。 */
 export const bookClubOpening = async (
-  celebrity: Celebrity,
+  celebrity: ResolvedCharacter,
   book: string,
   chat: ChatFn,
 ): Promise<string> => {

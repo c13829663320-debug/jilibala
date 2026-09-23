@@ -16,6 +16,7 @@ import { registerTalkshowRoutes } from './talkshow-routes.js';
 import { registerLibraryRoutes } from './library-routes.js';
 import { registerWerewolfRoutes } from './werewolf-routes.js';
 import { registerGymRoutes } from './gym-routes.js';
+import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
@@ -781,12 +782,13 @@ app.post('/api/tts', async (req, reply) => {
 const POLISH_SYSTEM = {
   post: '你是叽里呱啦广场的爆款写手。把用户给的一句话或一段草稿润色成一条有趣、有话题性、适合社交广场发布的文字观点：1）语气活泼但不油腻；2）适当加入 2-4 个贴合语境的 emoji；3）保留用户原意，不要虚构事实；4）可以加一个吸引人的短句开头或结尾；5）只输出润色后的正文，不要解释、不要前缀、不要 Markdown。',
   case: '你是叽里呱啦趣味法庭的编剧。把用户给的生活小事润色成一段客观、清晰、有一点戏剧性的案件描述：1）保留事实，不辱骂、不涉及自残/家暴等敏感内容；2）100 字以内；3）只输出润色后的案件描述，不要解释、不要前缀、不要 Markdown。',
+  character: '你是叽里呱啦人物馆的角色设定师。根据用户给的角色名字和简短描述，帮他生成一份完整的角色人设：1）身份/背景（1-2句）；2）性格特点（3-5个关键词）；3）说话风格（语气、用词习惯）；4）口头禅（1句）；5）一段可直接用作 system prompt 的 persona 描述（100-200字，用第二人称"你是..."开头）。只输出 JSON：{"title":"...","intro":"...","tags":["..."],"greeting":"...","persona":"..."}，不要解释、不要 Markdown、不要代码块包裹。',
 } as const;
 app.post('/api/ai/polish', async (req, reply) => {
-  const body = (req.body ?? {}) as { text?: string; context?: 'post' | 'case' };
+  const body = (req.body ?? {}) as { text?: string; context?: 'post' | 'case' | 'character' };
   const text = (body.text ?? '').trim();
   if (!text) return reply.code(400).send({ message: '请先输入要润色的内容。' });
-  const context = body.context === 'case' ? 'case' : 'post';
+  const context = body.context === 'case' || body.context === 'character' ? body.context : 'post';
   try {
     const result = await chatWithProviders([
       { role: 'system', content: POLISH_SYSTEM[context] },
@@ -852,6 +854,9 @@ registerWerewolfRoutes(app, { chat: chatWithProviders, contents });
 
 // ===== M11: 健身房 =====
 registerGymRoutes(app, { chat: chatWithProviders, contents });
+
+// ===== M12: 自定义人物 =====
+registerCustomCharacterRoutes(app, { chat: chatWithProviders, contents });
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

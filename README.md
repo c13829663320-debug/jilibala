@@ -45,6 +45,43 @@
 
 > **未来扩展**：基于摄像头的实时姿态识别（如 MediaPipe / BlazePose），用于动作计数与姿态纠正——当前版本暂不实现，列为后续迭代方向。
 
+## 自定义人物（M12）
+
+平台支持创建完全自定义的 3D 人物，与 20 位预置名人享有同等的对话、场景参与和广场分享能力。
+
+### 创建向导
+入口页点击「创建人物」进入四步向导：
+1. **选择外观来源**：上传照片（建议从头到脚全身照、中性背景）或文字描述（如「赛博朋克少女：银色短发，霓虹外套」）
+2. **生成 3D 模型**：照片经 Tripo `image_to_model`、文字经 Tripo `text_to_model` 生成全身 3D 模型，实时进度 + 3D 预览
+3. **填写人设**：名字、身份/头衔、简介、标签、人格描述（persona）、开场白；「AI 帮填人设」一键根据名字和描述生成完整人设（可编辑）
+4. **保存**：模型 GLB 与头像落盘到运行时目录，写入 SQLite，默认私有
+
+### 人物馆
+人物馆新增三个 tab：
+- **全部名人**：20 位预置名人（不变）
+- **我的人物**：当前用户创建的所有自定义人物，支持 3D 查看、对话、编辑人设、发布到广场、删除
+- **广场人物**：所有用户发布的公开自定义人物，任何人可查看和对话
+
+自定义人物详情对话框：左侧 3D 全身模型查看器（可旋转），右侧资料 + 多轮对话（按 persona 回复，支持 TTS 朗读），owner 可见编辑/发布/删除操作。
+
+### 全场景接入
+自定义人物与预置名人共用统一角色解析器（服务端 `resolveCharacter(ref)`，`custom-<uuid>` 前缀查 SQLite，其余走预置名人库），可在以下场景直接选用：
+- **趣味法庭合议庭**：BenchSelection 中可选自定义人物作为评委，按其 persona 发言、投票
+- **酒吧辩论**：可选自定义人物作为辩手，按 persona + 立场发言
+- **脱口秀 / 图书馆 / 狼人杀（AI 玩家）/ 健身房（教练）**：均支持自定义人物以其人设参与
+
+### 可见性与分享
+- 默认私有：仅创建者可见、可对话、可引用
+- 发布到广场：一键将私有人物改为公开，并在广场生成 `custom_character` 类型人物卡，他人可查看和对话
+- 私有他人不可见：详情 API 对非 owner 返回 403，公开列表不包含私有人物
+- 删除时自动清理运行时模型/图片文件
+
+### WS 多人化身
+用户身份设置中，「自定义」化身选项可从自己的自定义人物中选择一位作为 WS 多人联机化身（`avatarType='custom'`, `avatarRef='custom-<uuid>'`）。
+
+### 运行时文件隔离
+用户生成的 GLB 模型和头像存储在 `apps/api/.data/custom-characters/<id>/`（已 gitignore），由 Fastify 安全静态托管（防目录穿越、仅放行 .glb/.jpg/.png/.webp/.gif、按 visibility 鉴权），绝不进入 git 或项目包。
+
 ## 本地启动
 
 在项目根目录复制 `.env.example` 为 `.env`，填入服务端密钥（STEPFUN、EVOMAP、TRIPO）。密钥只给 API 服务使用，不会进入前端 bundle。
@@ -71,7 +108,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 
 ## 自动化测试（M10）
 
-后端核心纯逻辑使用 **Vitest** 覆盖，共 69 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
+后端核心纯逻辑使用 **Vitest** 覆盖，共 87 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
 
 | 测试文件 | 用例数 | 覆盖范围 |
 |---|---|---|
@@ -80,6 +117,8 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 | `bench-orchestrator.test.ts` | 9 | 合议庭流程事件序列、投票统计、互动消费、非法 JSON 兜底 |
 | `ws.test.ts` | 8 | 房间广播隔离、私密单发、场景房间状态、scene_event 广播 |
 | `gym-orchestrator.test.ts` | 15 | 训练计划生成、streak 连续天数计算（含跨月/断档）、成就解锁判定（器械分类/累计阈值） |
+| `custom-character-db.test.ts` | 11 | 自定义人物 CRUD、多用户隔离、可见性过滤、tags 序列化 |
+| `character-resolver.test.ts` | 7 | 统一角色解析：预置名人/自定义人物/未知 ref/批量解析/URL 转换 |
 
 测试使用临时 SQLite 文件（`process.env.DB_PATH` 覆盖），每个测试文件独立数据库，`afterAll` 清理。GitHub Actions 在 push/PR 时自动运行 `npm test` + `npm run build`。
 
@@ -197,6 +236,18 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - `POST /api/gym/celebrity-coach` — 名人风格健身教练对话（`{ celebrityId, message, goal? }`）
 - `POST /api/gym/publish` — 发布打卡到广场（`gym_checkin` 类型）
 
+### 自定义人物（M12）
+- `POST /api/custom-characters/finalize` — 完成创建：下载 Tripo GLB + 头像落盘 + 写库（`{ userId, name, persona, tripoTaskId, title?, intro?, tags?, greeting?, portraitDataUrl?, visibility? }`）
+- `POST /api/custom-characters` — 直接创建记录（`{ userId, name, persona, modelPath?, portraitPath?, ... }`）
+- `GET /api/custom-characters/mine?userId=` — 我的自定义人物列表（不含 persona）
+- `GET /api/custom-characters/public` — 公开自定义人物列表
+- `GET /api/custom-characters/:id?userId=` — 详情（私有需 owner 鉴权，不含 persona）
+- `PUT /api/custom-characters/:id` — 更新（需 owner）
+- `DELETE /api/custom-characters/:id` — 删除（需 owner，自动清理运行时文件）
+- `POST /api/custom-characters/:id/chat` — 与自定义人物对话（私有需 owner）
+- `POST /api/custom-characters/:id/publish` — 发布到广场（需 owner，置 public + 生成人物卡）
+- `GET /api/custom-characters/assets/:id/:filename` — 运行时文件静态托管（防目录穿越）
+
 ### WebSocket
 - `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>|gym:lobby` — 实时连接
 - 场景房间：脱口秀/酒吧/图书馆/健身房各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby` / `gym:lobby`，通过场景专属事件广播（表演、发言、问答、打卡、加油等）
@@ -298,6 +349,8 @@ apps/
       gym-orchestrator.ts  # 健身房纯逻辑（计划生成/streak计算/成就判定）
       gym-routes.ts  # 健身房路由
       tripo.ts        # Tripo 3D API 封装
+      character-resolver.ts  # M12: 统一角色解析（预置名人 + 自定义人物）
+      custom-character-routes.ts  # M12: 自定义人物 CRUD/对话/发布/文件托管
   web/          # Vite + React 18 + R3F 前端
     src/
       identity.tsx    # 用户身份 Provider
@@ -317,6 +370,9 @@ apps/
       Plaza3D.tsx     # 3D 广场 + presence
       RoomEntry.tsx   # 场景入口大厅
       MyPage.tsx      # 我的页面
+      CharacterHall.tsx  # 人物馆（名人 + 自定义人物，三 tab）
+      CustomCharacterStudio.tsx  # M12: 自定义人物创建向导
+      custom-characters.ts  # M12: 前端统一角色 helper
 packages/
   shared/       # 共享类型与名人数据
 ```
@@ -325,7 +381,7 @@ packages/
 
 - **后端**：Fastify 5 + node:sqlite + @fastify/websocket + undici
 - **前端**：Vite 5 + React 18 + React Three Fiber + drei + three + vite-plugin-pwa
-- **测试**：Vitest（后端核心逻辑，69 用例）
+- **测试**：Vitest（后端核心逻辑，87 用例）
 - **共享**：TypeScript 类型 + 名人数据
 - **CI**：GitHub Actions（push/PR 自动跑 test + build）
 - **AI**：StepFun / EvoMap（庭审生成、名人对话、润色）、Tripo（3D 模型）、StepFun TTS

@@ -1,12 +1,13 @@
 // ===== M8: 酒吧辩论编排器 Bar Orchestrator =====
 // 纯 AI 逻辑层：选辩手 / 名人发言 / 酒保总结。所有 LLM 调用串行，失败有兜底。
-import { CELEBRITIES, getCelebrity, type Celebrity } from "@balabala/shared";
+import { CELEBRITIES } from "@balabala/shared";
+import { resolveCharacter, type ResolvedCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 
 export type DebateSide = "pro" | "con";
 
-/** 带立场的辩手（在 Celebrity 上扩展 side）。 */
-export interface Debater extends Celebrity {
+/** 带立场的辩手（在 ResolvedCharacter 上扩展 side）。 */
+export interface Debater extends ResolvedCharacter {
   side: DebateSide;
 }
 
@@ -97,7 +98,7 @@ export const selectDebaters = async (
       if (!picked.includes(candidate)) picked.push(candidate);
       i += 1;
     }
-    const celebs = picked.map((id) => getCelebrity(id)).filter((c): c is Celebrity => Boolean(c));
+    const celebs = picked.map((id) => resolveCharacter(id)).filter((c): c is ResolvedCharacter => Boolean(c));
     const half = Math.max(1, Math.ceil(celebs.length / 2));
     const pro = celebs.slice(0, half).map((c) => ({ ...c, side: "pro" as const }));
     const con = celebs.slice(half).map((c) => ({ ...c, side: "con" as const }));
@@ -115,11 +116,11 @@ export const selectDebaters = async (
     const parsed = extractJson(raw) as { pro?: unknown; con?: unknown };
     const toIds = (v: unknown): string[] =>
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-    const proIds = toIds(parsed.pro).filter((id) => getCelebrity(id));
-    const conIds = toIds(parsed.con).filter((id) => getCelebrity(id));
+    const proIds = toIds(parsed.pro).filter((id) => resolveCharacter(id));
+    const conIds = toIds(parsed.con).filter((id) => resolveCharacter(id));
     if (proIds.length === 0 || conIds.length === 0) return fallbackPick();
-    const pro = proIds.slice(0, 2).map((id) => ({ ...getCelebrity(id)!, side: "pro" as const }));
-    const con = conIds.slice(0, 2).map((id) => ({ ...getCelebrity(id)!, side: "con" as const }));
+    const pro = proIds.slice(0, 2).map((id) => ({ ...resolveCharacter(id)!, side: "pro" as const }));
+    const con = conIds.slice(0, 2).map((id) => ({ ...resolveCharacter(id)!, side: "con" as const }));
     return [...pro, ...con];
   } catch {
     return fallbackPick();
@@ -136,7 +137,7 @@ const SIDE_LABEL: Record<DebateSide, string> = {
  * 让某位名人按 persona + 立场在酒吧发言（< 150 字），同时从发言里挑一句金句。
  */
 export const debateSpeech = async (
-  celebrity: Celebrity,
+  celebrity: ResolvedCharacter,
   topic: string,
   side: DebateSide,
   context: string[],

@@ -6,7 +6,6 @@
 import { randomUUID } from "node:crypto";
 import {
   CELEBRITIES,
-  getCelebrity,
   type Celebrity,
   type WerewolfRole,
   type WerewolfPhase,
@@ -19,6 +18,7 @@ import {
   type WerewolfWinner,
   type WSMessage,
 } from "@balabala/shared";
+import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 import * as db from "./db.js";
 
@@ -468,7 +468,7 @@ function asSeat(v: unknown): number | null {
 }
 
 async function aiWolfKill(wolf: InternalPlayer, game: WerewolfGame): Promise<number> {
-  const celeb = wolf.celebrityId ? getCelebrity(wolf.celebrityId) : undefined;
+  const celeb = wolf.celebrityId ? resolveCharacter(wolf.celebrityId) : undefined;
   const teammates = game.players
     .filter((p) => p.alive && p.role === "werewolf" && p.seat !== wolf.seat)
     .map((p) => p.seat);
@@ -488,7 +488,7 @@ async function aiWolfKill(wolf: InternalPlayer, game: WerewolfGame): Promise<num
 }
 
 async function aiSeerCheck(seer: InternalPlayer, game: WerewolfGame): Promise<number> {
-  const celeb = seer.celebrityId ? getCelebrity(seer.celebrityId) : undefined;
+  const celeb = seer.celebrityId ? resolveCharacter(seer.celebrityId) : undefined;
   const candidates = game.players.filter((p) => p.alive && p.seat !== seer.seat);
   const system =
     `${celeb?.persona ?? "你是一个敏锐的预言家。"}\n` +
@@ -508,7 +508,7 @@ async function aiWitch(
   game: WerewolfGame,
   killTarget: number | null,
 ): Promise<{ heal: boolean; poison: number | null }> {
-  const celeb = witch.celebrityId ? getCelebrity(witch.celebrityId) : undefined;
+  const celeb = witch.celebrityId ? resolveCharacter(witch.celebrityId) : undefined;
   const poisonCandidates = game.players.filter((p) => p.alive && p.seat !== witch.seat);
   const system =
     `${celeb?.persona ?? "你是一个冷静的女巫。"}\n` +
@@ -540,7 +540,7 @@ function fallbackSpeechText(player: InternalPlayer, game: WerewolfGame): string 
 }
 
 async function aiSpeech(speaker: InternalPlayer, game: WerewolfGame): Promise<string> {
-  const celeb = speaker.celebrityId ? getCelebrity(speaker.celebrityId) : undefined;
+  const celeb = speaker.celebrityId ? resolveCharacter(speaker.celebrityId) : undefined;
   const publicLog = game.log.slice(-10).map((l) => l.text).join("；");
   const roleHint =
     speaker.role === "werewolf"
@@ -563,7 +563,7 @@ async function aiSpeech(speaker: InternalPlayer, game: WerewolfGame): Promise<st
 }
 
 async function aiVote(voter: InternalPlayer, game: WerewolfGame): Promise<number | null> {
-  const celeb = voter.celebrityId ? getCelebrity(voter.celebrityId) : undefined;
+  const celeb = voter.celebrityId ? resolveCharacter(voter.celebrityId) : undefined;
   const candidates = game.players.filter((p) => p.alive && p.seat !== voter.seat);
   const system =
     `${celeb?.persona ?? "你是一个参与狼人杀的玩家。"}\n` +
@@ -585,7 +585,7 @@ async function aiVote(voter: InternalPlayer, game: WerewolfGame): Promise<number
 }
 
 async function aiHunterShot(hunter: InternalPlayer, game: WerewolfGame): Promise<number | null> {
-  const celeb = hunter.celebrityId ? getCelebrity(hunter.celebrityId) : undefined;
+  const celeb = hunter.celebrityId ? resolveCharacter(hunter.celebrityId) : undefined;
   const candidates = game.players.filter((p) => p.alive);
   const system =
     `${celeb?.persona ?? "你是一个猎人。"}\n` +

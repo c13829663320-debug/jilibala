@@ -2,7 +2,7 @@ import { Suspense, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, useGLTF } from '@react-three/drei'
 import { Box3, Vector3, type Group } from 'three'
-import { ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, Dumbbell, Lock, Mic2, Moon, Wine, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, Dumbbell, Lock, Mic2, Moon, Plus, Wine, type LucideIcon } from 'lucide-react'
 import './room-entry.css'
 
 export type RoomEntryProps = {
@@ -10,6 +10,7 @@ export type RoomEntryProps = {
   onArchive: () => void
   onAvatar: () => void
   onCharacters?: () => void
+  onCreateCharacter?: () => void
   onPlaza?: () => void
   onMyPage?: () => void
   onEnterTalkshow?: () => void
@@ -130,7 +131,7 @@ function ScenesCarousel({ activeId, onSelect, onOpen }: CarouselProps) {
   )
 }
 
-export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza, onMyPage, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onCreateCharacter, onPlaza, onMyPage, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
@@ -149,6 +150,11 @@ export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, 
       <button type="button" className="main-home__brand" onClick={() => setActiveId('court')}><img className="main-home__brand-mark" src="/brand/balabala-mark-clean.jpg" alt="BalaBala" /><span className="main-home__brand-text"><b>叽里呱啦</b><small>BALA BALA</small></span></button>
       <nav className="main-home__nav" aria-label="平台模块导航">
         <button type="button" onClick={() => onCharacters?.()}>角色档案</button>
+        {onCreateCharacter && (
+          <button type="button" className="main-home__create" onClick={() => onCreateCharacter()}>
+            <Plus size={13} aria-hidden="true" /> 创建人物
+          </button>
+        )}
         <button type="button" className="is-active" onClick={() => { setActiveId('court') }}>场景</button>
         <button type="button" onClick={() => onPlaza?.()}>广场</button>
         <button type="button" onClick={() => onMyPage?.()}>我的</button>

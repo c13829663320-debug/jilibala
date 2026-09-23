@@ -43,7 +43,32 @@
 .character-card__copy footer{display:flex;gap:5px;align-items:center;margin-top:5px}
 .character-card__copy footer i{padding:3px 7px;border-radius:5px;background:rgba(255,255,255,.07);color:#999;font-size:9px;font-style:normal}
 .character-card__copy footer strong{margin-left:auto;color:#FDE047;font-size:10px}
-.character-hall__empty{max-width:1280px;margin:60px auto;text-align:center;color:#888}
+.character-hall__empty{max-width:1280px;margin:60px auto;text-align:center;color:#888;display:flex;align-items:center;justify-content:center;gap:8px}
+
+/* 三栏切换：全部名人 / 我的人物 / 广场人物 */
+.character-hall__tabs{display:flex;gap:6px;max-width:1280px;margin:18px auto 0}
+.character-hall__tabs button{white-space:nowrap;border:1px solid #222;border-radius:9px;padding:9px 16px;background:#0e0e0e;color:#888;font-size:12px;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.character-hall__tabs button.is-active{border-color:#FFD600;color:#FFD600;background:#262013;font-weight:700}
+
+/* owner 操作按钮 + 删除确认 + 编辑表单 */
+.character-dialog__actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+.character-dialog__actions button{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border:1px solid #333;border-radius:8px;background:#161616;color:#ccc;font-size:11px;cursor:pointer}
+.character-dialog__actions button:hover{border-color:#FFD600;color:#FFD600}
+.character-dialog__actions button.is-danger{border-color:#5a2a2a;color:#ff8a8a}
+.character-dialog__actions button.is-danger:hover{border-color:#ff6b6b;color:#ff6b6b}
+.character-dialog__confirm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0;padding:10px 12px;border:1px solid #5a2a2a;border-radius:8px;background:rgba(90,42,42,.12);font-size:12px;color:#ffb0b0}
+.character-dialog__confirm button{padding:6px 12px;border:1px solid #5a2a2a;border-radius:6px;background:transparent;color:#ff8a8a;font-size:11px;cursor:pointer}
+.character-dialog__confirm button:first-of-type{background:#ff6b6b;color:#1a0a0a;border-color:#ff6b6b;font-weight:700}
+.character-dialog__edit{display:flex;flex-direction:column;gap:8px;margin:12px 0;padding:12px;border:1px solid #2c2c2c;border-radius:10px;background:#0c0c0c}
+.character-dialog__edit label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:#999}
+.character-dialog__edit input,.character-dialog__edit textarea{width:100%;box-sizing:border-box;border:1px solid #2a2a2a;border-radius:7px;padding:8px 10px;background:#080808;color:#f2f2f2;font-size:12px;outline:none;resize:vertical;font-family:inherit}
+.character-dialog__edit input:focus,.character-dialog__edit textarea:focus{border-color:#FFD600}
+.character-dialog__edit-actions{display:flex;gap:8px}
+.character-dialog__edit-actions button{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border:0;border-radius:8px;background:#FFD600;color:#221d0c;font-size:12px;font-weight:700;cursor:pointer}
+.character-dialog__edit-actions button:last-child{background:#222;color:#ccc}
+
+/* 全局轻提示 */
+.character-hall__toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:60;padding:10px 20px;border-radius:999px;background:#FFD600;color:#1a1508;font-size:13px;font-weight:700;box-shadow:0 10px 30px #0008}
 
 /* ===== 对话弹层 ===== */
 .character-dialog-backdrop{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:#07080dd0;backdrop-filter:blur(12px)}

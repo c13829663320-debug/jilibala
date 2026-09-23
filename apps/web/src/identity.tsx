@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { CELEBRITIES, getCelebrity, type User } from '@balabala/shared'
 import { Sparkles } from 'lucide-react'
+import { fetchMyCharacters, type UiCharacter } from './custom-characters'
 
 const LS_USER_ID = 'balabala.userId'
 
@@ -36,13 +37,23 @@ function hashColor(seed: string): string {
 }
 
 /* ---------- setup modal ---------- */
-function SetupModal({ onSubmit }: { onSubmit: (nickname: string, avatarType: AvatarType, avatarRef: string) => Promise<void> }) {
+function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname: string, avatarType: AvatarType, avatarRef: string) => Promise<void> }) {
   const [nickname, setNickname] = useState('')
   const [avatarType, setAvatarType] = useState<AvatarType>('capsule')
   const [celebrityId, setCelebrityId] = useState('')
   const [customPrompt, setCustomPrompt] = useState('')
+  const [customCharId, setCustomCharId] = useState('')
+  const [myCharacters, setMyCharacters] = useState<UiCharacter[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // 拉取「我的人物」，供自定义化身选择
+  useEffect(() => {
+    if (!userId) return
+    let alive = true
+    fetchMyCharacters(userId).then((list) => { if (alive) setMyCharacters(list) })
+    return () => { alive = false }
+  }, [userId])
 
   const handleSubmit = async () => {
     const name = nickname.trim() || '我'
@@ -50,10 +61,17 @@ function SetupModal({ onSubmit }: { onSubmit: (nickname: string, avatarType: Ava
       setError('请选择一位名人作为化身')
       return
     }
+    if (avatarType === 'custom' && myCharacters.length > 0 && !customCharId && !customPrompt.trim()) {
+      setError('请选择一个自定义人物作为化身，或填写描述')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
-      const avatarRef = avatarType === 'celebrity' ? celebrityId : avatarType === 'custom' ? customPrompt.trim() : ''
+      const avatarRef =
+        avatarType === 'celebrity' ? celebrityId
+        : avatarType === 'custom' ? (customCharId || customPrompt.trim())
+        : ''
       await onSubmit(name, avatarType, avatarRef)
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建身份失败')
@@ -163,20 +181,53 @@ function SetupModal({ onSubmit }: { onSubmit: (nickname: string, avatarType: Ava
           </div>
         )}
 
-        {/* custom prompt */}
+        {/* custom prompt / 我的人物选择 */}
         {avatarType === 'custom' && (
           <div style={{ marginBottom: 16 }}>
+            {myCharacters.length > 0 && (
+              <div style={{
+                maxHeight: 200, overflowY: 'auto', marginBottom: 10, padding: 8,
+                background: '#0d0d0d', borderRadius: 8, border: '1px solid #333',
+              }}>
+                <div style={{ fontSize: 11, color: '#6a6d64', marginBottom: 6, padding: '0 4px' }}>选择你的自定义人物作为化身</div>
+                {myCharacters.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => { setCustomCharId(c.id); setCustomPrompt('') }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 10px',
+                      borderRadius: 6, cursor: 'pointer', border: 'none', textAlign: 'left',
+                      background: customCharId === c.id ? 'rgba(255,214,0,0.1)' : 'transparent',
+                      color: '#f4f2ec', marginBottom: 2,
+                    }}
+                  >
+                    {c.portrait ? (
+                      <img src={c.portrait} alt={c.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', background: '#3a2f5a', fontSize: 13, color: '#FFD600' }}>{c.name[0]}</span>
+                    )}
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: '#6a6d64' }}>{c.title}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
             <input
               value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
+              onChange={(e) => { setCustomPrompt(e.target.value); if (e.target.value) setCustomCharId('') }}
               maxLength={60}
-              placeholder="描述你的专属化身（可选）…"
+              placeholder={myCharacters.length > 0 ? '或描述你的专属化身（可选）…' : '描述你的专属化身（可选）…'}
               style={{
                 width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: 8,
                 border: '1px solid #444', background: '#0d0d0d', color: '#f4f2ec', fontSize: 14, outline: 'none',
               }}
             />
-            <p style={{ fontSize: 12, color: '#6a6d64', margin: '6px 0 0' }}>暂不强制生成 3D 模型，后续可在分身工坊完善。</p>
+            <p style={{ fontSize: 12, color: '#6a6d64', margin: '6px 0 0' }}>
+              {myCharacters.length > 0 ? '选中后将以你的自定义人物形象进入广场。' : '暂不强制生成 3D 模型，后续可在分身工坊完善。'}
+            </p>
           </div>
         )}
 
@@ -277,7 +328,7 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   return (
     <IdentityContext.Provider value={value}>
       {children}
-      {phase === 'setup' && <SetupModal onSubmit={createUser} />}
+      {phase === 'setup' && <SetupModal userId={user?.userId} onSubmit={createUser} />}
     </IdentityContext.Provider>
   )
 }

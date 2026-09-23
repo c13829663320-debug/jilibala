@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { getCelebrity, type Celebrity, type WSMessage } from '@balabala/shared'
 import { useIdentity } from './identity'
+import { fetchMyCharacters, fetchPublicCharacters, type UiCharacter } from './custom-characters'
 
 const BarView = lazy(() => import('./BarView'))
 
@@ -67,6 +68,9 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
   const [busyName, setBusyName] = useState('')
   const [published, setPublished] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState('')
+  // 自定义辩手（我的 + 广场），可选加入辩论
+  const [customDebaters, setCustomDebaters] = useState<UiCharacter[]>([])
+  const [chosenDebaterIds, setChosenDebaterIds] = useState<string[]>([])
 
   const wsRef = useRef<WebSocket | null>(null)
   const activeTimer = useRef<number | null>(null)
@@ -85,6 +89,20 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
       .then((d) => setTopics(d.topics))
       .catch(() => setTopics(['外卖迟到，该不该给差评？', 'AI 会不会取代人类的工作？', '恋爱里，该不该看对方手机？']))
   }, [])
+
+  // ===== 加载可选自定义辩手（我的 + 广场，去重） =====
+  useEffect(() => {
+    const userId = user?.userId ?? ''
+    if (!userId) return
+    let alive = true
+    Promise.all([fetchMyCharacters(userId), fetchPublicCharacters()]).then(([mine, pub]) => {
+      if (!alive) return
+      const seen = new Set(mine.map((c) => c.id))
+      const merged = [...mine, ...pub.filter((c) => !seen.has(c.id))]
+      setCustomDebaters(merged)
+    })
+    return () => { alive = false }
+  }, [user?.userId])
 
   // ===== WS 房间 =====
   const handleSceneEvent = useCallback((event: Record<string, unknown>) => {
@@ -186,7 +204,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
       const res = await fetch('/api/bar/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: t, userId: user?.userId ?? '' }),
+        body: JSON.stringify({ topic: t, userId: user?.userId ?? '', celebrityIds: chosenDebaterIds }),
       })
       const data = await res.json() as { debaters?: DebaterInfo[]; topic?: string; message?: string }
       if (!res.ok) throw new Error(data.message ?? '开桌失败')
@@ -419,6 +437,38 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
                 placeholder="或者自己想一个话题…"
                 style={inputStyle}
               />
+              {/* 可选：自定义辩手（我的 + 广场人物） */}
+              {customDebaters.length > 0 && (
+                <>
+                  <SectionTitle>邀位自定义辩手（可选）</SectionTitle>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
+                    {customDebaters.map((c) => {
+                      const on = chosenDebaterIds.includes(c.id)
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setChosenDebaterIds((prev) => on ? prev.filter((x) => x !== c.id) : [...prev, c.id])}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                            background: on ? 'rgba(255,176,102,0.18)' : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${on ? '#ffb066' : '#3a2410'}`,
+                            borderRadius: 6, color: '#f0e2c8', cursor: 'pointer', textAlign: 'left',
+                          }}
+                        >
+                          {c.portrait ? (
+                            <img src={c.portrait} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', background: '#3a2410', fontSize: 12 }}>{c.name[0]}</span>
+                          )}
+                          <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
+                          <span style={{ fontSize: 11, color: '#9a7a50' }}>{c.visibility === 'public' ? '广场' : '我的'}</span>
+                          {on && <Check size={13} color="#ffb066" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
               <button
                 onClick={startDebate}
                 disabled={(!topic && !customTopic.trim()) || busy}

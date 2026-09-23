@@ -14,6 +14,7 @@ import ErrorBoundary from './ErrorBoundary'
 import LoadingFallback from './LoadingFallback'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
+const CustomCharacterStudio = lazy(() => import('./CustomCharacterStudio'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
 const TalkshowShell = lazy(() => import('./TalkshowShell'))
 const WerewolfShell = lazy(() => import('./WerewolfShell'))
@@ -22,7 +23,7 @@ const LibraryShell = lazy(() => import('./LibraryShell'))
 const GymShell = lazy(() => import('./GymShell'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym'
+type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -124,6 +125,7 @@ function AppInner() {
       onArchive={openArchives}
       onAvatar={() => setView('avatar')}
       onCharacters={() => setView('characters')}
+      onCreateCharacter={() => setView('custom-studio')}
       onPlaza={() => setView('plaza')}
       onMyPage={() => setView('mypage')}
       onEnterTalkshow={() => setView('talkshow')}
@@ -163,6 +165,15 @@ function AppInner() {
       <TopNav {...navProps} currentView="characters" />
       <LazyScene component={CharacterHall} label="角色馆"
         props={{ onBack: () => setView('entry'), onEnterCourt: () => setView('court'), onPlaza: () => setView('plaza') }} />
+    </>
+  }
+
+  // ===== 自定义人物创建向导（懒加载） =====
+  if (view === 'custom-studio') {
+    return <>
+      <TopNav {...navProps} currentView="characters" />
+      <LazyScene component={CustomCharacterStudio} label="创建自定义人物"
+        props={{ onBack: () => setView('entry'), onViewCharacter: () => setView('characters') }} />
     </>
   }
 

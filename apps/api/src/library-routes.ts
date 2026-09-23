@@ -4,10 +4,10 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import {
-  getCelebrity,
   type LibraryNoteData,
   type SceneId,
 } from "@balabala/shared";
+import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 import {
   celebrityDeepChat,
@@ -47,8 +47,8 @@ export function registerLibraryRoutes(app: FastifyInstance, deps: { chat: ChatFn
       messages?: Array<{ role?: string; content?: string }>;
       userId?: string;
     };
-    const celebrity = getCelebrity(body.celebrityId ?? "");
-    if (!celebrity) return reply.code(404).send({ message: "名人不存在" });
+    const celebrity = resolveCharacter(body.celebrityId ?? "");
+    if (!celebrity) return reply.code(404).send({ message: "角色不存在" });
 
     const history = (body.messages ?? [])
       .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
@@ -86,8 +86,8 @@ export function registerLibraryRoutes(app: FastifyInstance, deps: { chat: ChatFn
   // ---- 名人推荐著作 ----
   app.post("/api/library/recommend", async (req, reply) => {
     const body = (req.body ?? {}) as { celebrityId?: string };
-    const celebrity = getCelebrity(body.celebrityId ?? "");
-    if (!celebrity) return reply.code(404).send({ message: "名人不存在" });
+    const celebrity = resolveCharacter(body.celebrityId ?? "");
+    if (!celebrity) return reply.code(404).send({ message: "角色不存在" });
     try {
       const rec = await bookRecommendation(celebrity, chat);
       return { book: rec.book, author: rec.author, reason: rec.reason };
@@ -100,8 +100,8 @@ export function registerLibraryRoutes(app: FastifyInstance, deps: { chat: ChatFn
   // ---- 读书会开场 ----
   app.post("/api/library/book-club", async (req, reply) => {
     const body = (req.body ?? {}) as { celebrityId?: string; book?: string; userId?: string };
-    const celebrity = getCelebrity(body.celebrityId ?? "");
-    if (!celebrity) return reply.code(404).send({ message: "名人不存在" });
+    const celebrity = resolveCharacter(body.celebrityId ?? "");
+    if (!celebrity) return reply.code(404).send({ message: "角色不存在" });
 
     try {
       let book = (body.book ?? "").trim();
