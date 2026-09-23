@@ -4,6 +4,13 @@ import { Environment, Lightformer, OrbitControls, Text, useGLTF } from '@react-t
 import { Box3, DoubleSide, Group, MeshStandardMaterial, Object3D, SpotLight, Vector3 } from 'three'
 import type { Celebrity } from '@balabala/shared'
 import { useSceneCleanup } from './useSceneCleanup'
+import {
+  TRIAL_CAMERA,
+  WIZARD_CAMERA,
+  clampCameraPosition,
+  getCameraForMode,
+  type CameraMode,
+} from './courtroom-camera'
 
 /**
  * Keep a bad/expired Tripo URL from taking down the whole R3F canvas. The
@@ -235,32 +242,64 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
  * Smoothly pans the OrbitControls target (and the camera that orbits it)
  * toward the currently speaking seat. User drag still works because we only
  * lerp the target + preserve the camera's current offset from it.
+ *
+ * Modes:
+ *  - trial/bench: follow active seat (idle → TRIAL_CAMERA framing).
+ *  - wizard: fixed wide panorama with slow auto-rotate, no seat following.
+ * Camera position is clamped into ROOM_CLAMP every frame so the rig can never
+ * push the camera through a wall / the floor / the ceiling.
  */
 function CameraRig({
+  mode,
   activeSeat,
   children,
 }: {
+  mode: CameraMode
   activeSeat: [number, number, number] | null
   children: ReactNode
 }) {
   const controls = useRef<{ target: Vector3; update: () => void } | null>(null)
   const camera = useThree((s) => s.camera)
-  const desiredTarget = useMemo(() => new Vector3(0, 1.2, -0.8), [])
-  const desiredCamera = useMemo(() => new Vector3(), [])
+  const cfg = getCameraForMode(mode)
+  const desiredTarget = useMemo(() => new Vector3(...cfg.target), [cfg])
+  const desiredCamera = useMemo(() => new Vector3(...cfg.position), [cfg])
   const offset = useMemo(() => new Vector3(), [])
+  const modeRef = useRef<CameraMode>(mode)
+  const transitionUntil = useRef(-1)
 
-  useFrame((_, delta) => {
+  useFrame(({ clock }, delta) => {
     const c = controls.current
     if (!c) return
-    if (activeSeat) desiredTarget.set(activeSeat[0], 1.1, activeSeat[2])
-    else desiredTarget.set(0, 1.2, -0.8)
+    const now = clock.getElapsedTime()
+    if (modeRef.current !== mode) {
+      modeRef.current = mode
+      transitionUntil.current = now + 1.2
+    }
+    const transitioning = now < transitionUntil.current
+
+    if (mode === 'wizard') {
+      desiredTarget.set(WIZARD_CAMERA.target[0], WIZARD_CAMERA.target[1], WIZARD_CAMERA.target[2])
+    } else if (activeSeat) {
+      desiredTarget.set(activeSeat[0], 1.1, activeSeat[2])
+    } else {
+      desiredTarget.set(TRIAL_CAMERA.target[0], TRIAL_CAMERA.target[1], TRIAL_CAMERA.target[2])
+    }
     // frame-rate independent lerp
     const k = 1 - Math.pow(0.0015, Math.min(delta, 0.1))
     c.target.lerp(desiredTarget, k)
-    // keep camera roughly over the speaker without fighting user zoom/polar
-    offset.subVectors(camera.position, c.target)
-    desiredCamera.copy(desiredTarget).add(offset)
-    camera.position.lerp(desiredCamera, k)
+    if (transitioning) {
+      // ease the whole camera onto the mode's canonical position on mode switch
+      desiredCamera.set(cfg.position[0], cfg.position[1], cfg.position[2])
+      camera.position.lerp(desiredCamera, k)
+    } else {
+      // keep camera roughly over the speaker without fighting user zoom/polar
+      offset.subVectors(camera.position, c.target)
+      desiredCamera.copy(desiredTarget).add(offset)
+      camera.position.lerp(desiredCamera, k)
+    }
+    // hard clamp so the camera can never leave the room
+    const [cx, cy, cz] = clampCameraPosition([camera.position.x, camera.position.y, camera.position.z])
+    camera.position.set(cx, cy, cz)
     c.update()
   })
 
@@ -270,10 +309,13 @@ function CameraRig({
       <OrbitControls
         ref={controls as never}
         enablePan={false}
-        target={[0, 1.2, -0.8]}
-        minDistance={2}
-        maxDistance={6.4}
-        maxPolarAngle={Math.PI / 2.05}
+        enableDamping={mode === 'wizard'}
+        autoRotate={mode === 'wizard'}
+        autoRotateSpeed={cfg.autoRotateSpeed}
+        target={cfg.target}
+        minDistance={cfg.minDistance}
+        maxDistance={cfg.maxDistance}
+        maxPolarAngle={cfg.maxPolarAngle}
       />
     </>
   )
@@ -288,10 +330,12 @@ function Courtroom({
   celebrities,
   activeSpeakerId,
   seats,
+  mode,
 }: {
   celebrities: Celebrity[]
   activeSpeakerId: string | null
   seats?: CourtSeat[]
+  mode: CameraMode
 }) {
   const sceneRef = useRef<Group>(null)
   useSceneCleanup(sceneRef, () => [
@@ -308,7 +352,9 @@ function Courtroom({
   ]
   // M13 generic seats take priority; otherwise fall back to celebrity arc layout.
   const layout = SEAT_LAYOUTS[Math.max(3, Math.min(5, celebrities.length))] ?? SEAT_LAYOUTS[3]
-  const activeSeat: [number, number, number] | null = seats
+  const activeSeat: [number, number, number] | null = mode === 'wizard'
+    ? null
+    : seats
     ? (() => {
         const s = seats.find((x) => x.active)
         return s ? s.position : null
@@ -344,7 +390,7 @@ function Courtroom({
         : celebrities.slice(0, layout.length).map((c, i) => (
             <BenchSeat key={c.id} celebrity={c} position={layout[i]} active={c.id === activeSpeakerId} />
           ))}
-      <CameraRig activeSeat={activeSeat}>{null}</CameraRig>
+      <CameraRig mode={mode} activeSeat={activeSeat}>{null}</CameraRig>
     </group>
   )
 }
@@ -361,14 +407,17 @@ export default function CourtroomView({
   celebrities,
   activeSpeakerId,
   seats,
+  cameraMode = 'trial',
 }: {
   celebrities?: Celebrity[]
   activeSpeakerId?: string | null
   seats?: CourtSeat[]
+  cameraMode?: CameraMode
 }) {
+  const init = getCameraForMode(cameraMode)
   return (
-    <Canvas shadows camera={{ position: [0, 2.1, 3.7], fov: 45 }} dpr={[1, 2]}>
-      <Courtroom celebrities={celebrities ?? []} activeSpeakerId={activeSpeakerId ?? null} seats={seats} />
+    <Canvas shadows camera={{ position: init.position, fov: init.fov }} dpr={[1, 2]}>
+      <Courtroom celebrities={celebrities ?? []} activeSpeakerId={activeSpeakerId ?? null} seats={seats} mode={cameraMode} />
     </Canvas>
   )
 }

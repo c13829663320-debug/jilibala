@@ -506,7 +506,7 @@ export default function CourtroomShell({
           <>
             <div className="scene-card">
               <Suspense fallback={null}>
-                <CourtroomView celebrities={celebrities} activeSpeakerId={activeSpeakerId} />
+                <CourtroomView celebrities={celebrities} activeSpeakerId={activeSpeakerId} cameraMode="bench" />
               </Suspense>
               <div className="scene-overlay">
                 <div className="camera-hint">拖动旋转 · 滚轮缩放</div>
@@ -535,7 +535,7 @@ export default function CourtroomShell({
           <>
             <div className="scene-card">
               <Suspense fallback={null}>
-                <CourtroomView celebrities={celebrities} activeSpeakerId={null} />
+                <CourtroomView celebrities={celebrities} activeSpeakerId={null} cameraMode="bench" />
               </Suspense>
               <div className="scene-overlay">
                 <div className="camera-hint">庭审结束</div>

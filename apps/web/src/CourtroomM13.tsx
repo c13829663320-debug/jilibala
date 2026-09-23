@@ -298,14 +298,14 @@ export default function CourtroomM13({
 
   return (
     <div className="cr-root">
-      {(phase === 'trial' || phase === 'verdict') && (
-        <div className="cr-canvas-wrap">
-          <Suspense fallback={null}>
-            <CourtroomView seats={seats} />
-          </Suspense>
-          <div className="cr-hint">拖动旋转 · 滚轮缩放</div>
-        </div>
-      )}
+      <div className="cr-canvas-wrap">
+        <Suspense fallback={null}>
+          <CourtroomView seats={seats} cameraMode={phase === 'wizard' ? 'wizard' : 'trial'} />
+        </Suspense>
+        {phase !== 'wizard' && <div className="cr-hint">拖动旋转 · 滚轮缩放</div>}
+      </div>
+
+      {phase === 'wizard' && <div className="cr-vignette" />}
 
       {wsStatusLabel(wsStatus, wsRetryCount) && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 99998, background: '#FFD600', color: '#1a1a1a', padding: '6px 16px', fontSize: 12, fontWeight: 600, textAlign: 'center' }}>

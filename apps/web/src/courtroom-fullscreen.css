@@ -25,6 +25,15 @@
   z-index: 0;
 }
 
+/* 向导阶段：轻微暗角，压暗 3D 四周但不破坏氛围 */
+.cr-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 38%, rgba(0, 0, 0, 0.42) 100%);
+}
+
 .cr-ui {
   position: absolute;
   z-index: 20;
@@ -297,6 +306,14 @@
 }
 .cr-center h2 { margin: 0 0 4px; font-size: 22px; }
 .cr-center .cr-sub { color: var(--cr-text-dim); font-size: 13px; margin: 0 0 18px; }
+
+/* 向导卡片：在 3D 背景上保证文字清晰可读 */
+.cr-center.cr-wiz {
+  background: rgba(10, 10, 10, 0.88);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 30px 34px;
+}
 .cr-step-tag {
   display: inline-block;
   font-size: 11px;
