@@ -75,19 +75,33 @@ describe('buildFixedSeats 固定席位布局', () => {
     }
   })
 
-  it('witness sits to the side at [1.0,0.6,-1.9] angled toward the judge (facing=-0.5, not on the central axis)', () => {
+  it('witness sits off to the right at [2.3,0.6,-2.4] angled toward the judge (facing≈-1.9, NOT on the central axis)', () => {
     const w = seats.find((s) => s.kind === 'witness')!
-    expect(w.position).toEqual([1.0, 0.6, -1.9])
-    expect(w.facing).toBeCloseTo(-0.5, 6)
-    expect(w.position[0]).not.toBe(0) // 不挡中轴
+    expect(w.position).toEqual([2.3, 0.6, -2.4])
+    expect(w.position[0]).toBeGreaterThanOrEqual(1.6) // 第七轮：不占中轴、不挡看法官视轴
+    expect(w.facing).not.toBe(0) // 必须转向法官，不再面向相机
+    expect(Math.abs(w.facing - (-1.9))).toBeLessThan(0.1)
   })
 
-  it('audience NPCs do not stack on the same step (stepped benches allow <1.0 front/back stagger)', () => {
+  it('audience NPCs occupy three stepped gallery rows (front z=1.77 / mid z=2.54 / back z=3.31, 2 each)', () => {
     const audience = seats.filter((s) => s.kind === 'audience')
+    expect(audience).toHaveLength(6)
+    for (const a of audience) {
+      expect(a.position[2]).toBeGreaterThanOrEqual(1.77) // 全部后排 gallery
+    }
+    const rows = [1.77, 2.54, 3.31].map((z) => audience.filter((a) => Math.abs(a.position[2] - z) < 1e-6))
+    expect(rows[0]).toHaveLength(2)
+    expect(rows[1]).toHaveLength(2)
+    expect(rows[2]).toHaveLength(2)
+    // 阶梯抬高：后排 y 逐排升高
+    expect(rows[0][0].position[1]).toBeCloseTo(0.71)
+    expect(rows[1][0].position[1]).toBeCloseTo(0.87)
+    expect(rows[2][0].position[1]).toBeCloseTo(1.04)
+    // 旁听者之间不重叠
     for (let i = 0; i < audience.length; i++) {
       for (let j = i + 1; j < audience.length; j++) {
         const d = horizontalDistance(audience[i].position, audience[j].position)
-        expect(d).toBeGreaterThanOrEqual(0.5)
+        expect(d).toBeGreaterThanOrEqual(0.8)
       }
     }
   })
@@ -99,29 +113,53 @@ describe('buildFixedSeats 固定席位布局', () => {
     }
   })
 
-  it('plaintiff/defendant and counsel share the same row z=-1.3 (counsel just further out in x)', () => {
-    const pCounsel = seats.find((s) => s.kind === 'plaintiff-counsel')!
-    const dCounsel = seats.find((s) => s.kind === 'defendant-counsel')!
-    expect(pCounsel.position[2]).toBeCloseTo(-1.3)
-    expect(dCounsel.position[2]).toBeCloseTo(-1.3)
-    expect(pCounsel.position[0]).toBeLessThan(0)
-    expect(dCounsel.position[0]).toBeGreaterThan(0)
+  it('plaintiff/defendant and counsel share row z=-1.3, spread horizontally (±1.8 / ±2.8) to avoid clipping', () => {
+    const p = seats.find((s) => s.kind === 'plaintiff')!
+    const pc = seats.find((s) => s.kind === 'plaintiff-counsel')!
+    const d = seats.find((s) => s.kind === 'defendant')!
+    const dc = seats.find((s) => s.kind === 'defendant-counsel')!
+    expect(pc.position[2]).toBeCloseTo(-1.3)
+    expect(dc.position[2]).toBeCloseTo(-1.3)
+    expect(p.position).toEqual([-1.8, 0.6, -1.3])
+    expect(pc.position).toEqual([-2.8, 0.6, -1.3])
+    expect(d.position).toEqual([1.8, 0.6, -1.3])
+    expect(dc.position).toEqual([2.8, 0.6, -1.3])
+    expect(p.position[0]).toBeLessThan(0)
+    expect(d.position[0]).toBeGreaterThan(0)
   })
 
-  it('exact sixth-round seat positions (GLB pinhole-projection locked, verbatim)', () => {
+  it('every pair of non-NPC seats keeps >=0.95 horizontal spacing (no interpenetration; party↔counsel row = 1.0 by design)', () => {
+    const speakers = seats.filter((s) => !s.npc)
+    for (let i = 0; i < speakers.length; i++) {
+      for (let j = i + 1; j < speakers.length; j++) {
+        const d = horizontalDistance(speakers[i].position, speakers[j].position)
+        expect(d).toBeGreaterThanOrEqual(0.95)
+      }
+    }
+  })
+
+  it('no character sits on the central red carpet axis blocking the view to the judge (only judge/juror near x=0)', () => {
+    const witness = seats.find((s) => s.kind === 'witness')!
+    expect(Math.abs(witness.position[0])).toBeGreaterThan(1.6)
+    const parties = seats.filter((s) => s.kind === 'plaintiff' || s.kind === 'defendant')
+    for (const p of parties) expect(Math.abs(p.position[0])).toBeGreaterThan(1.5)
+  })
+
+  it('exact seventh-round seat positions', () => {
     expect(seats.find((s) => s.kind === 'judge')!.position).toEqual([0, 0.98, -3.1])
-    expect(seats.find((s) => s.kind === 'plaintiff')!.position).toEqual([-1.5, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'plaintiff-counsel')!.position).toEqual([-2.2, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'defendant')!.position).toEqual([1.5, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'defendant-counsel')!.position).toEqual([2.2, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'juror')!.position).toEqual([1.5, 0.71, 1.77])
+    expect(seats.find((s) => s.kind === 'plaintiff')!.position).toEqual([-1.8, 0.6, -1.3])
+    expect(seats.find((s) => s.kind === 'plaintiff-counsel')!.position).toEqual([-2.8, 0.6, -1.3])
+    expect(seats.find((s) => s.kind === 'defendant')!.position).toEqual([1.8, 0.6, -1.3])
+    expect(seats.find((s) => s.kind === 'defendant-counsel')!.position).toEqual([2.8, 0.6, -1.3])
+    expect(seats.find((s) => s.kind === 'witness')!.position).toEqual([2.3, 0.6, -2.4])
+    expect(seats.find((s) => s.kind === 'juror')!.position).toEqual([0, 0.71, 1.77])
     const aud = seats.filter((s) => s.kind === 'audience')
-    expect(aud[0].position).toEqual([-2.6, 0.71, 1.77])
-    expect(aud[1].position).toEqual([-1.5, 0.71, 1.77])
-    expect(aud[2].position).toEqual([2.6, 0.71, 1.77])
-    expect(aud[3].position).toEqual([-2.3, 0.87, 2.54])
-    expect(aud[4].position).toEqual([-1.2, 0.87, 2.54])
-    expect(aud[5].position).toEqual([1.2, 0.87, 2.54])
+    expect(aud[0].position).toEqual([-1.5, 0.71, 1.77])
+    expect(aud[1].position).toEqual([1.5, 0.71, 1.77])
+    expect(aud[2].position).toEqual([-2.3, 0.87, 2.54])
+    expect(aud[3].position).toEqual([2.3, 0.87, 2.54])
+    expect(aud[4].position).toEqual([-0.9, 1.04, 3.31])
+    expect(aud[5].position).toEqual([0.9, 1.04, 3.31])
   })
 })
 

@@ -241,19 +241,21 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
     return <group position={seat.position}>{body}</group>
   }
 
+  // 第七轮：单一名牌（发言时内容含"名字·发言中"，不另渲染常显名牌）。
+  // GLB 归一化站姿高 1.7（头 local≈1.7）；名牌统一浮在头顶上方 local≈1.95，
+  // 发言时略抬到 2.15，避免压住身体、也避免与相邻角色名牌在屏幕上重叠。
   return (
     <group position={seat.position}>
       <SeatRing active={seat.active} />
       {seat.active && <SpeakerSpotlight />}
       {body}
-      {/* 名牌：坐姿头高 ≈1.3 → 名牌 local ≈1.55；站姿头高 ≈1.7 → 名牌 local ≈1.78。 */}
       <Text
-        position={[0, seat.active ? (seated ? 1.78 : 2.0) : (seated ? 1.55 : 1.78), 0.06]}
-        fontSize={seat.active ? 0.26 : 0.18}
+        position={[0, seat.active ? 2.15 : 1.95, 0.06]}
+        fontSize={seat.active ? 0.24 : 0.16}
         color={seat.active ? '#ffe6a8' : '#f4ecff'}
         anchorX="center"
         anchorY="middle"
-        outlineWidth={seat.active ? 0.028 : 0.012}
+        outlineWidth={seat.active ? 0.026 : 0.01}
         outlineColor={seat.active ? '#a45a00' : '#160f24'}
       >
         {seat.active ? `${seat.name} · 发言中` : seat.name}
@@ -263,11 +265,15 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
 }
 
 /**
- * M13 第六轮：主全景机位默认，相机就位后用户 OrbitControls 完全接管。
+ * M13 第七轮：主全景机位默认，相机就位后用户 OrbitControls 完全接管。
  *
- *  - trial/bench：进入时一次性平滑settle到主全景（mode 切换 1.2s），
- *    之后每帧只做 clampCameraPosition 防穿墙/穿地/穿顶；
- *    发言者切换绝不移动相机、不 nudge、不回位——只靠 SeatRing+聚光+名牌高亮。
+ *  - trial/bench：进入时用显式快照（from 当前机位）+ easeInOutQuad 在 1.4s 内
+ *    平滑 settle 到主全景 [0,4.3,4.5]→[0,0.9,-1.3]；过渡全程 clamp 在 ROOM_CLAMP 内。
+ *    第六轮旧实现靠 useFrame 内 modeRef diff + 指数 lerp，真机上 wizard→trial 偶尔
+ *    不触发（相机停在家具内满屏木纹）；第七轮改为 useEffect(mode) 显式打快照 + 确定性
+ *    插值，保证开庭后 1 秒内必然到达主机位。
+ *  - 过渡结束后绝不主动移动相机——用户 OrbitControls 完全接管，发言者只靠
+ *    SeatRing+聚光+名牌高亮。
  *  - 用户拖拽/缩放立即生效，绝不被下一帧覆盖。
  *  - wizard: 维持全景 autoRotate，保留用户 orbit/zoom 绕 target 的 offset。
  *  - 每帧仍 clampCameraPosition，相机永不离开房间。
@@ -282,28 +288,44 @@ function CameraRig({
 }) {
   const controls = useRef<{ target: Vector3; update: () => void } | null>(null)
   const camera = useThree((s) => s.camera)
-  const cfg = getCameraForMode(mode)
-  const desiredTarget = useMemo(() => new Vector3(...cfg.target), [cfg])
-  const desiredCamera = useMemo(() => new Vector3(...cfg.position), [cfg])
+  const desiredTarget = useMemo(() => new Vector3(), [])
+  const desiredCamera = useMemo(() => new Vector3(), [])
   const offset = useMemo(() => new Vector3(), [])
-  const modeRef = useRef<CameraMode>(mode)
-  const transitionUntil = useRef(-1)
-  // r3f clock 时间轴：onStart/onEnd 里没有 clock，用 useFrame 里刷过的 clockNow 取同一时间。
   const clockNow = useRef(0)
-  // 用户正在拖拽/缩放手势中（onStart → onEnd 之间）。第六轮：仅用于记录，不再据此回位。
-  const userInteracting = useRef(false)
+  // 显式过渡：mode 切换瞬间打快照（起点机位/目标点），useFrame 内按进度插值。
+  const trans = useRef<{
+    fromPos: Vector3
+    fromTgt: Vector3
+    start: number
+    dur: number
+  } | null>(null)
+  const modeInitialized = useRef(false)
+
+  // mode 变化 → 立即记录过渡起点（在 React commit 后、下一帧插值前）。
+  useLayoutEffect(() => {
+    const c = controls.current
+    clockNow.current = clockNow.current // no-op keep
+    if (!c) return
+    // 首次挂载（wizard）不做 trial 过渡；仅在 wizard→trial/bench 真实切换时打快照。
+    if (!modeInitialized.current) {
+      modeInitialized.current = true
+      return
+    }
+    if (mode === 'wizard') return
+    trans.current = {
+      fromPos: new Vector3(camera.position.x, camera.position.y, camera.position.z),
+      fromTgt: new Vector3(c.target.x, c.target.y, c.target.z),
+      start: clockNow.current,
+      dur: 1.4,
+    }
+  }, [mode, camera])
 
   useFrame(({ clock }, delta) => {
     const c = controls.current
     if (!c) return
     const now = clock.getElapsedTime()
     clockNow.current = now
-    if (modeRef.current !== mode) {
-      modeRef.current = mode
-      transitionUntil.current = now + 1.2
-    }
-    const transitioning = now < transitionUntil.current
-    // frame-rate independent lerp
+    // frame-rate independent lerp（wizard 自转用）
     const k = 1 - Math.pow(0.0015, Math.min(delta, 0.1))
 
     if (mode === 'wizard') {
@@ -313,13 +335,16 @@ function CameraRig({
       offset.subVectors(camera.position, c.target)
       desiredCamera.copy(desiredTarget).add(offset)
       camera.position.lerp(desiredCamera, k)
-    } else if (transitioning) {
-      // trial/bench：仅在 mode 切换后的 1.2s 内一次性 settle 到主全景；
-      // 之后绝不主动移动相机——用户 OrbitControls 完全接管，发言者不跟随。
+    } else if (trans.current) {
+      // trial/bench：从快照起点确定性缓动到主全景（easeInOutQuad）。
       desiredTarget.set(TRIAL_CAMERA.target[0], TRIAL_CAMERA.target[1], TRIAL_CAMERA.target[2])
       desiredCamera.set(TRIAL_CAMERA.position[0], TRIAL_CAMERA.position[1], TRIAL_CAMERA.position[2])
-      c.target.lerp(desiredTarget, k)
-      camera.position.lerp(desiredCamera, k)
+      const t = trans.current
+      const p = Math.min(1, Math.max(0, (now - t.start) / t.dur))
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2
+      camera.position.lerpVectors(t.fromPos, desiredCamera, e)
+      c.target.lerpVectors(t.fromTgt, desiredTarget, e)
+      if (p >= 1) trans.current = null
     }
     // hard clamp so the camera can never leave the room (wall / floor / ceiling)
     const [cx, cy, cz] = clampCameraPosition([camera.position.x, camera.position.y, camera.position.z])
@@ -335,19 +360,11 @@ function CameraRig({
         enablePan={false}
         enableDamping={mode === 'wizard'}
         autoRotate={mode === 'wizard'}
-        autoRotateSpeed={cfg.autoRotateSpeed}
-        target={cfg.target}
-        minDistance={cfg.minDistance}
-        maxDistance={cfg.maxDistance}
-        maxPolarAngle={cfg.maxPolarAngle}
-        onStart={() => {
-          // 用户开始拖拽/缩放：记录手势开始（第六轮：松手后不自动回位）
-          userInteracting.current = true
-        }}
-        onEnd={() => {
-          // 用户松手：仅记录手势结束，相机保持用户视角、不自动回位
-          userInteracting.current = false
-        }}
+        autoRotateSpeed={0.3}
+        target={TRIAL_CAMERA.target}
+        minDistance={TRIAL_CAMERA.minDistance}
+        maxDistance={TRIAL_CAMERA.maxDistance}
+        maxPolarAngle={TRIAL_CAMERA.maxPolarAngle}
       />
     </>
   )

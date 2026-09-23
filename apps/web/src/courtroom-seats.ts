@@ -1,21 +1,22 @@
 /**
- * M13 第六轮 — 法庭固定席位纯逻辑（无 React / three 依赖，仅数值与字符串）。
+ * M13 第七轮 — 法庭固定席位纯逻辑（无 React / three 依赖，仅数值与字符串）。
  *
  * 固定席位（接 apps/web/public/models/court/*.glb）：
  *   judge / plaintiff / plaintiff-counsel / defendant / defendant-counsel / witness / juror
  *   + audience-01..06（后部阶梯长椅氛围 NPC，不发言、不朗读、不高亮）。
  *
- * 坐标基准（第六轮：GLB 解析 + 针孔投影核算锁定，逐字使用，勿自行调整）：
+ * 坐标基准（第七轮：真机密度/穿模/证人居中修复）：
  *   默认主机位相机 [0,4.3,4.5] → target [0,0.9,-1.3]，fov 60；
  *   法官桌后 [0,0.98,-3.1]（面向 +z 法庭）；原被告+双方律师同排 z=-1.3，
- *   当事人在中、律师靠外（x=±1.5 / ±2.2）；证人移到侧面 [1.0,0.6,-1.9] 斜向法官、
- *   不挡中轴；陪审与前排旁听在 z=1.77 阶梯，后排旁听 z=2.54（抬高 0.16）。
- *   后排 z=3.31 留空，供动态名人/custom 辩护人席位（现有 z=0.4 一排，不冲突）。
+ *   当事人在中、律师靠外（x=±1.8 / ±2.8，拉开水平间距杜绝穿模）；
+ *   证人移到右前侧 [2.3,0.6,-2.4]，斜向法官、完全不占中轴、不挡看法官视轴；
+ *   陪审团居中前排 gallery [0,0.71,1.77]；6 旁听三排阶梯：
+ *   前排 z=1.77 y=0.71、中排 z=2.54 y=0.87、后排 z=3.31 y=1.04（每排 2 人，x 错开）。
  *
  * 朝向（模型默认面向 +z，即朝观众/相机）：
  *   judge 面向法庭(+z) → facing=0；
  *   原被告/双方律师/陪审团/旁听者 面向法官(-z) → facing=π；
- *   证人斜向法官 → facing=-0.5（移侧面不挡中轴）。
+ *   证人斜向法官 → facing=-1.9（右侧侧身朝左前方法官，背对相机）。
  */
 import type { CourtTurn } from '@balabala/shared'
 
@@ -71,8 +72,9 @@ export function isNpcKind(kind: CourtSeatKind): boolean {
 const PI = Math.PI
 
 /**
- * 核心 7 固定席位 + 6 旁听者（第六轮精确坐标，逐字）。
- * 原被告与双方律师同排 z=-1.3；证人移侧面斜向法官；
+ * 核心 7 固定席位 + 6 旁听者（第七轮密度修复坐标）。
+ * 原被告与双方律师同排 z=-1.3，水平拉开 ±1.8/±2.8 杜绝穿模；
+ * 证人移右前侧 [2.3,0.6,-2.4] 斜向法官、不占中轴；
  * 动态名人辩护人仍排 z=0.4（旧坐标不动，与固定席位不冲突）。
  */
 export function buildFixedSeats(): FixedSeatSpec[] {
@@ -87,85 +89,85 @@ export function buildFixedSeats(): FixedSeatSpec[] {
     {
       id: 'seat-plaintiff', name: '原告', kind: 'plaintiff',
       model: seatModelUrl('plaintiff'),
-      position: [-1.5, 0.6, -1.3],
+      position: [-1.8, 0.6, -1.3],
       facing: PI, // 面向法官(-z)
       npc: false,
     },
     {
       id: 'seat-plaintiff-counsel', name: '原告律师', kind: 'plaintiff-counsel',
       model: seatModelUrl('plaintiff-counsel'),
-      position: [-2.2, 0.6, -1.3],
+      position: [-2.8, 0.6, -1.3],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-defendant', name: '被告', kind: 'defendant',
       model: seatModelUrl('defendant'),
-      position: [1.5, 0.6, -1.3],
+      position: [1.8, 0.6, -1.3],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-defendant-counsel', name: '被告律师', kind: 'defendant-counsel',
       model: seatModelUrl('defendant-counsel'),
-      position: [2.2, 0.6, -1.3],
+      position: [2.8, 0.6, -1.3],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-witness', name: '证人', kind: 'witness',
       model: seatModelUrl('witness'),
-      position: [1.0, 0.6, -1.9],
-      facing: -0.5, // 斜向法官，移侧面不挡中轴
+      position: [2.3, 0.6, -2.4],
+      facing: -1.9, // 右侧侧身朝左前方法官，背对相机，不挡中轴
       npc: true,
     },
     {
       id: 'seat-juror', name: '陪审团', kind: 'juror',
       model: seatModelUrl('juror'),
-      position: [1.5, 0.71, 1.77],
+      position: [0, 0.71, 1.77],
       facing: PI, // 面向法官
       npc: true,
     },
-    // 6 旁听者：后部阶梯长椅两排（前排 z=1.77 地面 y=0.71，后排 z=2.54 抬高 y=0.87）。
+    // 6 旁听者：后部阶梯长椅三排（前 z=1.77 y=0.71 / 中 z=2.54 y=0.87 / 后 z=3.31 y=1.04）。
     {
       id: 'seat-audience-1', name: '旁听者1', kind: 'audience',
       model: seatModelUrl('audience', 0),
-      position: [-2.6, 0.71, 1.77],
+      position: [-1.5, 0.71, 1.77],
       facing: PI,
       npc: true,
     },
     {
       id: 'seat-audience-2', name: '旁听者2', kind: 'audience',
       model: seatModelUrl('audience', 1),
-      position: [-1.5, 0.71, 1.77],
+      position: [1.5, 0.71, 1.77],
       facing: PI,
       npc: true,
     },
     {
       id: 'seat-audience-3', name: '旁听者3', kind: 'audience',
       model: seatModelUrl('audience', 2),
-      position: [2.6, 0.71, 1.77],
+      position: [-2.3, 0.87, 2.54],
       facing: PI,
       npc: true,
     },
     {
       id: 'seat-audience-4', name: '旁听者4', kind: 'audience',
       model: seatModelUrl('audience', 3),
-      position: [-2.3, 0.87, 2.54],
+      position: [2.3, 0.87, 2.54],
       facing: PI,
       npc: true,
     },
     {
       id: 'seat-audience-5', name: '旁听者5', kind: 'audience',
       model: seatModelUrl('audience', 4),
-      position: [-1.2, 0.87, 2.54],
+      position: [-0.9, 1.04, 3.31],
       facing: PI,
       npc: true,
     },
     {
       id: 'seat-audience-6', name: '旁听者6', kind: 'audience',
       model: seatModelUrl('audience', 5),
-      position: [1.2, 0.87, 2.54],
+      position: [0.9, 1.04, 3.31],
       facing: PI,
       npc: true,
     },
