@@ -34,7 +34,7 @@ export default function TopNav({ currentView, onNavigate, inCourtroom, onOpenArc
         <img className="topnav__mark" src="/brand/balabala-mark-clean.jpg" alt="BalaBala" />
         <div className="topnav__brand-text">
           <div className="topnav__brand-name">叽里呱啦</div>
-          <div className="topnav__brand-sub">BALA BALA · SOCIAL COURT</div>
+          <div className="topnav__brand-sub">BALA BALA</div>
         </div>
       </div>
 

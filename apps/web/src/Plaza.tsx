@@ -70,17 +70,15 @@ export function Plaza({ onBack, author }: { onBack: () => void; author?: string 
 
   return (
     <main className="platform-shell plaza">
-      <nav className="platform-topbar">
-        <button type="button" className="platform-brand" onClick={onBack}>
-          <ArrowLeft size={15} /> <b>BalaBala</b>
+      <div className="plaza-modal-bar">
+        <button type="button" className="plaza-modal-bar__back" onClick={onBack}>
+          <ArrowLeft size={15} /> 返回
         </button>
-        <div className="platform-nav">
-          <button type="button" className="is-active">广场</button>
-        </div>
+        <div className="plaza-modal-bar__title">广场讨论区</div>
         <button type="button" className="archive-primary-button" onClick={() => setShowPublish(true)}>
           <PenLine size={14} /> 发布
         </button>
-      </nav>
+      </div>
 
       <div className="plaza-body">
         <aside className="plaza-sidebar">

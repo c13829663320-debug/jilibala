@@ -1,9 +1,9 @@
 /* ===== 广场 Plaza ===== */
 .plaza { display: flex; flex-direction: column; min-height: 100vh; }
-.plaza .platform-topbar { grid-template-columns: auto 1fr auto; }
-.plaza .platform-topbar .platform-brand { justify-self: start; width: auto; }
-.plaza .platform-topbar .platform-nav { justify-self: center; }
-.plaza .platform-topbar > .archive-primary-button { justify-self: end; width: auto; flex: 0 0 auto; }
+.plaza-modal-bar { display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,.13); background: rgba(8,8,8,.85); backdrop-filter: blur(14px); flex: 0 0 auto; }
+.plaza-modal-bar__back { display: flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,.18); border-radius: 9px; padding: 7px 12px; color: #ccc; background: rgba(255,255,255,.04); font-size: 12px; cursor: pointer; }
+.plaza-modal-bar__back:hover { color: #fff; background: rgba(255,255,255,.09); }
+.plaza-modal-bar__title { flex: 1; text-align: center; font-size: 14px; font-weight: 800; letter-spacing: .02em; color: #f2f2f2; }
 .plaza-body { flex: 1; display: grid; grid-template-columns: 236px minmax(0, 1fr); width: 100%; max-width: 1280px; margin: 0 auto; }
 
 .plaza-sidebar { display: flex; flex-direction: column; gap: 4px; padding: 26px 16px; border-right: 1px solid rgba(255,255,255,.1); }
