@@ -1,15 +1,14 @@
-import { Component, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent, type ErrorInfo, type ReactNode } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, ContactShadows, Environment, Lightformer, Float, Text, useGLTF } from '@react-three/drei'
-import { Box3, Vector3 } from 'three'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { Gavel, Sparkles, Play, RotateCcw, Mic2, Scale, WandSparkles, Users, Clock3, ChevronRight, Check, Volume2, Upload, FileText, Bot, Eye } from 'lucide-react'
 import RoomEntry from './RoomEntry'
 import ArchivePage, { type ArchiveRecord } from './ArchivePage'
 import AvatarStudio from './AvatarStudio'
-import CharacterHall from './CharacterHall'
 import type { Celebrity } from '@balabala/shared'
-import { Plaza } from './Plaza'
 
+const CharacterHall = lazy(() => import('./CharacterHall'))
+const Plaza3D = lazy(() => import('./Plaza3D'))
+const CourtroomView = lazy(() => import('./CourtroomView'))
 type Phase = {
   id: string
   label: string
@@ -25,129 +24,6 @@ const phases: Phase[] = [
   { id: 'verdict', label: '趣味宣判', speaker: '小法官 · Luna', quote: '“本庭判定：给彼此一个拥抱，再一起修好它。”', tone: 'pink' },
 ]
 
-type CourtroomProps = { character?: Celebrity | null }
-
-/**
- * Keep a bad/expired Tripo URL from taking down the whole R3F canvas. The
- * placeholder is rendered by the parent scene when the GLB is still loading
- * or fails to decode.
- */
-class CourtroomModelErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
-  state = { failed: false }
-
-  static getDerivedStateFromError() { return { failed: true } }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.warn('Tripo courtroom model failed to load', error, info.componentStack)
-  }
-
-  render() { return this.state.failed ? this.props.fallback : this.props.children }
-}
-
-function NormalizedCourtroomModel({ url }: { url: string }) {
-  const { scene } = useGLTF(url, false, true)
-  const normalized = useMemo(() => {
-    const clone = scene.clone(true)
-    const bounds = new Box3().setFromObject(clone)
-    const size = bounds.getSize(new Vector3())
-    const center = bounds.getCenter(new Vector3())
-    const maxSize = Math.max(size.x, size.y, size.z, 0.001)
-    // Match the built-in court avatars (roughly 1.5 scene units tall), while
-    // retaining the source model's proportions and centering it on the seat.
-    const scale = 1.55 / maxSize
-    clone.scale.setScalar(scale)
-    clone.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale)
-    clone.traverse((child) => {
-      child.castShadow = true
-      child.receiveShadow = true
-    })
-    return clone
-  }, [scene])
-  return <primitive object={normalized} />
-}
-
-function CourtroomEnvironmentModel() {
-  const { scene } = useGLTF('/models/balabala_courtroom.glb', false, true)
-  const normalized = useMemo(() => {
-    const clone = scene.clone(true)
-    const bounds = new Box3().setFromObject(clone)
-    const size = bounds.getSize(new Vector3())
-    const center = bounds.getCenter(new Vector3())
-    const maxSize = Math.max(size.x, size.y, size.z, 0.001)
-    const scale = 10.8 / maxSize
-    clone.scale.setScalar(scale)
-    clone.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale)
-    clone.traverse((child) => {
-      child.castShadow = true
-      child.receiveShadow = true
-    })
-    const ws = size.clone().multiplyScalar(scale)
-    return clone
-  }, [scene])
-  return <primitive object={normalized} />
-}
-
-function FullCourtEnvironment() {
-  return <>
-    <color attach="background" args={['#120904']} />
-    <fog attach="fog" args={['#120904', 12, 28]} />
-    <ambientLight intensity={0.9} color="#ffe4bc" />
-    <directionalLight position={[0, 8, -5]} intensity={2.8} color="#fff0d1" castShadow shadow-mapSize={[2048, 2048]} />
-    <pointLight position={[-5, 4, -4]} intensity={16} distance={14} color="#ffae54" />
-    <pointLight position={[5, 4, -4]} intensity={16} distance={14} color="#ffae54" />
-    <Suspense fallback={null}><CourtroomEnvironmentModel /></Suspense>
-    <OrbitControls enablePan={false} minDistance={8} maxDistance={18} minPolarAngle={0.65} maxPolarAngle={1.42} target={[0, 2.15, 1.6]} />
-  </>
-}
-
-function CourtroomCharacter({ character }: { character: Celebrity }) {
-  if (!character.model) return null
-  const fallback = null
-  return (
-    <group position={[-1.83, 0.62, -1.5]}>
-      <CourtroomModelErrorBoundary fallback={fallback}>
-        <Suspense fallback={fallback}>
-          <NormalizedCourtroomModel url={character.model} />
-          <Text position={[0, 1.72, 0.06]} fontSize={0.2} color="#f4ecff" anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor="#160f24">{character.name}</Text>
-        </Suspense>
-      </CourtroomModelErrorBoundary>
-    </group>
-  )
-}
-
-function Courtroom({ character }: CourtroomProps) {
-  const sconceLights: Array<[number, number, number]> = [
-    [-3.3, 2.4, -4.0], [-1.53, 2.4, -4.0], [1.53, 2.4, -4.0], [3.3, 2.4, -4.0],
-    [-5.2, 2.3, -2.1], [5.2, 2.3, -2.1],
-  ]
-  const ceilingLights: Array<[number, number, number]> = [
-    [0, 4.0, -2.6],
-  ]
-  return (
-    <group>
-      <color attach="background" args={['#160d08']} />
-      <ambientLight intensity={0.42} color="#ffe2b4" />
-      <directionalLight position={[5, 9, 6]} intensity={2.3} color="#fff1d2" castShadow shadow-mapSize={[1024, 1024]} />
-      <Environment resolution={128}>
-        <Lightformer intensity={1.4} color="#ffdcb0" position={[0, 5, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[10, 10, 1]} />
-        <Lightformer intensity={0.7} color="#dfe8ff" position={[-6, 2, 0]} rotation={[0, Math.PI / 2, 0]} scale={[8, 4, 1]} />
-        <Lightformer intensity={0.7} color="#dfe8ff" position={[6, 2, 0]} rotation={[0, -Math.PI / 2, 0]} scale={[8, 4, 1]} />
-        <Lightformer intensity={1.1} color="#ffe8c8" position={[0, 2, 6]} scale={[10, 4, 1]} />
-        <Lightformer intensity={0.5} color="#ffcf96" position={[0, 2, -6]} scale={[10, 4, 1]} />
-      </Environment>
-      {sconceLights.map((p, i) => (
-        <pointLight key={`sconce-${i}`} position={p} intensity={13} distance={7} decay={2} color="#ffb066" />
-      ))}
-      {ceilingLights.map((p, i) => (
-        <pointLight key={`ceil-${i}`} position={p} intensity={11} distance={7} decay={2} color="#ffe3b8" />
-      ))}
-      <Suspense fallback={null}>
-        <CourtroomEnvironmentModel />
-      </Suspense>
-      {character?.model && <CourtroomCharacter character={character} />}
-    </group>
-  )
-}
 type HearingMode = 'quick' | 'evidence'
 type Perspective = 'plaintiff' | 'defendant' | 'audience'
 type EvidenceMeta = { name: string; size: number; type: string }
@@ -163,6 +39,40 @@ type SpeechRecognitionLike = {
   onend: (() => void) | null
 }
 
+/**
+ * Lightweight non-blocking backend health probe. On failure shows a fixed yellow
+ * overlay bar (portal to body, so it floats over any view) and retries every 5s;
+ * clicking the bar retries immediately. Does not gate app rendering.
+ */
+function ApiHealthBanner() {
+  const [down, setDown] = useState(false)
+  const [retryTick, setRetryTick] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 3000)
+    fetch('/api/health', { signal: controller.signal })
+      .then((res) => { if (!cancelled) setDown(!res.ok) })
+      .catch(() => { if (!cancelled) setDown(true) })
+      .finally(() => window.clearTimeout(timer))
+    return () => { cancelled = true; controller.abort() }
+  }, [retryTick])
+  useEffect(() => {
+    if (!down) return
+    const id = window.setInterval(() => setRetryTick((n) => n + 1), 5000)
+    return () => window.clearInterval(id)
+  }, [down])
+  if (!down) return null
+  return createPortal(
+    <div
+      onClick={() => setRetryTick((n) => n + 1)}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#FFD600', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}
+    >
+      后端未连接，正在重连…（点击立即重试）
+    </div>,
+    document.body,
+  )
+}
 function App() {
   const [enteredCourt, setEnteredCourt] = useState(false)
   const [courtCharacter, setCourtCharacter] = useState<Celebrity | null>(null)
@@ -252,10 +162,10 @@ function App() {
   if (shareId) return <main className="share-page"><div className="share-brand"><Gavel size={20} /> 叽里呱啦 · BalaBala</div>{sharedCase ? <article className="shared-verdict"><span className="micro-label">AI 趣味判决书</span><h1>{sharedCase.title}</h1><div className="shared-quote">“{sharedCase.quote}”</div><div className="shared-field"><b>罪名认定</b><span>{sharedCase.charge}</span></div><div className="shared-field"><b>判决主文</b><span>{sharedCase.sentence}</span></div><p className="shared-disclaimer">{sharedCase.disclaimer}</p><a href="/" className="shared-cta">我也要上法庭</a></article> : <article className="shared-verdict"><h1>分享内容不存在</h1><p className="shared-disclaimer">这份案卷可能已被删除，或者分享链接已经失效。</p><a href="/" className="shared-cta">进入趣味法庭</a></article>}</main>
   if (showArchivePage) return <ArchivePage archives={archives} loading={archiveLoading} error={archiveError} onBack={() => { setShowArchivePage(false); setEnteredCourt(false) }} onCourt={() => { setShowArchivePage(false); setEnteredCourt(true) }} onRefresh={() => { void fetchArchives() }} onOpenCase={(record) => { setCaseText(record.input); setShowArchivePage(false); setEnteredCourt(true) }} onDelete={async (record) => { try { await fetch(`/api/cases/${encodeURIComponent(record.id)}`, { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('删除案卷失败') } }} onClear={async () => { try { await fetch('/api/archives', { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('清空案卷失败') } }} />
   if (avatarOpen) return <AvatarStudio onBack={() => setAvatarOpen(false)} onEnterCourt={() => { setAvatarOpen(false); setEnteredCourt(true) }} />
-  if (characterHallOpen) return <CharacterHall onBack={() => setCharacterHallOpen(false)} onEnterCourt={(character) => { setCharacterHallOpen(false); setCourtCharacter(character ?? null); setEnteredCourt(true) }} />
+  if (characterHallOpen) return <Suspense fallback={null}><CharacterHall onBack={() => setCharacterHallOpen(false)} onEnterCourt={(character) => { setCharacterHallOpen(false); setCourtCharacter(character ?? null); setEnteredCourt(true) }} onPlaza={() => { setCharacterHallOpen(false); setPlazaOpen(true) }} /></Suspense>
   const plazaParam = new URLSearchParams(window.location.search).get('plaza');
-  if (plazaOpen || plazaParam === '1') return <Plaza onBack={() => { if (plazaParam === '1') window.location.href = '/'; else setPlazaOpen(false); }} />
-  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onSceneDetail={() => setEnteredCourt(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} />
+  if (plazaOpen || plazaParam === '1') return <Suspense fallback={null}><Plaza3D onBack={() => { if (plazaParam === '1') window.location.href = '/'; else setPlazaOpen(false); }} onEnterCourt={() => { setPlazaOpen(false); setEnteredCourt(true); }} /></Suspense>
+  if (!enteredCourt) return <RoomEntry onEnter={() => setEnteredCourt(true)} onArchive={() => { setShowArchivePage(true); void fetchArchives() }} onAvatar={() => setAvatarOpen(true)} onCharacters={() => setCharacterHallOpen(true)} onPlaza={() => setPlazaOpen(true)} />
 
 
   const generateAvatar = async () => {
@@ -444,7 +354,7 @@ function App() {
     setAppealNote('')
   }
 
-  return <main className="app-shell">
+  return <main className="app-shell"><ApiHealthBanner />
     <header className="topbar">
       <div className="brand-lockup"><img className="brand-mark" src="/brand/balabala-mark-clean.jpg" alt="BalaBala" /><div><div className="brand-name">叽里呱啦</div><div className="brand-sub">BALA BALA · SOCIAL COURT</div></div></div>
       <div className="top-actions"><span className="status-dot"><span className="dot" /> 房间 #0317 在线</span><button className="archive-button" onClick={loadArchives}>案卷库</button><button className="icon-button" title="重置体验" onClick={reset}><RotateCcw size={17} /></button><div className="avatar-chip">林<span>△</span></div></div>
@@ -493,7 +403,7 @@ function App() {
       </aside>
       <section className="main-stage">
         <div className="stage-header"><div><div className="stage-kicker"><span className="tiny-dot" /> 正在进行 · {currentPhase.label}</div><h2>{generatedTitle}</h2><div className="case-meta"><span>{hearingMode === 'evidence' ? '带证据开庭' : '快速开庭'}</span><span>·</span><span>{perspective === 'audience' ? '观众视角' : perspective === 'plaintiff' ? '原告视角' : '被告视角'}</span>{evidenceFiles.length > 0 && <><span>·</span><span>{evidenceFiles.length} 份证据</span></>}</div></div><div className="stage-tools"><span className="scene-tag">3D 场景 · 趣味法庭</span><button className="round-button" title="语音模式"><Volume2 size={17} /></button></div></div>
-        <div className="scene-card"><Canvas shadows camera={{ position: [0, 2.1, 3.7], fov: 45 }} dpr={[1, 2]}><Courtroom character={courtCharacter} /><OrbitControls enablePan={false} target={[0, 1.2, -0.8]} minDistance={2} maxDistance={6.4} maxPolarAngle={Math.PI / 2.05} /></Canvas><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': '#7a5ed9' } as React.CSSProperties}><div className="scene-character-avatar"><img src={courtCharacter.portrait} alt={courtCharacter.name} /></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.model && <a href={courtCharacter.model} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
+        <div className="scene-card"><Suspense fallback={null}><CourtroomView character={courtCharacter} /></Suspense><div className="scene-overlay"><div className="camera-hint">拖动旋转 · 滚轮缩放</div><div className="scene-corner"><Scale size={13} /> 友善模式已开启</div>{courtCharacter && <div className="scene-character-chip" style={{ '--character-accent': '#7a5ed9' } as React.CSSProperties}><div className="scene-character-avatar"><img src={courtCharacter.portrait} alt={courtCharacter.name} /></div><div><small>本场角色</small><strong>{courtCharacter.name}</strong><em>{courtCharacter.title}</em></div>{courtCharacter.model && <a href={courtCharacter.model} target="_blank" rel="noreferrer">打开 3D</a>}</div>}</div></div>
         <div className="below-grid">
           <div className="dialogue-card"><div className="card-heading"><div><span className="micro-label">当前发言</span><h3>{displayedSpeaker}</h3></div><button className="listen-button"><Mic2 size={15} /> 播放台词</button></div><div className={`quote quote-${currentPhase.tone}`}>{liveQuote ? displayedQuote : <><span className="quote-mark">“</span>{displayedQuote}<span className="quote-mark end">”</span></>}</div><div className="stepper">{phases.map((item, i) => <button aria-label={item.label} key={item.id} className={`step ${i === phase ? 'current' : ''} ${i < phase ? 'passed' : ''}`} onClick={() => setPhase(i)} />)}</div></div>
           <div className="verdict-card"><div className="verdict-top"><div className="verdict-icon"><Gavel size={18} /></div><div><span className="micro-label">AI 判决书 · 草稿</span><h3>{verdictTitle || (phase === phases.length - 1 ? '友谊大于输赢' : '等待全部证词')}</h3></div><span className="draft-tag">{(verdictTitle || phase === phases.length - 1) ? '已生成' : '进行中'}</span></div><p>{verdictSummary || (phase === phases.length - 1 ? '双方各获得一枚“会唱歌的蘑菇”纪念章，彩虹伞由两人轮流使用。' : '完成四个庭审阶段后，这里会出现一份温柔又好玩的判决。')}</p><div className="verdict-progress"><span style={{ width: `${((phase + 1) / phases.length) * 100}%` }} /></div>{verdictTitle && <div className="verdict-card__buttons"><button className="share-button" onClick={shareVerdict}>分享判决</button><button className="share-button share-button--plaza" onClick={publishCourt}>发布到广场</button></div>}{shareStatus && <div className="share-status">{shareStatus}</div>}</div>

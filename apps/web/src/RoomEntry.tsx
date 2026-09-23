@@ -1,13 +1,12 @@
 import { Suspense, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { OrbitControls, useGLTF } from '@react-three/drei'
 import { Box3, Vector3, type Group } from 'three'
-import { BookOpen, ChevronLeft, ChevronRight, Dumbbell, Lock, Mic2, Moon, Wine, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, Dumbbell, Lock, Mic2, Moon, Wine, type LucideIcon } from 'lucide-react'
 import './room-entry.css'
 
 export type RoomEntryProps = {
   onEnter: () => void
-  onSceneDetail?: () => void
   onArchive: () => void
   onAvatar: () => void
   onCharacters?: () => void
@@ -34,16 +33,16 @@ const SCENE_ICONS: Record<string, LucideIcon> = {
   library: BookOpen,
 }
 
-/** Normalize the courtroom GLB (meshopt) into a small turntable-friendly box. */
+/** Q版卡通法院外观模型（带底座，明亮可辨），缩放到转盘友好的尺寸。 */
 function CourtPreviewModel() {
-  const { scene } = useGLTF('/models/balabala_courtroom.glb', false, true)
+  const { scene } = useGLTF('/models/buildings/court.glb', false, true)
   const normalized = useMemo(() => {
     const clone = scene.clone(true)
     const bounds = new Box3().setFromObject(clone)
     const size = bounds.getSize(new Vector3())
     const center = bounds.getCenter(new Vector3())
     const maxSize = Math.max(size.x, size.y, size.z, 0.001)
-    const scale = 1.7 / maxSize
+    const scale = 2.6 / maxSize
     clone.scale.setScalar(scale)
     clone.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale)
     clone.traverse((child) => { child.castShadow = true; child.receiveShadow = true })
@@ -56,7 +55,7 @@ function SpinModel() {
   const spin = useRef<Group>(null)
   useFrame((_, delta) => { if (spin.current) spin.current.rotation.y += delta * 0.4 })
   return (
-    <group ref={spin} position={[0, -0.85, 0]}>
+    <group ref={spin} position={[0, 0, 0]}>
       <Suspense fallback={null}><CourtPreviewModel /></Suspense>
     </group>
   )
@@ -64,13 +63,14 @@ function SpinModel() {
 
 function CourtCellCanvas() {
   return (
-    <Canvas shadows camera={{ position: [0, 0.25, 3.9], fov: 36 }} dpr={[1, 1.5]}>
+    <Canvas shadows camera={{ position: [3.2, 2.6, 4.6], fov: 36 }} dpr={[1, 1.5]}>
       <color attach="background" args={['#0e0c09']} />
       <ambientLight intensity={1.15} color="#ffe4bc" />
       <directionalLight position={[3, 6, 4]} intensity={2.1} color="#fff0d1" castShadow />
       <pointLight position={[-3, 3, 2]} intensity={7} distance={9} color="#ffae54" />
       <pointLight position={[3, 3, 2]} intensity={7} distance={9} color="#ffae54" />
       <SpinModel />
+      <OrbitControls enablePan={false} enableZoom={false} target={[0, 1.1, 0]} minPolarAngle={0.5} maxPolarAngle={1.35} />
     </Canvas>
   )
 }
@@ -124,7 +124,7 @@ function ScenesCarousel({ activeId, onSelect, onOpen }: CarouselProps) {
   )
 }
 
-export default function RoomEntry({ onEnter, onSceneDetail, onArchive, onAvatar, onCharacters, onPlaza }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onArchive, onAvatar, onCharacters, onPlaza }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
@@ -148,7 +148,7 @@ export default function RoomEntry({ onEnter, onSceneDetail, onArchive, onAvatar,
       <ScenesCarousel activeId={activeId} onSelect={(id) => setActiveId(id)} onOpen={openScene} />
       <div className="main-home__scene-caption"><span>当前选择</span><strong style={{ color: active.color }}>{active.label}</strong><small>{active.locked ? '即将开放' : active.hint}</small></div>
     </section>
-    <section className="main-home__modules" aria-label="可选模块">{items.map((item) => <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} style={{ '--module-color': item.color } as CSSProperties} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => { setActiveId(item.id); openScene(item) }}><span>{item.eyebrow}</span><b>{item.label}</b><small>{item.hint}</small><i>{item.locked ? '🔒' : '↗'}</i></button>)}</section>
+    <section className="main-home__modules" aria-label="快捷入口">{items.map((item) => { const QuickIcon = item.locked ? Lock : ArrowUpRight; return <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} style={{ '--module-color': item.color } as CSSProperties} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => { setActiveId(item.id); openScene(item) }}><QuickIcon size={14} aria-hidden="true" /><b>{item.label}</b></button> })}</section>
     {notice && <button type="button" className="main-home__notice" onClick={() => setNotice('')}>{notice}<span>×</span></button>}
     <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>1 / 6 个场景已解锁</span></footer>
   </main>

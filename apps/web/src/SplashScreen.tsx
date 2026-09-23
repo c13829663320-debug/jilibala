@@ -78,11 +78,11 @@ export default function SplashScreen({ onDone }: SplashScreenProps) {
           {MEGA.map((char, index) => {
             if (char === ' ') return <span className="sp" key={index} aria-hidden="true" />
             const letter = (
-              <span data-i={index} style={{ '--i': index } as CSSProperties}>
+              <span key={index} data-i={index} style={{ '--i': index } as CSSProperties}>
                 <span className="sp-bob">{char}</span>
               </span>
             )
-            return index === 0 || index === 3 ? <em>{letter}</em> : letter
+            return index === 0 || index === 3 ? <em key={index}>{letter}</em> : letter
           })}
         </h1>
         <div className="splash__cnsub">叽<i>里</i>呱啦</div>
