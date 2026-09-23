@@ -186,7 +186,7 @@ type EditDraft = {
   tags: string; persona: string; greeting: string
 }
 
-export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: CharacterHallProps) {
+export default function CharacterHall({ onEnterCourt }: CharacterHallProps) {
   const { user } = useIdentity()
   const [tab, setTab] = useState<HallTab>('all')
   const [activeField, setActiveField] = useState<CelebrityField | '全部'>('全部')
@@ -440,25 +440,16 @@ export default function CharacterHall({ onBack, onEnterCourt, onPlaza }: Charact
 
   return (
     <div className="character-hall">
-      <header className="character-hall__topbar">
-        <button type="button" className="character-hall__back" onClick={onBack}>
-          <img className="character-hall__brand-logo" src="/brand/balabala-mark-clean.jpg" alt="" aria-hidden="true" />
-          <span className="character-hall__brand-text"><b>叽里呱啦</b><i>BALA BALA</i></span>
-        </button>
-        <nav className="character-hall__nav" aria-label="平台模块导航">
-          <button type="button" className="is-active">角色档案</button>
-          <button type="button" onClick={onBack}>场景</button>
-          <button type="button" onClick={onPlaza}>广场</button>
-        </nav>
-        <button type="button" className="character-hall__court" onClick={() => onEnterCourt(selected ?? undefined)}>
-          <Gavel size={15} aria-hidden="true" /> 进入趣味法庭 {selected ? `· ${selected.name}` : ''} <ChevronRight size={14} aria-hidden="true" />
-        </button>
-      </header>
+      {/* M13 第六轮：删除自带 .character-hall__topbar（与全局 TopNav 重复）。
+          品牌/导航交 TopNav；"进入趣味法庭" CTA 移入下方 hero 内容区。 */}
 
       <div className="character-hall__hero">
         <span className="character-hall__kicker">CHARACTER HALL · 人物馆</span>
         <h1>与改变世界的<em>人</em>，面对面聊聊</h1>
         <p>古今中外名人齐聚于此。点开任意一位，像朋友一样向他提问、辩论、寻求建议；聊得投缘，还能带他一起走进趣味法庭。</p>
+        <button type="button" className="character-hall__court" onClick={() => onEnterCourt(selected ?? undefined)}>
+          <Gavel size={15} aria-hidden="true" /> 进入趣味法庭 {selected ? `· ${selected.name}` : ''} <ChevronRight size={14} aria-hidden="true" />
+        </button>
       </div>
 
       <div className="character-hall__toolbar">

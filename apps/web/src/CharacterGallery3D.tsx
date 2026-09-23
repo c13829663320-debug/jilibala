@@ -21,9 +21,12 @@ const CAMERA_FOCUS_Z = 4.3
 const CAMERA_Y = 1.55
 const CAMERA_LOOK_Y = 1.15
 const FOV = 50
-/** 仅加载当前 ±N 个展台的真实 GLB，其余用占位人形，控制首屏模型数。 */
-const LOAD_NEARBY = 2
+/** 仅加载当前 ±N 个展台的真实 GLB，其余用占位人形，控制首屏模型数。
+ *  第六轮：2→4，覆盖首屏两侧 + 远处占位提前加载调暗过渡。 */
+const LOAD_NEARBY = 4
 const PLINTH_TOP = 0.14
+/** 人物整体放大倍数（参考 kims-room 物体占比），GLB 归一化身高 1.7→2.05。 */
+const FIGURE_SCALE = 2.05 / 1.7
 
 /** 整个 3D 长廊渲染失败时（如模型解码失败）→ 通知父级回退 2D 平面视图。 */
 class GalleryErrorBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
@@ -36,7 +39,7 @@ class GalleryErrorBoundary extends Component<{ onError: () => void; children: Re
   render() { return this.state.failed ? null : this.props.children }
 }
 
-/** 全身 GLB 归一化到 1.7 高、脚落在 plinthTopY（复用法庭 1.7 口径）。 */
+/** 全身 GLB 归一化到 2.05 高（第六轮 1.7→2.05，人物放大 1.2x）、脚落在 plinthTopY。 */
 function BoothModel({ url, plinthTopY }: { url: string; plinthTopY: number }) {
   const { scene } = useGLTF(url, false, true)
   const normalized = useMemo(() => {
@@ -44,7 +47,7 @@ function BoothModel({ url, plinthTopY }: { url: string; plinthTopY: number }) {
     const bounds = new Box3().setFromObject(clone)
     const size = bounds.getSize(new Vector3())
     const center = bounds.getCenter(new Vector3())
-    const scale = 1.7 / Math.max(size.y, 0.001)
+    const scale = (1.7 * FIGURE_SCALE) / Math.max(size.y, 0.001)
     clone.scale.setScalar(scale)
     clone.position.set(-center.x * scale, plinthTopY - bounds.min.y * scale, -center.z * scale)
     clone.traverse((child) => { child.castShadow = true })
@@ -106,14 +109,14 @@ function Booth({ entry, index, active, hovered, focused, near, onHover, onPick }
         />
       </mesh>
 
-      {/* 人物：近处加载真实 GLB，远处/无模型用占位人形 */}
+      {/* 人物：近处加载真实 GLB，远处/无模型用占位人形（占位人形同步放大到 FIGURE_SCALE） */}
       <group ref={modelGroup} rotation={[0, booth.rotationY, 0]}>
         {hasModel ? (
-          <Suspense fallback={<group position={[0, PLINTH_TOP, 0]}><NeutralMannequin active={active} /></group>}>
+          <Suspense fallback={<group position={[0, PLINTH_TOP, 0]} scale={FIGURE_SCALE}><NeutralMannequin active={active} /></group>}>
             <BoothModel url={entry.character.model!} plinthTopY={PLINTH_TOP} />
           </Suspense>
         ) : (
-          <group position={[0, PLINTH_TOP, 0]}><NeutralMannequin active={active} /></group>
+          <group position={[0, PLINTH_TOP, 0]} scale={FIGURE_SCALE}><NeutralMannequin active={active} /></group>
         )}
       </group>
 
@@ -123,14 +126,14 @@ function Booth({ entry, index, active, hovered, focused, near, onHover, onPick }
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={lit ? 1.2 : 0.35} />
       </mesh>
 
-      {/* 名牌（始终面向相机） */}
-      <Billboard position={[0, PLINTH_TOP + 0.34, 1.05]}>
+      {/* 名牌（始终面向相机；第六轮字号 0.16→0.23，随人物放大上移） */}
+      <Billboard position={[0, PLINTH_TOP + 0.52, 1.12]}>
         <Text
-          fontSize={0.16}
+          fontSize={0.23}
           color={lit ? '#ffffff' : '#cfcfcf'}
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.012}
+          outlineWidth={0.014}
           outlineColor="#000000"
           raycast={() => null}
         >

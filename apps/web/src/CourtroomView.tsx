@@ -11,9 +11,6 @@ import {
   WIZARD_CAMERA,
   clampCameraPosition,
   getCameraForMode,
-  pickSpeakerCamera,
-  shouldFollow,
-  SPEAKER_CAM_IDLE,
   type ActiveSpeakerInfo,
   type CameraMode,
 } from './courtroom-camera'
@@ -266,19 +263,17 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
 }
 
 /**
- * M13 第四轮：主全景机位默认，发言者不贴脸。
+ * M13 第六轮：主全景机位默认，相机就位后用户 OrbitControls 完全接管。
  *
- *  - trial/bench: 发言者切换时 camera position 保持主全景（不动机位），
- *    仅 target 轻微移向发言者（单轴 ≤0.5），配合 SeatRing+聚光+名牌高亮突出。
- *  - 用户拖拽/缩放后 7 秒内跳过自动跟随（只 clamp），尊重用户视角；
- *    7 秒后平滑回到主全景机位。
- *  - wizard: 维持全景 autoRotate，不跟席位。
- *  - mode 切换（wizard→trial）保留 1.2s 平滑过渡。
- *  - 每帧仍 clampCameraPosition，相机永不穿墙/穿地/穿天花板。
+ *  - trial/bench：进入时一次性平滑settle到主全景（mode 切换 1.2s），
+ *    之后每帧只做 clampCameraPosition 防穿墙/穿地/穿顶；
+ *    发言者切换绝不移动相机、不 nudge、不回位——只靠 SeatRing+聚光+名牌高亮。
+ *  - 用户拖拽/缩放立即生效，绝不被下一帧覆盖。
+ *  - wizard: 维持全景 autoRotate，保留用户 orbit/zoom 绕 target 的 offset。
+ *  - 每帧仍 clampCameraPosition，相机永不离开房间。
  */
 function CameraRig({
   mode,
-  activeSpeaker,
   children,
 }: {
   mode: CameraMode
@@ -295,11 +290,7 @@ function CameraRig({
   const transitionUntil = useRef(-1)
   // r3f clock 时间轴：onStart/onEnd 里没有 clock，用 useFrame 里刷过的 clockNow 取同一时间。
   const clockNow = useRef(0)
-  // 初始为 -Infinity，保证开场第一帧就自动跟随到 idle 机位。
-  const lastUserInteraction = useRef(-Infinity)
-  // 用户正在拖拽/缩放手势中（onStart → onEnd 之间），期间暂停自动跟随。
-  // 注意：不能用 onChange——drei 的 onChange 会被我们每帧的 controls.update() 触发，
-  // 导致 lastUserInteraction 永远是 now，宽限期永不结束（相机卡死不跟随）。
+  // 用户正在拖拽/缩放手势中（onStart → onEnd 之间）。第六轮：仅用于记录，不再据此回位。
   const userInteracting = useRef(false)
 
   useFrame(({ clock }, delta) => {
@@ -318,28 +309,19 @@ function CameraRig({
     if (mode === 'wizard') {
       desiredTarget.set(WIZARD_CAMERA.target[0], WIZARD_CAMERA.target[1], WIZARD_CAMERA.target[2])
       c.target.lerp(desiredTarget, k)
-      if (transitioning) {
-        desiredCamera.set(WIZARD_CAMERA.position[0], WIZARD_CAMERA.position[1], WIZARD_CAMERA.position[2])
-        camera.position.lerp(desiredCamera, k)
-      } else {
-        // wizard 保留用户 orbit/zoom 绕 target 的 offset（autoRotate 自己转）
-        offset.subVectors(camera.position, c.target)
-        desiredCamera.copy(desiredTarget).add(offset)
-        camera.position.lerp(desiredCamera, k)
-      }
-    } else {
-      // trial / bench：按发言者角色取固定机位
-      const cam = activeSpeaker ? pickSpeakerCamera(activeSpeaker) : SPEAKER_CAM_IDLE
-      desiredTarget.set(cam.target[0], cam.target[1], cam.target[2])
-      desiredCamera.set(cam.position[0], cam.position[1], cam.position[2])
-      // 用户正在手势中，或刚松手 7 秒内：暂停自动跟随，只走下面的 clamp，不抢视角
-      const inGrace = userInteracting.current || !shouldFollow(lastUserInteraction.current, now)
-      if (transitioning || !inGrace) {
-        c.target.lerp(desiredTarget, k)
-        camera.position.lerp(desiredCamera, k)
-      }
+      // wizard 保留用户 orbit/zoom 绕 target 的 offset（autoRotate 自己转）
+      offset.subVectors(camera.position, c.target)
+      desiredCamera.copy(desiredTarget).add(offset)
+      camera.position.lerp(desiredCamera, k)
+    } else if (transitioning) {
+      // trial/bench：仅在 mode 切换后的 1.2s 内一次性 settle 到主全景；
+      // 之后绝不主动移动相机——用户 OrbitControls 完全接管，发言者不跟随。
+      desiredTarget.set(TRIAL_CAMERA.target[0], TRIAL_CAMERA.target[1], TRIAL_CAMERA.target[2])
+      desiredCamera.set(TRIAL_CAMERA.position[0], TRIAL_CAMERA.position[1], TRIAL_CAMERA.position[2])
+      c.target.lerp(desiredTarget, k)
+      camera.position.lerp(desiredCamera, k)
     }
-    // hard clamp so the camera can never leave the room
+    // hard clamp so the camera can never leave the room (wall / floor / ceiling)
     const [cx, cy, cz] = clampCameraPosition([camera.position.x, camera.position.y, camera.position.z])
     camera.position.set(cx, cy, cz)
     c.update()
@@ -359,13 +341,12 @@ function CameraRig({
         maxDistance={cfg.maxDistance}
         maxPolarAngle={cfg.maxPolarAngle}
         onStart={() => {
-          // 用户开始拖拽/缩放：手势进行中暂停跟随
+          // 用户开始拖拽/缩放：记录手势开始（第六轮：松手后不自动回位）
           userInteracting.current = true
         }}
         onEnd={() => {
-          // 用户松手：从这一刻起再保留 7 秒宽限期，然后平滑回到主全景机位
+          // 用户松手：仅记录手势结束，相机保持用户视角、不自动回位
           userInteracting.current = false
-          lastUserInteraction.current = clockNow.current
         }}
       />
     </>

@@ -31,14 +31,17 @@ export interface CameraConfig {
   followSeats: boolean
 }
 
-/** 主全景机位（默认：开庭、法官发言、无人突出都用它）。
- *  camera [0,4.0,1.6] → target [0,1.3,-0.8]。
- *  z=1.6 在旁听席(z≈2.0)前的过道，不穿模；略俯视，把法官(桌后)、原被告(两侧)、
- *  辩护人、法庭纵深同时收进画面。 */
+/**
+ * M13 第六轮：主全景主机位（逐字）。
+ *   camera [0,4.3,4.5] → target [0,0.9,-1.3]，fov 60。
+ *   z=4.5 在旁听席(z≈1.77/2.54)后方过道，略俯视，把法官(桌后 z=-3.1)、
+ *   原被告+律师(同排 z=-1.3)、证人(侧面)、陪审、前后排旁听同时收进画面。
+ *   关键：运行时相机就位后不再每帧拉回；发言者只靠 SeatRing/聚光/名牌高亮。
+ */
 export const TRIAL_CAMERA = {
-  position: [0, 4.0, 1.6] as Vec3,
-  target: [0, 1.3, -0.8] as Vec3,
-  fov: 55,
+  position: [0, 4.3, 4.5] as Vec3,
+  target: [0, 0.9, -1.3] as Vec3,
+  fov: 60,
   minDistance: 1.5,
   maxDistance: 9.0,
   maxPolarAngle: Math.PI / 2.05,
@@ -48,17 +51,18 @@ export const TRIAL_CAMERA = {
 export const WIZARD_CAMERA = {
   position: [0, 3.2, 3.8] as Vec3,
   target: [0, 1.5, -1.0] as Vec3,
-  fov: 55,
+  fov: 60,
 }
 
-/** 相机活动范围 clamp，防止穿出外墙 / 穿地 / 穿天花板。 */
+/** 相机活动范围 clamp（第六轮）：防穿墙/穿地/穿顶，杜绝滚轮穿地满屏木纹。
+ *  x ±4.3；y [0.5, 4.5]（天花板 4.8 防穿顶）；z [-5.0, 4.7]（zMax 4.3→4.7 因 pos z=4.5）。 */
 export const ROOM_CLAMP = {
   xMin: -4.3,
   xMax: 4.3,
   yMin: 0.5,
-  yMax: 6.0,
-  zMin: -4.3,
-  zMax: 4.3,
+  yMax: 4.5,
+  zMin: -5.0,
+  zMax: 4.7,
 }
 
 /** 把相机位置约束在 ROOM_CLAMP 范围内（返回新元组）。 */
@@ -156,24 +160,25 @@ export const SPEAKER_CAM_IDLE: SpeakerCamera = {
   position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
-/** 法官席位在 [0,1.0,-2.9]（法官桌后方、高背椅前）。target 仅向其轻微偏移。 */
+/** 法官席位在 [0,0.98,-3.1]（法官桌后方、高背椅前）。target 仅向其轻微偏移。
+ *  注意：第六轮起运行时不再使用这些发言者机位（相机不自动跟随），纯函数仅供测试。 */
 export const SPEAKER_CAM_JUDGE: SpeakerCamera = {
   id: 'judge',
-  target: nudgeTarget([0, 1.0, -2.9]),
+  target: nudgeTarget([0, 0.98, -3.1]),
   position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
-/** 原告席位 [-2.7,0.62,-0.4]。 */
+/** 原告席位 [-1.5,0.6,-1.3]。 */
 export const SPEAKER_CAM_PLAINTIFF: SpeakerCamera = {
   id: 'plaintiff',
-  target: nudgeTarget([-2.7, 0.62, -0.4]),
+  target: nudgeTarget([-1.5, 0.6, -1.3]),
   position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
 /** 被告：原告机位的镜像。 */
 export const SPEAKER_CAM_DEFENDANT: SpeakerCamera = {
   id: 'defendant',
-  target: nudgeTarget([2.7, 0.62, -0.4]),
+  target: nudgeTarget([1.5, 0.6, -1.3]),
   position: [...TRIAL_CAMERA.position] as Vec3,
 }
 
@@ -214,15 +219,18 @@ export function pickSpeakerCamera(info: ActiveSpeakerInfo): SpeakerCamera {
   }
 }
 
-/** 用户最近一次手动拖拽/缩放后，相机自动跟随暂停多少秒（第四轮：4 → 7）。 */
+/** 用户最近一次手动拖拽/缩放后，相机自动跟随暂停多少秒。
+ *  第六轮：发言者不再自动跟随相机，宽限期常量保留仅供兼容，运行时不再据此回位。 */
 export const USER_INTERACTION_GRACE_SECONDS = 7
 
 /**
- * 纯逻辑：距上次用户交互 >= grace 秒时才允许自动跟随发言者机位。
- * lastInteraction / now 都用 r3f clock.getElapsedTime() 同一时间轴。
+ * 纯逻辑：是否允许自动跟随发言者机位。
+ * 第六轮起恒为 false —— 相机就位后用户 OrbitControls 完全接管，
+ * 发言者只靠 SeatRing/聚光/名牌高亮，相机不自动跟随、不 nudge、不回位。
+ * 保留参数与函数签名仅供既有测试兼容。
  */
-export function shouldFollow(lastInteraction: number, now: number, graceSeconds: number = USER_INTERACTION_GRACE_SECONDS): boolean {
-  return now - lastInteraction >= graceSeconds
+export function shouldFollow(_lastInteraction: number, _now: number, _graceSeconds: number = USER_INTERACTION_GRACE_SECONDS): boolean {
+  return false
 }
 
 /** 两点间欧氏距离（用于测试机位不贴脸 / 占比反推）。 */

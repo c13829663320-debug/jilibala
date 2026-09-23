@@ -58,21 +58,25 @@ describe('getCameraForMode', () => {
   })
 })
 
-describe('主全景机位（第四轮 fov55 广角）', () => {
-  it('trial / wizard 都使用 fov=55', () => {
-    expect(TRIAL_CAMERA.fov).toBe(55)
-    expect(WIZARD_CAMERA.fov).toBe(55)
-    expect(getCameraForMode('trial').fov).toBe(55)
-    expect(getCameraForMode('bench').fov).toBe(55)
-    expect(getCameraForMode('wizard').fov).toBe(55)
+describe('主全景机位（第六轮 fov60 高机位）', () => {
+  it('trial / wizard 都使用 fov=60', () => {
+    expect(TRIAL_CAMERA.fov).toBe(60)
+    expect(WIZARD_CAMERA.fov).toBe(60)
+    expect(getCameraForMode('trial').fov).toBe(60)
+    expect(getCameraForMode('bench').fov).toBe(60)
+    expect(getCameraForMode('wizard').fov).toBe(60)
   })
-  it('maxDistance 放宽到 9.0，minDistance 保持 1.5', () => {
+  it('maxDistance 9.0，minDistance 保持 1.5', () => {
     expect(TRIAL_CAMERA.maxDistance).toBe(9.0)
     expect(TRIAL_CAMERA.minDistance).toBe(1.5)
   })
-  // 旁听席阶梯长椅在 z≈2~5；主全景机位必须在其前方，否则相机埋入长椅穿模。
-  it('trial camera starts in front of the spectator benches (z < 2.0)', () => {
-    expect(TRIAL_CAMERA.position[2]).toBeLessThan(2.0)
+  // 第六轮：相机退到旁听席后方过道 z=4.5（旁听在 z=1.77/2.54，相机在其后俯视入画）。
+  it('trial camera sits behind the back spectator bench (z=4.5 > back bench z=2.54)', () => {
+    expect(TRIAL_CAMERA.position[2]).toBeGreaterThan(2.54)
+  })
+  it('main panorama uses the locked position [0,4.3,4.5] / target [0,0.9,-1.3]', () => {
+    expect(TRIAL_CAMERA.position).toEqual([0, 4.3, 4.5])
+    expect(TRIAL_CAMERA.target).toEqual([0, 0.9, -1.3])
   })
   it('main panorama position is inside ROOM_CLAMP', () => {
     const [x, y, z] = TRIAL_CAMERA.position
@@ -92,6 +96,11 @@ describe('主全景机位（第四轮 fov55 广角）', () => {
     expect(z).toBeGreaterThanOrEqual(ROOM_CLAMP.zMin)
     expect(z).toBeLessThanOrEqual(ROOM_CLAMP.zMax)
   })
+  it('ROOM_CLAMP ceiling is 4.5 (ceiling 4.8) and rear wall z=4.7 (pos z=4.5)', () => {
+    expect(ROOM_CLAMP.yMax).toBe(4.5)
+    expect(ROOM_CLAMP.zMax).toBe(4.7)
+    expect(ROOM_CLAMP.zMin).toBe(-5.0)
+  })
 })
 
 describe('verticalScreenRatio 屏幕占比纯函数', () => {
@@ -110,20 +119,20 @@ describe('verticalScreenRatio 屏幕占比纯函数', () => {
   })
 })
 
-describe('主全景机位人物占比不贴脸（≤0.35）', () => {
+describe('主全景机位人物占比不贴脸（≤0.35，fov60）', () => {
   const CAM = TRIAL_CAMERA.position
-  it('judge at [0,1.0,-2.9] occupies ≤35% of frame height', () => {
-    const d = cameraDistance(CAM, [0, 1.0, -2.9])
+  it('judge at [0,0.98,-3.1] occupies ≤35% of frame height', () => {
+    const d = cameraDistance(CAM, [0, 0.98, -3.1])
     const ratio = verticalScreenRatio(d, TRIAL_CAMERA.fov, 1.8)
     expect(ratio).toBeLessThanOrEqual(0.35)
   })
-  it('plaintiff at [-2.7,0.62,-0.4] occupies ≤35% of frame height', () => {
-    const d = cameraDistance(CAM, [-2.7, 0.62, -0.4])
+  it('plaintiff at [-1.5,0.6,-1.3] occupies ≤35% of frame height', () => {
+    const d = cameraDistance(CAM, [-1.5, 0.6, -1.3])
     const ratio = verticalScreenRatio(d, TRIAL_CAMERA.fov, 1.7)
     expect(ratio).toBeLessThanOrEqual(0.35)
   })
-  it('defendant at [2.7,0.62,-0.4] occupies ≤35% of frame height', () => {
-    const d = cameraDistance(CAM, [2.7, 0.62, -0.4])
+  it('defendant at [1.5,0.6,-1.3] occupies ≤35% of frame height', () => {
+    const d = cameraDistance(CAM, [1.5, 0.6, -1.3])
     const ratio = verticalScreenRatio(d, TRIAL_CAMERA.fov, 1.7)
     expect(ratio).toBeLessThanOrEqual(0.35)
   })
@@ -147,8 +156,8 @@ describe('SPEAKER_CAMERAS 发言者机位（相机不贴脸）', () => {
     }
   })
 
-  it('idle camera starts in front of the spectator benches (z < 2.0)', () => {
-    expect(SPEAKER_CAM_IDLE.position[2]).toBeLessThan(2.0)
+  it('idle camera equals the locked main panorama (z=4.5 behind the benches)', () => {
+    expect(SPEAKER_CAM_IDLE.position[2]).toBe(4.5)
     expect(SPEAKER_CAM_IDLE.position).toEqual(TRIAL_CAMERA.position)
     expect(SPEAKER_CAM_IDLE.target).toEqual(TRIAL_CAMERA.target)
   })
@@ -193,9 +202,9 @@ describe('nudgeTarget 发言者目标点偏移', () => {
 
 describe('pickSpeakerCamera 辩护人机位', () => {
   it('judge / plaintiff / defendant map to the static cameras', () => {
-    expect(pickSpeakerCamera({ role: 'judge', side: null, position: [0, 1.0, -2.9] })).toEqual(SPEAKER_CAM_JUDGE)
-    expect(pickSpeakerCamera({ role: 'plaintiff', side: 'plaintiff', position: [-2.7, 0.62, -0.4] })).toEqual(SPEAKER_CAM_PLAINTIFF)
-    expect(pickSpeakerCamera({ role: 'defendant', side: 'defendant', position: [2.7, 0.62, -0.4] })).toEqual(SPEAKER_CAM_DEFENDANT)
+    expect(pickSpeakerCamera({ role: 'judge', side: null, position: [0, 0.98, -3.1] })).toEqual(SPEAKER_CAM_JUDGE)
+    expect(pickSpeakerCamera({ role: 'plaintiff', side: 'plaintiff', position: [-1.5, 0.6, -1.3] })).toEqual(SPEAKER_CAM_PLAINTIFF)
+    expect(pickSpeakerCamera({ role: 'defendant', side: 'defendant', position: [1.5, 0.6, -1.3] })).toEqual(SPEAKER_CAM_DEFENDANT)
   })
 
   it('camera position always stays at the main panorama (never face-hugs a defender)', () => {
@@ -229,25 +238,15 @@ describe('pickSpeakerCamera 辩护人机位', () => {
   })
 })
 
-describe('shouldFollow 用户交互宽限期（第四轮 7 秒）', () => {
-  it('grace window is 7 seconds', () => {
+describe('shouldFollow 第六轮：发言者不自动跟随（恒 false）', () => {
+  it('grace constant still exported (API compat) but following is disabled', () => {
     expect(USER_INTERACTION_GRACE_SECONDS).toBe(7)
   })
-  it('allows following when there is no recorded interaction', () => {
-    expect(shouldFollow(-Infinity, 10)).toBe(true)
-  })
-  it('blocks following within the grace window after user interaction', () => {
-    // 刚交互 1 秒前 / 3.5 秒前（都 < 7 秒）
+  it('always returns false regardless of interaction timing — camera never auto-follows', () => {
+    expect(shouldFollow(-Infinity, 10)).toBe(false)
     expect(shouldFollow(9, 10)).toBe(false)
-    expect(shouldFollow(6.5, 10)).toBe(false)
-  })
-  it('resumes following after the grace window elapses', () => {
-    expect(shouldFollow(10 - USER_INTERACTION_GRACE_SECONDS, 10)).toBe(true)
-    expect(shouldFollow(2.9, 10)).toBe(true) // 7.1 秒前
-  })
-  it('honors a custom grace seconds override', () => {
-    // grace=0.5s：0.2s 前刚交互 → 不跟随；0.5s 前 → 恢复跟随
+    expect(shouldFollow(0, 10)).toBe(false)
     expect(shouldFollow(9.8, 10, 0.5)).toBe(false)
-    expect(shouldFollow(9.5, 10, 0.5)).toBe(true)
+    expect(shouldFollow(10 - USER_INTERACTION_GRACE_SECONDS, 10)).toBe(false)
   })
 })
