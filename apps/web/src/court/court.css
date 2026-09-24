@@ -183,9 +183,9 @@
 .live-support button:hover { border-color: var(--court-accent-line); color: var(--court-text-1); }
 .live-support button.is-selected { border-color: var(--court-accent); color: var(--court-accent); background: var(--court-accent-soft); }
 .live-support b { font: 600 13px 'DM Mono', monospace; }
-.live-perspective-switch { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; border-radius: var(--court-radius-pill); background: var(--court-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: var(--court-border-w) solid var(--court-glass-2); z-index: 12; }
-.live-perspective-switch button { padding: 6px 14px; border: 0; border-radius: var(--court-radius-pill); background: transparent; color: var(--court-text-3); font-size: 12px; cursor: pointer; transition: var(--court-motion); }
-.live-perspective-switch button:hover { color: var(--court-text-1); }
+.live-perspective-switch { display: flex; justify-content: center; gap: 6px; padding: 6px; margin-bottom: 12px; border-radius: var(--court-radius-pill); background: rgba(255,255,255,.07); border: var(--court-border-w) solid var(--court-glass-2); }
+.live-perspective-switch button { flex: 0 1 auto; padding: 9px 20px; border: 0; border-radius: var(--court-radius-pill); background: transparent; color: var(--court-text-2); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--court-motion); }
+.live-perspective-switch button:hover { color: var(--court-text-1); background: rgba(255,255,255,.06); }
 .live-perspective-switch button.is-active { background: var(--court-accent); color: var(--court-accent-text); font-weight: 700; }
 .live-judging { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; z-index: 20; background: rgba(10,10,10,.78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: var(--court-text-1); }
 .live-judging__icon { font-size: 48px; animation: judging-bounce 1.2s ease-in-out infinite; }
@@ -304,7 +304,8 @@
   .parties { flex-direction: column; }
   .perspective-grid { grid-template-columns: 1fr; }
   .live-dock { width: calc(100vw - 16px); bottom: 64px; }
-  .live-perspective-switch { bottom: 10px; }
+  .live-perspective-switch { margin-bottom: 10px; }
+  .live-perspective-switch button { padding: 8px 14px; font-size: 12px; }
   .live-overlay-ui { padding: 88px 16px 104px; }
   .live-overlay-ui--noscroll { padding: 72px 16px 80px; }
   .live-review__parties { flex-direction: column; }
