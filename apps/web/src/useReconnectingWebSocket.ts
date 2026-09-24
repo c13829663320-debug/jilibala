@@ -59,6 +59,12 @@ export function useReconnectingWebSocket({
     if (!target) return
 
     setStatus('connecting')
+    // 防护：若上一个连接仍停留在 CONNECTING/OPEN（尚未触发 onclose），先关闭，
+    // 避免握手挂起时连接对象被覆盖而泄漏、累积耗尽浏览器 socket 资源。
+    const prev = wsRef.current
+    if (prev && (prev.readyState === WebSocket.CONNECTING || prev.readyState === WebSocket.OPEN)) {
+      try { prev.onclose = null; prev.close() } catch { /* noop */ }
+    }
     let ws: WebSocket
     try {
       ws = new WebSocket(target)

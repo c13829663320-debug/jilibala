@@ -5,6 +5,7 @@ import { lazy, Suspense, useMemo } from 'react'
 import type { CourtCase } from './types'
 import type { CourtSeat } from '../CourtroomView'
 import { buildFixedSeats, type FixedSeatSpec } from '../courtroom-seats'
+import type { CourtPerspective } from '../courtroom-camera'
 
 const CourtroomView = lazy(() => import('../CourtroomView'))
 
@@ -63,7 +64,7 @@ function toCourtSeat(f: FixedSeatSpec, courtCase?: CourtCase | null, active?: Ac
   }
 }
 
-export function CourtroomBackdrop({ courtCase, activeSpeaker }: Props) {
+export function CourtroomBackdrop({ courtCase, activeSpeaker, perspective }: Props) {
   const fixedSeats = useMemo(() => buildFixedSeats(), [])
   const seats = useMemo<CourtSeat[]>(
     () => fixedSeats.map((f) => toCourtSeat(f, courtCase, activeSpeaker)),
@@ -72,7 +73,7 @@ export function CourtroomBackdrop({ courtCase, activeSpeaker }: Props) {
   return (
     <div className="live-canvas-wrap">
       <Suspense fallback={null}>
-        <CourtroomView seats={seats} cameraMode="trial" />
+        <CourtroomView seats={seats} cameraMode="trial" perspective={(perspective as CourtPerspective | undefined) ?? 'audience'} />
       </Suspense>
     </div>
   )

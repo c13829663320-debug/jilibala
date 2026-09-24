@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { CourtroomShell } from '../shared'
+import DefenderPicker, { type DefenderAssignments } from '../DefenderPicker'
 import type { CourtCase, CourtRole, KnowledgeBase } from '../types'
 
 type Props = {
@@ -11,6 +12,8 @@ type Props = {
   onExit: () => void
   onOpenArchive: () => void
   confirming?: boolean
+  defenderAssignments: DefenderAssignments
+  onDefendersChange: (next: DefenderAssignments) => void
 }
 
 function PartyCard({ role, kb, open, onToggle }: { role: CourtRole; kb: KnowledgeBase; open: boolean; onToggle: () => void }) {
@@ -46,7 +49,7 @@ function PartyCard({ role, kb, open, onToggle }: { role: CourtRole; kb: Knowledg
   )
 }
 
-export default function PartiesReview({ courtCase, onBack, onConfirm, onExit, onOpenArchive, confirming }: Props) {
+export default function PartiesReview({ courtCase, onBack, onConfirm, onExit, onOpenArchive, confirming, defenderAssignments, onDefendersChange }: Props) {
   const [openSide, setOpenSide] = useState<'plaintiff' | 'defendant' | null>(null)
   const [factsOpen, setFactsOpen] = useState(false)
   const toggle = (side: 'plaintiff' | 'defendant') => setOpenSide((cur) => (cur === side ? null : side))
@@ -76,6 +79,8 @@ export default function PartiesReview({ courtCase, onBack, onConfirm, onExit, on
           <PartyCard role={courtCase.plaintiff} kb={courtCase.knowledgeBases.plaintiff} open={openSide === 'plaintiff'} onToggle={() => toggle('plaintiff')} />
           <PartyCard role={courtCase.defendant} kb={courtCase.knowledgeBases.defendant} open={openSide === 'defendant'} onToggle={() => toggle('defendant')} />
         </div>
+
+        <DefenderPicker assignments={defenderAssignments} onChange={onDefendersChange} />
 
         <div className="live-review__actions">
           <button className="court-btn court-btn--secondary" onClick={onBack} disabled={confirming}>← 返回修改</button>

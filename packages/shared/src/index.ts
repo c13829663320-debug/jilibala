@@ -388,6 +388,12 @@ export interface SceneRoomState {
   payload?: Record<string, unknown>;
 }
 
+// ===== 广场实时推送事件 =====
+export type PlazaLiveEvent =
+  | { kind: "content_created"; content: PlazaContent }
+  | { kind: "reaction"; id: string; reaction: "like" | "dislike"; userId: string; likes: number; dislikes: number }
+  | { kind: "comment_created"; id: string; comment: ContentComment };
+
 export type WSMessage =
   | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState; sceneState?: SceneRoomState }
   | { type: 'user_joined'; user: WSUser }
@@ -412,6 +418,7 @@ export type WSMessage =
   | { type: 'gym_presence'; users: Array<{ userId: string; x: number; z: number; rotation: number; activity?: string }> }
   | { type: 'gym_cheer'; userId: string; nickname: string; text: string }
   | { type: 'gym_checkin_broadcast'; userId: string; nickname: string; exerciseName: string; createdAt: string }
+  | { type: 'plaza_event'; event: PlazaLiveEvent }
   | { type: 'pong' }
   | { type: 'error'; message: string };
 

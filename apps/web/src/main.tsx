@@ -1,4 +1,4 @@
-import { StrictMode, useState, useEffect } from 'react'
+import { StrictMode, useState, useEffect, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './design-tokens.css'
@@ -12,6 +12,16 @@ registerSW({ immediate: true })
 
 // 直达分享链接时不需要开屏，直接看判决书
 const SKIP_SPLASH = typeof window !== 'undefined' && /^\/share\//.test(window.location.pathname)
+
+// 【临时调试】?debug=court -> render isolated debug scene, bypass splash & App.
+const DEBUG_COURT = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('debug') === 'court'
+const DebugCourtScene = lazy(() => import('./CourtroomView').then((m) => ({ default: m.DebugCourtScene })))
+
+// 【临时调试】?verdict=<caseId> -> 用真实 VerdictScreen 渲染已落库判决。
+const VERDICT_ID = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('verdict')
+const VerdictPreview = lazy(() => import('./court/VerdictPreview'))
 
 /**
  * 全局未捕获错误 / Promise rejection 兜底：
@@ -66,6 +76,24 @@ function useGlobalErrorToast() {
 function Root() {
   const [showSplash, setShowSplash] = useState(!SKIP_SPLASH)
   useGlobalErrorToast()
+  if (DEBUG_COURT) {
+    return (
+      <StrictMode>
+        <Suspense fallback={null}>
+          <DebugCourtScene />
+        </Suspense>
+      </StrictMode>
+    )
+  }
+  if (VERDICT_ID) {
+    return (
+      <StrictMode>
+        <Suspense fallback={null}>
+          <VerdictPreview caseId={VERDICT_ID as string} />
+        </Suspense>
+      </StrictMode>
+    )
+  }
   return (
     <StrictMode>
       <App />

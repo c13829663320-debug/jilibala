@@ -230,7 +230,11 @@ export function registerWebSocket(app: FastifyInstance): void {
       socket,
     };
 
-    // 加入房间
+    // 加入房间。若该 userId 已存在旧连接（同用户多标签/重连），先关闭旧 socket 再替换，避免连接泄漏。
+    const existingUser = room.users.get(userId);
+    if (existingUser && existingUser.socket !== socket) {
+      try { existingUser.socket.close(); } catch { /* noop */ }
+    }
     room.users.set(userId, roomUser);
 
     // 发送 welcome 快照
@@ -437,7 +441,9 @@ export function registerWebSocket(app: FastifyInstance): void {
     // ===== 断开清理 =====
     socket.on("close", () => {
       const r = rooms.get(roomId);
-      if (r) {
+      // 守卫：仅当房间内该 userId 当前指向的仍是本 socket 时才清理，
+      // 避免旧连接关闭时误删已被新连接替换的条目。
+      if (r && r.users.get(userId)?.socket === socket) {
         r.users.delete(userId);
         if (roomId.startsWith("gym:")) {
           broadcastToRoom(roomId, { type: "gym_user_left", userId } satisfies WSMessage);

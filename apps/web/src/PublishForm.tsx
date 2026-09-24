@@ -5,8 +5,9 @@ import { SCENE_META, type PlazaContent, type SceneId } from "@balabala/shared";
 const parseTopics = (raw: string): string[] =>
   raw.split(/[#\s,，、]+/).map((item) => item.trim()).filter(Boolean);
 
-export function PublishForm({ author, onBack, onPublished }: {
+export function PublishForm({ author, userId, onBack, onPublished }: {
   author?: string;
+  userId?: string;
   onBack: () => void;
   onPublished: (content: PlazaContent) => void;
 }) {
@@ -53,7 +54,7 @@ export function PublishForm({ author, onBack, onPublished }: {
       const res = await fetch("/api/contents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body, topics, scene, author: author || "我" }),
+        body: JSON.stringify({ title, body, topics, scene, author: author || "我", userId }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };

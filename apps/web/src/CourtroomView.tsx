@@ -7,13 +7,16 @@ import type { Celebrity } from '@balabala/shared'
 import { useSceneCleanup } from './useSceneCleanup'
 import NeutralMannequin from './NeutralMannequin'
 import type { CourtSeatKind } from './courtroom-seats'
+import { buildFixedSeats } from './courtroom-seats'
 import {
   TRIAL_CAMERA,
   WIZARD_CAMERA,
   clampCameraPosition,
   getCameraForMode,
+  getViewCamera,
   type ActiveSpeakerInfo,
   type CameraMode,
+  type CourtPerspective,
 } from './courtroom-camera'
 
 /**
@@ -209,6 +212,47 @@ function BenchSeat({ celebrity, position, active }: SeatSlot) {
   )
 }
 
+/**
+ * 氛围 NPC 的代码人形（不加载白色 GLB 胶囊）：旁听为低饱和彩色坐姿、
+ * 证人为中性站姿。颜色低饱和、与暖木法庭协调，小尺寸在画面两侧不抢眼。
+ */
+const AUDIENCE_PALETTE: Array<[string, string]> = [
+  ['#6E84A8', '#A6B6D0'], // 蓝灰
+  ['#A8836E', '#D0B4A6'], // 暖棕
+  ['#6E9C8E', '#A6C8BE'], // 青绿
+  ['#9C8E6E', '#C8BEA6'], // 卡其
+]
+
+function NpcFigure({ kind, index }: { kind: CourtSeatKind; index: number }) {
+  if (kind === 'witness') {
+    return (
+      <group>
+        <mesh castShadow position={[0, 0.95, 0]}>
+          <capsuleGeometry args={[0.19, 0.72, 8, 16]} />
+          <meshStandardMaterial color="#7E8798" roughness={0.85} />
+        </mesh>
+        <mesh castShadow position={[0, 1.58, 0]}>
+          <sphereGeometry args={[0.17, 16, 16]} />
+          <meshStandardMaterial color="#AEB5C2" roughness={0.85} />
+        </mesh>
+      </group>
+    )
+  }
+  const pal = AUDIENCE_PALETTE[index % AUDIENCE_PALETTE.length]
+  return (
+    <group>
+      <mesh castShadow position={[0, 0.52, 0]}>
+        <capsuleGeometry args={[0.15, 0.38, 8, 14]} />
+        <meshStandardMaterial color={pal[0]} roughness={0.9} />
+      </mesh>
+      <mesh castShadow position={[0, 0.93, 0]}>
+        <sphereGeometry args={[0.15, 14, 14]} />
+        <meshStandardMaterial color={pal[1]} roughness={0.9} />
+      </mesh>
+    </group>
+  )
+}
+
 /** M13: a generic seat (judge / party / defender / fixed counsel / NPC) rendered from a CourtSeat descriptor. */
 function GenericSeat({ seat }: { seat: CourtSeat }) {
   // 法官 / 原告 / 被告坐在各自桌后（坐姿人台，头高 local ≈1.3）；
@@ -223,7 +267,13 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
     />
   )
   // 人物本体单独按 facing 旋转（面向法官/法庭），金色席环与名牌保持朝向相机不转。
-  const body = (
+  const npcIndex = (() => { const m = seat.id.match(/(\d+)$/); return m ? parseInt(m[1], 10) - 1 : 0 })()
+  const isCodeNpc = seat.kind === 'audience' || seat.kind === 'witness'
+  const body = isCodeNpc ? (
+    <group rotation={[0, seat.facing ?? 0, 0]}>
+      <NpcFigure kind={seat.kind ?? 'audience'} index={npcIndex} />
+    </group>
+  ) : (
     <group rotation={[0, seat.facing ?? 0, 0]}>
       {seat.model ? (
         <CourtroomModelErrorBoundary fallback={fallback}>
@@ -281,12 +331,16 @@ function GenericSeat({ seat }: { seat: CourtSeat }) {
  */
 function CameraRig({
   mode,
+  perspective = 'audience',
   children,
 }: {
   mode: CameraMode
+  perspective?: CourtPerspective
   activeSpeaker: ActiveSpeakerInfo | null
   children: ReactNode
 }) {
+  // trial 模式下目标机位随视角（原告/观众/被告）；wizard/bench 不用它。
+  const aimView = mode === 'trial' ? getViewCamera(perspective) : null
   const controls = useRef<{ target: Vector3; update: () => void } | null>(null)
   const camera = useThree((s) => s.camera)
   const desiredTarget = useMemo(() => new Vector3(), [])
@@ -302,12 +356,11 @@ function CameraRig({
   } | null>(null)
   const modeInitialized = useRef(false)
 
-  // mode 变化 → 立即记录过渡起点（在 React commit 后、下一帧插值前）。
+  // mode 或视角变化 → 立即记录过渡起点（trial 内切换原告/观众/被告也打快照）。
   useLayoutEffect(() => {
     const c = controls.current
-    clockNow.current = clockNow.current // no-op keep
     if (!c) return
-    // 首次挂载（wizard）不做 trial 过渡；仅在 wizard→trial/bench 真实切换时打快照。
+    // 首次挂载不做过渡；仅在真实切换（mode 或视角）时打快照。
     if (!modeInitialized.current) {
       modeInitialized.current = true
       return
@@ -317,9 +370,9 @@ function CameraRig({
       fromPos: new Vector3(camera.position.x, camera.position.y, camera.position.z),
       fromTgt: new Vector3(c.target.x, c.target.y, c.target.z),
       start: clockNow.current,
-      dur: 1.4,
+      dur: 1.3,
     }
-  }, [mode, camera])
+  }, [mode, perspective, camera])
 
   useFrame(({ clock }, delta) => {
     const c = controls.current
@@ -337,9 +390,11 @@ function CameraRig({
       desiredCamera.copy(desiredTarget).add(offset)
       camera.position.lerp(desiredCamera, k)
     } else if (trans.current) {
-      // trial/bench：从快照起点确定性缓动到主全景（easeInOutQuad）。
-      desiredTarget.set(TRIAL_CAMERA.target[0], TRIAL_CAMERA.target[1], TRIAL_CAMERA.target[2])
-      desiredCamera.set(TRIAL_CAMERA.position[0], TRIAL_CAMERA.position[1], TRIAL_CAMERA.position[2])
+      // trial：确定性缓动到当前视角机位（原告/观众/被告）；bench：缓动到主全景。
+      const goalPos = aimView ? aimView.position : TRIAL_CAMERA.position
+      const goalTgt = aimView ? aimView.target : TRIAL_CAMERA.target
+      desiredTarget.set(goalTgt[0], goalTgt[1], goalTgt[2])
+      desiredCamera.set(goalPos[0], goalPos[1], goalPos[2])
       const t = trans.current
       const p = Math.min(1, Math.max(0, (now - t.start) / t.dur))
       const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2
@@ -362,7 +417,7 @@ function CameraRig({
         enableDamping={mode === 'wizard'}
         autoRotate={mode === 'wizard'}
         autoRotateSpeed={0.3}
-        target={TRIAL_CAMERA.target}
+        target={aimView ? aimView.target : TRIAL_CAMERA.target}
         minDistance={TRIAL_CAMERA.minDistance}
         maxDistance={TRIAL_CAMERA.maxDistance}
         maxPolarAngle={TRIAL_CAMERA.maxPolarAngle}
@@ -381,11 +436,13 @@ function Courtroom({
   activeSpeakerId,
   seats,
   mode,
+  perspective = 'audience',
 }: {
   celebrities: Celebrity[]
   activeSpeakerId: string | null
   seats?: CourtSeat[]
   mode: CameraMode
+  perspective?: CourtPerspective
 }) {
   const sceneRef = useRef<Group>(null)
   useSceneCleanup(sceneRef, () => [
@@ -441,7 +498,7 @@ function Courtroom({
         : celebrities.slice(0, layout.length).map((c, i) => (
             <BenchSeat key={c.id} celebrity={c} position={layout[i]} active={c.id === activeSpeakerId} />
           ))}
-      <CameraRig mode={mode} activeSpeaker={activeSpeaker}>{null}</CameraRig>
+      <CameraRig mode={mode} perspective={perspective} activeSpeaker={activeSpeaker}>{null}</CameraRig>
     </group>
   )
 }
@@ -459,16 +516,105 @@ export default function CourtroomView({
   activeSpeakerId,
   seats,
   cameraMode = 'trial',
+  perspective = 'audience',
 }: {
   celebrities?: Celebrity[]
   activeSpeakerId?: string | null
   seats?: CourtSeat[]
   cameraMode?: CameraMode
+  perspective?: CourtPerspective
 }) {
   const init = getCameraForMode(cameraMode)
   return (
     <SafeCanvas shadows camera={{ position: init.position, fov: init.fov }} dpr={[1, 2]}>
-      <Courtroom celebrities={celebrities ?? []} activeSpeakerId={activeSpeakerId ?? null} seats={seats} mode={cameraMode} />
+      <Courtroom celebrities={celebrities ?? []} activeSpeakerId={activeSpeakerId ?? null} seats={seats} mode={cameraMode} perspective={perspective} />
     </SafeCanvas>
+  )
+}
+
+/* ============================ DEBUG 隔离渲染（临时） ============================
+ * URL: /?debug=court&scene=env&cam=x,y,z&look=x,y,z[&fov=50]
+ *      /?debug=court&scene=seat&kind=judge&cam=...&look=...
+ *  - scene=env  : 只渲染环境 GLB + 坐标网格标尺，不渲染任何席位
+ *  - scene=seat : 环境 GLB + 网格 + 仅 kind 指定的那一个固定席位（按 seats.ts 当前坐标落位）
+ * 相机由 cam/look 查询参数固定，无 OrbitControls。
+ * 调试结束后整块删除，并删 main.tsx 里的短路。
+ * ========================================================================== */
+function CameraLookAt({ look }: { look: [number, number, number] }) {
+  const camera = useThree((s) => s.camera)
+  useLayoutEffect(() => {
+    camera.lookAt(look[0], look[1], look[2])
+  }, [camera, look])
+  return null
+}
+
+export function DebugCourtScene() {
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
+  const scene = params.get('scene') ?? 'env'
+  const kind = params.get('kind') ?? 'judge'
+  const camParam = params.get('cam') ?? '0,8,0'
+  const lookParam = params.get('look') ?? '0,0,0'
+  const fov = parseFloat(params.get('fov') ?? '50')
+  const [cx, cy, cz] = camParam.split(',').map((v) => parseFloat(v.trim())) as [number, number, number]
+  const [lx, ly, lz] = lookParam.split(',').map((v) => parseFloat(v.trim())) as [number, number, number]
+
+  const seats = useMemo<CourtSeat[]>(() => {
+    const toSeat = (found: ReturnType<typeof buildFixedSeats>[number]): CourtSeat => {
+      const role: CourtSeat['role'] =
+        found.kind === 'judge' ? 'judge'
+        : found.kind === 'plaintiff' ? 'plaintiff'
+        : found.kind === 'defendant' ? 'defender'
+        : 'defender'
+      const side: CourtSeat['side'] =
+        found.kind === 'plaintiff' ? 'plaintiff'
+        : found.kind === 'defendant' ? 'defendant'
+        : found.kind === 'plaintiff-counsel' ? 'plaintiff'
+        : found.kind === 'defendant-counsel' ? 'defendant'
+        : null
+      return {
+        id: found.id, name: found.name, role, side,
+        kind: found.kind, model: found.model,
+        position: found.position, facing: found.facing, npc: found.npc, active: false,
+      }
+    }
+    if (scene === 'all') return buildFixedSeats().map(toSeat)
+    if (scene !== 'seat') return []
+    const found = buildFixedSeats().find((s) => s.kind === kind)
+    if (!found) return []
+    return [toSeat(found)]
+  }, [scene, kind])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh' }}>
+    <SafeCanvas shadows camera={{ position: [cx, cy, cz], fov, near: 0.05, far: 120 }} dpr={[1, 1]}>
+      <color attach="background" args={['#160d08']} />
+      <ambientLight intensity={0.55} color="#ffe2b4" />
+      <directionalLight position={[5, 9, 6]} intensity={2.0} color="#fff1d2" castShadow shadow-mapSize={[1024, 1024]} />
+      <pointLight position={[0, 4.0, 0]} intensity={12} distance={12} decay={2} color="#ffe3b8" />
+      <Environment resolution={128}>
+        <Lightformer intensity={1.2} color="#ffdcb0" position={[0, 5, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[10, 10, 1]} />
+        <Lightformer intensity={0.8} color="#ffe8c8" position={[0, 2, 6]} scale={[10, 4, 1]} />
+      </Environment>
+      <Suspense fallback={null}>
+        <CourtroomEnvironmentModel />
+      </Suspense>
+      {/* 坐标网格：1m 一格，中心线红色(x轴)/绿色(z轴) */}
+      <gridHelper args={[12, 12, '#ff5555', '#3a3a3a']} position={[0, 0.01, 0]} />
+      <axesHelper args={[1.2]} position={[0, 0.02, 0]} />
+      {/* 轴向与刻度标签 */}
+      <Text position={[6.2, 0.06, 0]} fontSize={0.28} color="#ff7777" anchorX="center" anchorY="middle">+x</Text>
+      <Text position={[-6.2, 0.06, 0]} fontSize={0.28} color="#ff7777" anchorX="center" anchorY="middle">-x</Text>
+      <Text position={[0, 0.06, 6.2]} fontSize={0.28} color="#77ff77" anchorX="center" anchorY="middle">+z(后/观众)</Text>
+      <Text position={[0, 0.06, -6.2]} fontSize={0.28} color="#77ff77" anchorX="center" anchorY="middle">-z(法官)</Text>
+      {[-4, -3, -2, -1, 1, 2, 3, 4].map((x) => (
+        <Text key={'gx' + x} position={[x, 0.06, 0.35]} fontSize={0.16} color="#ffcc66" anchorX="center" anchorY="middle">{x}</Text>
+      ))}
+      {[-4, -3, -2, -1, 1, 2, 3, 4].map((z) => (
+        <Text key={'gz' + z} position={[0.35, 0.06, z]} fontSize={0.16} color="#66ccff" anchorX="center" anchorY="middle">{z}</Text>
+      ))}
+      <CameraLookAt look={[lx, ly, lz]} />
+      {seats.map((s) => <GenericSeat key={s.id} seat={s} />)}
+    </SafeCanvas>
+    </div>
   )
 }

@@ -82,92 +82,57 @@ export function buildFixedSeats(): FixedSeatSpec[] {
     {
       id: 'seat-judge', name: '法官', kind: 'judge',
       model: seatModelUrl('judge'),
-      position: [0, 0.98, -3.1],
+      position: [0, 0.25, -3.0],
       facing: 0, // 面向法庭(+z)
       npc: false,
     },
     {
       id: 'seat-plaintiff', name: '原告', kind: 'plaintiff',
       model: seatModelUrl('plaintiff'),
-      position: [-1.8, 0.6, -1.3],
+      position: [-2.2, 0, 0.0],
       facing: PI, // 面向法官(-z)
       npc: false,
     },
     {
       id: 'seat-plaintiff-counsel', name: '原告律师', kind: 'plaintiff-counsel',
       model: seatModelUrl('plaintiff-counsel'),
-      position: [-2.8, 0.6, -1.3],
+      position: [-3.15, 0, -0.3],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-defendant', name: '被告', kind: 'defendant',
       model: seatModelUrl('defendant'),
-      position: [1.8, 0.6, -1.3],
+      position: [2.2, 0, 0.0],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-defendant-counsel', name: '被告律师', kind: 'defendant-counsel',
       model: seatModelUrl('defendant-counsel'),
-      position: [2.8, 0.6, -1.3],
+      position: [3.15, 0, -0.3],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-witness', name: '证人', kind: 'witness',
       model: seatModelUrl('witness'),
-      position: [2.3, 0.6, -2.4],
-      facing: -1.9, // 右侧侧身朝左前方法官，背对相机，不挡中轴
+      position: [0, 0, -1.55],
+      facing: 0, // 面向法庭(+z)
       npc: true,
     },
-    {
-      id: 'seat-juror', name: '陪审团', kind: 'juror',
-      model: seatModelUrl('juror'),
-      position: [0, 0.71, 1.77],
-      facing: PI, // 面向法官
-      npc: true,
-    },
-    // 6 旁听者：后部阶梯长椅三排（前 z=1.77 y=0.71 / 中 z=2.54 y=0.87 / 后 z=3.31 y=1.04）。
+    // 旁听者：仅后排台阶左右两侧（中轴与前排清空，不挡观众全景视轴）。
     {
       id: 'seat-audience-1', name: '旁听者1', kind: 'audience',
       model: seatModelUrl('audience', 0),
-      position: [-1.5, 0.71, 1.77],
+      position: [-3.0, 0, 0.7],
       facing: PI,
       npc: true,
     },
     {
       id: 'seat-audience-2', name: '旁听者2', kind: 'audience',
       model: seatModelUrl('audience', 1),
-      position: [1.5, 0.71, 1.77],
-      facing: PI,
-      npc: true,
-    },
-    {
-      id: 'seat-audience-3', name: '旁听者3', kind: 'audience',
-      model: seatModelUrl('audience', 2),
-      position: [-2.3, 0.87, 2.54],
-      facing: PI,
-      npc: true,
-    },
-    {
-      id: 'seat-audience-4', name: '旁听者4', kind: 'audience',
-      model: seatModelUrl('audience', 3),
-      position: [2.3, 0.87, 2.54],
-      facing: PI,
-      npc: true,
-    },
-    {
-      id: 'seat-audience-5', name: '旁听者5', kind: 'audience',
-      model: seatModelUrl('audience', 4),
-      position: [-0.9, 1.04, 3.31],
-      facing: PI,
-      npc: true,
-    },
-    {
-      id: 'seat-audience-6', name: '旁听者6', kind: 'audience',
-      model: seatModelUrl('audience', 5),
-      position: [0.9, 1.04, 3.31],
+      position: [3.0, 0, 0.7],
       facing: PI,
       npc: true,
     },
@@ -176,9 +141,9 @@ export function buildFixedSeats(): FixedSeatSpec[] {
 
 /** 房间活动范围（与 courtroom-camera ROOM_CLAMP 对齐，旁听/陪审不得穿墙）。 */
 export const SEAT_BOUNDS = {
-  xMin: -5.2, xMax: 5.2,
+  xMin: -3.4, xMax: 3.4,
   yMin: 0.0, yMax: 1.2,
-  zMin: -3.2, zMax: 4.6,
+  zMin: -3.6, zMax: 1.2,
 }
 
 /** 两点水平距离（用于测试旁听者不重叠）。 */

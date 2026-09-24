@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, PenLine, Compass, Flame, Clock, Lock } from "lucide-react";
-import { SCENE_META, type ContentSort, type PlazaContent, type SceneId } from "@balabala/shared";
+import { SCENE_META, type ContentSort, type PlazaContent, type PlazaLiveEvent, type SceneId } from "@balabala/shared";
 import { ContentCard } from "./ContentCard";
 import { ContentDetail } from "./ContentDetail";
 import { PublishForm } from "./PublishForm";
+import { useIdentity } from "./identity";
+import { useReconnectingWebSocket } from "./useReconnectingWebSocket";
 import "./plaza.css";
 
 const TABS: Array<{ id: ContentSort; label: string; icon: typeof Compass }> = [
@@ -12,7 +14,34 @@ const TABS: Array<{ id: ContentSort; label: string; icon: typeof Compass }> = [
   { id: "latest", label: "最新", icon: Clock },
 ];
 
+/** 把一条广场实时事件增量应用到列表（幂等：新内容去重 / 计数覆盖 / 评论去重）。 */
+function applyPlazaEvent(
+  list: PlazaContent[],
+  ev: PlazaLiveEvent,
+  scene: SceneId | "all",
+  activeTopic: string | null,
+): PlazaContent[] {
+  if (ev.kind === "content_created") {
+    const c = ev.content;
+    if (list.some((x) => x.id === c.id)) return list;
+    const sceneOk = scene === "all" || c.scene === scene;
+    const topicOk = !activeTopic || c.topics.includes(activeTopic);
+    if (!sceneOk || !topicOk) return list;
+    return [c, ...list];
+  }
+  if (ev.kind === "reaction") {
+    return list.map((x) => (x.id === ev.id ? { ...x, likes: ev.likes, dislikes: ev.dislikes } : x));
+  }
+  return list.map((x) => {
+    if (x.id !== ev.id) return x;
+    if (x.comments.some((c) => c.id === ev.comment.id)) return x;
+    return { ...x, comments: [...x.comments, ev.comment] };
+  });
+}
+
 export function Plaza({ onBack, author }: { onBack: () => void; author?: string }) {
+  const { user } = useIdentity();
+  const userId = user?.userId ?? "";
   const [scene, setScene] = useState<SceneId | "all">("all");
   const [sort, setSort] = useState<ContentSort>("recommended");
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -23,6 +52,8 @@ export function Plaza({ onBack, author }: { onBack: () => void; author?: string 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showPublish, setShowPublish] = useState(false);
   const [notice, setNotice] = useState("");
+  const [liveEvent, setLiveEvent] = useState<PlazaLiveEvent | null>(null);
+  const processedRef = useRef<PlazaLiveEvent | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,6 +83,29 @@ export function Plaza({ onBack, author }: { onBack: () => void; author?: string 
       .then((data: { topics?: Array<{ topic: string; count: number }> }) => setTopics(data.topics ?? []))
       .catch(() => undefined);
   }, []);
+
+  // 订阅全局广场房间（开发走 Vite /api 代理，生产同源），接收真推送事件。
+  const wsProto = typeof location !== "undefined" && location.protocol === "https:" ? "wss" : "ws";
+  const wsUrl = `${wsProto}://${location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=plaza`;
+  useReconnectingWebSocket({
+    url: () => wsUrl,
+    enabled: Boolean(userId),
+    onMessage: (data: string) => {
+      try {
+        const msg = JSON.parse(data) as { type?: string; event?: PlazaLiveEvent };
+        if (msg.type === "plaza_event" && msg.event) setLiveEvent(msg.event);
+      } catch {
+        // 忽略非 JSON 消息（如 welcome）
+      }
+    },
+  });
+
+  // 增量更新列表；processedRef 防止切换频道重渲染时重复应用同一事件。
+  useEffect(() => {
+    if (!liveEvent || processedRef.current === liveEvent) return;
+    processedRef.current = liveEvent;
+    setContents((prev) => applyPlazaEvent(prev, liveEvent, scene, activeTopic));
+  }, [liveEvent, scene, activeTopic]);
 
   const flash = (message: string) => {
     setNotice(message);
@@ -147,10 +201,17 @@ export function Plaza({ onBack, author }: { onBack: () => void; author?: string 
       </footer>
 
       {selectedId && (
-        <ContentDetail id={selectedId} author={author} onBack={() => setSelectedId(null)} onChanged={() => void load()} />
+        <ContentDetail
+          id={selectedId}
+          author={author}
+          currentUserId={userId}
+          liveEvent={liveEvent}
+          onBack={() => setSelectedId(null)}
+          onChanged={() => void load()}
+        />
       )}
       {showPublish && (
-        <PublishForm author={author} onBack={() => setShowPublish(false)}
+        <PublishForm author={author} userId={userId} onBack={() => setShowPublish(false)}
           onPublished={(content) => {
             setShowPublish(false);
             setScene(content.type === "closed_court" ? "court" : "all");

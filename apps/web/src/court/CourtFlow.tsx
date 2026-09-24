@@ -5,6 +5,7 @@ import './court.css'
 import type { Celebrity } from '@balabala/shared'
 import { useIdentity } from '../identity'
 import { HttpCourtEngine } from './http-engine'
+import { EMPTY_ASSIGNMENTS, type DefenderAssignments } from './DefenderPicker'
 import type {
   AnalyzeCaseInput, CourtCase, CourtVerdict, EvidenceItem, Perspective,
 } from './types'
@@ -47,6 +48,7 @@ export default function CourtFlow({
   const [verdict, setVerdict] = useState<CourtVerdict | null>(null)
   const [backendCaseId, setBackendCaseId] = useState<string | undefined>()
   const [perspective, setPerspective] = useState<Perspective>('audience')
+  const [defenderAssignments, setDefenderAssignments] = useState<DefenderAssignments>(EMPTY_ASSIGNMENTS)
   const [confirming, setConfirming] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState('')
@@ -77,6 +79,7 @@ export default function CourtFlow({
     setConfirming(true)
     setError('')
     try {
+      engine.configure({ userId, perspective, defenderAssignments })
       await engine.confirmCase()
       setFlowState('live')
     } catch (e) {
@@ -84,7 +87,7 @@ export default function CourtFlow({
     } finally {
       setConfirming(false)
     }
-  }, [engine])
+  }, [engine, userId, perspective, defenderAssignments])
 
   const handleVerdict = useCallback((v: CourtVerdict, caseId?: string) => {
     setVerdict(v)
@@ -140,6 +143,8 @@ export default function CourtFlow({
           character={character}
           courtCase={courtCase}
           confirming={confirming}
+            defenderAssignments={defenderAssignments}
+            onDefendersChange={setDefenderAssignments}
           onBack={() => setFlowState('analyzing')}
           onConfirm={handleConfirm}
           onExit={onExit}

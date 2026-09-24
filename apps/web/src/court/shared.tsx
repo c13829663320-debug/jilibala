@@ -64,7 +64,7 @@ export function CourtroomShell({
   }
   return (
     <div className="live-screen">
-      <CourtroomBackdrop courtCase={courtCase} activeSpeaker={activeSpeaker} />
+      <CourtroomBackdrop courtCase={courtCase} activeSpeaker={activeSpeaker} perspective={perspective} />
       <div className={`live-frost${frostStrong ? ' live-frost--strong' : ''}`} aria-hidden="true" />
 
       <div className="live-topbar live-topbar--bare">

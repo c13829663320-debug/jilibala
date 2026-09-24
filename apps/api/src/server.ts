@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective, type User, type CertRecord, type MsgRecord, isValidVoice, DEFAULT_VOICE } from "@balabala/shared";
+import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type PlazaLiveEvent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective, type User, type CertRecord, type MsgRecord, isValidVoice, DEFAULT_VOICE } from "@balabala/shared";
 import { runBenchTrial } from "./bench-orchestrator.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -536,6 +536,10 @@ app.get('/api/avatars/tasks/:taskId', async (req, reply) => {
 });
 
 // ===== 广场 Plaza =====
+/** 向全局广场房间广播实时事件（真推送，前端增量更新）。 */
+const broadcastPlaza = (event: PlazaLiveEvent): void => {
+  broadcastToRoom('plaza', { type: 'plaza_event', event });
+};
 const hotScore = (c: PlazaContent) => c.likes + c.dislikes + c.comments.length * 3;
 const recScore = (c: PlazaContent) => c.likes * 1.5 + c.comments.length * 2 + c.views * 0.05;
 const sortContents = (list: PlazaContent[], sort: ContentSort): PlazaContent[] => {
@@ -605,6 +609,7 @@ app.post('/api/contents', async (req, reply) => {
   };
   contents.unshift(content);
   await saveContents(contents);
+  broadcastPlaza({ kind: 'content_created', content });
   return reply.code(201).send({ content });
 });
 
@@ -652,6 +657,7 @@ app.post('/api/cases/:id/publish', async (req, reply) => {
   };
   contents.unshift(content);
   await saveContents(contents);
+  broadcastPlaza({ kind: 'content_created', content });
   return reply.code(201).send({ content });
 });
 
@@ -668,6 +674,7 @@ app.post('/api/contents/:id/react', async (req, reply) => {
   content.likes = counts.likes;
   content.dislikes = counts.dislikes;
   await saveContents(contents);
+  broadcastPlaza({ kind: 'reaction', id, reaction: body.reaction as 'like' | 'dislike', userId: body.userId ?? '', likes: content.likes, dislikes: content.dislikes });
   return { likes: content.likes, dislikes: content.dislikes };
 });
 
@@ -687,6 +694,7 @@ app.post('/api/contents/:id/comments', async (req, reply) => {
   const newComment = { id: randomUUID(), author, text, createdAt: new Date().toISOString() };
   content.comments.push(newComment);
   await saveContents(contents);
+  broadcastPlaza({ kind: 'comment_created', id, comment: newComment });
   return reply.code(201).send({ comment: newComment });
 });
 

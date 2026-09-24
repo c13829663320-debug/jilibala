@@ -226,7 +226,7 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, o
       <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={onFileChange} />
 
       {/* 3D 法庭全屏(当前工程 CourtroomView + 13 角色 + TRIAL_CAMERA) */}
-      <CourtroomBackdrop courtCase={courtCase} activeSpeaker={currentSpeaker} />
+      <CourtroomBackdrop courtCase={courtCase} activeSpeaker={currentSpeaker} perspective={perspective} />
 
       {/* 磨砂层:盖在 3D 上,点击即继续 */}
       {phase !== 'error' && <div className="live-frost" onClick={advance} aria-hidden="true" />}

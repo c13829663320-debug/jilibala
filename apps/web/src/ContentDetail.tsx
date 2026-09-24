@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Eye, Heart, MessageCircle, Send, ThumbsDown, Users } from "lucide-react";
-import { SCENE_META, type PlazaContent } from "@balabala/shared";
+import { SCENE_META, type PlazaContent, type PlazaLiveEvent } from "@balabala/shared";
 import { timeAgo } from "./ContentCard";
 
 const TYPE_LABEL: Record<PlazaContent["type"], string> = {
@@ -15,9 +15,11 @@ const TYPE_LABEL: Record<PlazaContent["type"], string> = {
   court_verdict: "⚖️ 法庭判决",
 };
 
-export function ContentDetail({ id, author, onBack, onChanged }: {
+export function ContentDetail({ id, author, currentUserId, liveEvent, onBack, onChanged }: {
   id: string;
   author?: string;
+  currentUserId?: string;
+  liveEvent?: PlazaLiveEvent | null;
   onBack: () => void;
   onChanged?: () => void;
 }) {
@@ -40,6 +42,23 @@ export function ContentDetail({ id, author, onBack, onChanged }: {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // 接收广场真推送：他人点赞实时更新计数、他人评论实时追加（幂等去重）。
+  useEffect(() => {
+    if (!liveEvent || liveEvent.kind === "content_created") return;
+    if (liveEvent.id !== id) return;
+    setContent((cur) => {
+      if (!cur) return cur;
+      if (liveEvent.kind === "reaction") {
+        return { ...cur, likes: liveEvent.likes, dislikes: liveEvent.dislikes };
+      }
+      if (liveEvent.kind === "comment_created") {
+        if (cur.comments.some((c) => c.id === liveEvent.comment.id)) return cur;
+        return { ...cur, comments: [...cur.comments, liveEvent.comment] };
+      }
+      return cur;
+    });
+  }, [liveEvent, id]);
+
   const react = async (reaction: "like" | "dislike") => {
     if (!content || reacted) return;
     setReacted(reaction);
@@ -49,7 +68,7 @@ export function ContentDetail({ id, author, onBack, onChanged }: {
       const res = await fetch(`/api/contents/${id}/react`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reaction }),
+        body: JSON.stringify({ reaction, userId: currentUserId }),
       });
       const data = (await res.json()) as { likes?: number; dislikes?: number };
       setContent((current) => (current ? { ...current, likes: data.likes ?? current.likes, dislikes: data.dislikes ?? current.dislikes } : current));
@@ -67,7 +86,7 @@ export function ContentDetail({ id, author, onBack, onChanged }: {
       const res = await fetch(`/api/contents/${id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, author: author || "我" }),
+        body: JSON.stringify({ text, author: author || "我", userId: currentUserId }),
       });
       const data = (await res.json()) as { comment: PlazaContent["comments"][number] };
       setContent({ ...content, comments: [...content.comments, data.comment] });

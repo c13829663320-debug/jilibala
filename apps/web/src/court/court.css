@@ -386,3 +386,78 @@
 }
 
 .court-brand-mark { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; display: block; }
+
+/* ===== 专家辅助人选择器 ===== */
+.defender-picker {
+  --dp-defendant: #6d5dfb;
+  margin-top: 14px;
+  border: 1px solid var(--court-border);
+  border-radius: var(--court-radius);
+  background: var(--court-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
+}
+.defender-picker__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  border: 0;
+  background: transparent;
+  color: var(--court-text-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.defender-picker__head:hover { color: var(--court-text-1); }
+.defender-picker__title { display: inline-flex; align-items: center; gap: 8px; }
+.defender-picker__summary { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font-style: normal; }
+.defender-picker__summary em { font-style: normal; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--court-radius-pill); border: 1px solid var(--court-border); }
+.defender-picker__summary em.is-plaintiff { color: var(--court-accent); border-color: var(--court-accent-line); }
+.defender-picker__summary em.is-defendant { color: var(--dp-defendant); border-color: rgba(109,93,251,.45); }
+.defender-picker__chevron { color: var(--court-text-3); transition: transform var(--court-motion); }
+.defender-picker.is-open .defender-picker__chevron { transform: rotate(180deg); }
+
+.defender-picker__grid { max-height: 300px; overflow-y: auto; padding: 4px 15px 0; border-top: 1px solid var(--court-border); }
+.defender-picker__group { padding: 12px 0; }
+.defender-picker__group + .defender-picker__group { border-top: 1px solid var(--court-border); }
+.defender-picker__group-title { margin-bottom: 10px; color: var(--court-text-4); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.defender-picker__cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.defender-picker__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--court-border);
+  border-radius: var(--court-radius-sm);
+  background: var(--court-surface-2);
+}
+.defender-picker__card.is-plaintiff { border-color: var(--court-accent-line); }
+.defender-picker__card.is-defendant { border-color: rgba(109,93,251,.5); }
+.defender-picker__avatar { width: 44px; height: 44px; border-radius: var(--court-radius-sm); overflow: hidden; background: var(--court-surface-4); }
+.defender-picker__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.defender-picker__avatar span { display: grid; place-items: center; width: 100%; height: 100%; color: var(--court-text-2); font-size: 16px; font-weight: 700; }
+.defender-picker__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.defender-picker__meta b { color: var(--court-text-1); font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.defender-picker__meta small { color: var(--court-text-3); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.defender-picker__sides { display: flex; gap: 6px; margin-top: auto; }
+.defender-picker__sides button {
+  flex: 1;
+  padding: 5px 4px;
+  border: 1px solid var(--court-border);
+  border-radius: var(--court-radius-sm);
+  background: transparent;
+  color: var(--court-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--court-motion-fast);
+}
+.defender-picker__sides button.is-plaintiff.is-active { background: var(--court-accent); border-color: var(--court-accent); color: #08231f; }
+.defender-picker__sides button.is-defendant.is-active { background: var(--dp-defendant); border-color: var(--dp-defendant); color: #fff; }
+.defender-picker__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 15px 12px; border-top: 1px solid var(--court-border); color: var(--court-text-4); font-size: 11px; line-height: 1.5; }
+.defender-picker__clear { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border: 1px solid var(--court-border); border-radius: var(--court-radius-pill); background: transparent; color: var(--court-text-3); font-size: 11px; cursor: pointer; white-space: nowrap; }
+.defender-picker__clear:hover { color: var(--court-text-1); border-color: var(--court-border-2); }

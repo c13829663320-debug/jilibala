@@ -273,6 +273,7 @@ export function registerCourtRoutes(
     };
     contents.unshift(content);
     await saveContents(contents);
+    broadcastToRoom("plaza", { type: "plaza_event", event: { kind: "content_created", content } });
     return reply.code(201).send({ content });
   });
 }

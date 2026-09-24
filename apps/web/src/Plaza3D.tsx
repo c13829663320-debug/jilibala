@@ -252,11 +252,11 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   // 触屏 tap 与 drag 区分：记录 pointerdown 的位置/时间
   const tapRef = useRef({ downX: 0, downY: 0, downT: 0 })
 
-  const toast = (msg: string) => {
+  const toast = useCallback((msg: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current)
     setToastMsg(msg)
     toastTimer.current = window.setTimeout(() => setToastMsg(''), 2200)
-  }
+  }, [])
 
   const upsertPlayer = useCallback((u: WSUser) => {
     const existing = playersRef.current.get(u.userId)
@@ -282,6 +282,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   // WS connection lifecycle
   useEffect(() => {
     if (!user?.userId) return
+    if (showDiscuss) return
     shouldReconnect.current = true
 
     const connect = () => {
@@ -347,7 +348,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [user?.userId, upsertPlayer, removePlayer, toast])
+  }, [user?.userId, showDiscuss, upsertPlayer, removePlayer, toast])
 
   // Send move message when the player clicks the ground
   const handleMove = useCallback((x: number, z: number) => {

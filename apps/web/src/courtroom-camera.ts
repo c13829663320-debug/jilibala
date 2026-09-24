@@ -39,12 +39,35 @@ export interface CameraConfig {
  *   关键：运行时相机就位后不再每帧拉回；发言者只靠 SeatRing/聚光/名牌高亮。
  */
 export const TRIAL_CAMERA = {
-  position: [0, 2.9, 4.0] as Vec3,
-  target: [0, 1.0, -1.4] as Vec3,
-  fov: 52,
-  minDistance: 1.5,
+  position: [0, 2.0, 1.0] as Vec3,
+  target: [0, 1.0, -2.5] as Vec3,
+  fov: 50,
+  minDistance: 1.2,
   maxDistance: 9.0,
   maxPolarAngle: Math.PI / 2.05,
+}
+
+/**
+ * 三视角机位（原告席 / 观众席 / 被告席）。
+ *  - audience：后排中轴全景，越过原被告看法官；
+ *  - plaintiff / defendant：该侧席位的过肩视角，能看到己方前景 + 法官 + 对方。
+ */
+export type CourtPerspective = 'plaintiff' | 'audience' | 'defendant'
+
+export interface ViewCamera {
+  position: Vec3
+  target: Vec3
+  fov: number
+}
+
+export const VIEW_CAMERAS: Record<CourtPerspective, ViewCamera> = {
+  audience: { position: [0, 2.0, 1.0], target: [0, 1.0, -2.5], fov: 55 },
+  plaintiff: { position: [-2.9, 1.5, 0.5], target: [0.4, 1.1, -2.6], fov: 55 },
+  defendant: { position: [2.9, 1.5, 0.5], target: [-0.4, 1.1, -2.6], fov: 55 },
+}
+
+export function getViewCamera(perspective: CourtPerspective): ViewCamera {
+  return VIEW_CAMERAS[perspective] ?? VIEW_CAMERAS.audience
 }
 
 /** 创建向导阶段：靠后居中的安静全景，带缓慢自转。 */
@@ -57,12 +80,12 @@ export const WIZARD_CAMERA = {
 /** 相机活动范围 clamp（第六轮）：防穿墙/穿地/穿顶，杜绝滚轮穿地满屏木纹。
  *  x ±4.3；y [0.5, 4.5]（天花板 4.8 防穿顶）；z [-5.0, 4.7]（zMax 4.3→4.7 因 pos z=4.5）。 */
 export const ROOM_CLAMP = {
-  xMin: -4.3,
-  xMax: 4.3,
+  xMin: -3.4,
+  xMax: 3.4,
   yMin: 0.5,
-  yMax: 4.5,
-  zMin: -5.0,
-  zMax: 4.7,
+  yMax: 3.2,
+  zMin: -3.8,
+  zMax: 1.2,
 }
 
 /** 把相机位置约束在 ROOM_CLAMP 范围内（返回新元组）。 */
