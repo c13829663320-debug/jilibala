@@ -75,38 +75,75 @@
 /* 全局轻提示 */
 .character-hall__toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:60;padding:10px 20px;border:1px solid var(--hair);border-radius:999px;background:var(--s3);color:var(--ink);font-size:13px;font-weight:600}
 
-/* ===== 对话弹层 ===== */
-.character-dialog-backdrop{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(5,5,5,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
-.character-dialog{position:relative;width:min(960px,100%);max-height:92vh;overflow:auto;padding:24px;border:1px solid var(--hair-2);border-radius:18px;background:var(--glass-frost-bg);backdrop-filter:var(--glass-frost);-webkit-backdrop-filter:var(--glass-frost);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
-.character-dialog__close{position:absolute;top:16px;right:16px;display:grid;place-items:center;z-index:5;border:0;background:transparent;color:var(--ink-48);cursor:pointer}
+/* ===== 对话弹层（多模态交互中枢：左模型/视频 · 中profile/场景/Skill · 右聊天） ===== */
+.character-dialog-backdrop{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(5,5,5,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.character-dialog{position:relative;width:min(1100px,100%);min-width:900px;height:85vh;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;padding:20px;border:1px solid var(--accent-line);border-radius:18px;background:#050505;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 24px 80px rgba(0,0,0,.6)}
+.character-dialog__close{position:absolute;top:14px;right:14px;display:grid;place-items:center;z-index:10;border:0;background:transparent;color:var(--ink-48);cursor:pointer}
 .character-dialog__close:hover{color:var(--ink)}
 
-/* 主区域：左 3D 展示 + 右信息/聊天 */
-.character-dialog__main{display:flex;gap:22px;align-items:stretch}
-.character-dialog__viewer{flex:0 0 38%;min-width:260px}
-.character-dialog__side{flex:1;min-width:0;display:flex;flex-direction:column}
+/* 三栏网格 */
+.character-dialog__main{flex:1;min-height:0;display:grid;grid-template-columns:35fr 40fr 25fr;gap:18px}
+.character-dialog__viewer{min-height:0;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.character-dialog__center{min-height:0;overflow-y:auto;padding-right:4px;display:flex;flex-direction:column}
+.character-dialog__chatcol{min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--hair);padding-left:14px}
 
-/* 3D 模型展示区 */
-.character-viewer{position:relative;width:100%;height:460px;border:1px solid var(--hair-2);border-radius:14px;overflow:hidden;background:var(--bg)}
+/* 3D 模型展示区（左栏内压缩高度，给视频留位） */
+.character-dialog__viewer .character-viewer{flex:none;height:52%;min-height:230px}
+.character-viewer{position:relative;width:100%;border:1px solid var(--hair-2);border-radius:14px;overflow:hidden;background:var(--bg)}
 .character-viewer canvas{display:block;width:100%!important;height:100%!important}
 .character-viewer__fallback{width:100%;height:100%;object-fit:cover}
 .character-viewer__loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--bg);color:var(--ink-48);font-size:12px;z-index:2}
 .character-viewer__hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);padding:4px 10px;border-radius:999px;background:rgba(10,10,10,.7);color:var(--ink-48);font-size:9px;letter-spacing:.08em;pointer-events:none;z-index:2}
 .character-viewer__spin{position:absolute;top:10px;right:10px;display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border:1px solid var(--hair-2);border-radius:999px;background:rgba(10,10,10,.82);color:var(--ink-70);font-size:10px;cursor:pointer;z-index:3;transition:border-color .15s,color .15s,background .15s}.character-viewer__spin:hover{border-color:var(--accent-line);color:var(--accent)}.character-viewer__spin.is-on{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft);font-weight:700}
 
-/* 人物信息（紧凑版，给聊天留空间） */
-.character-dialog__profile{display:flex;gap:16px;align-items:flex-start}
-.character-dialog__portrait{width:96px;flex:0 0 96px;aspect-ratio:4/5;border-radius:12px;object-fit:cover;background:var(--s2)}
-.character-dialog__portrait .portrait-initial{border-radius:12px;font-size:34px}
+/* 人物视频（/videos/<id>.mp4，不存在时组件隐藏） */
+.character-dialog__video-wrap{flex:none}
+.character-dialog__video{width:100%;aspect-ratio:16/10;display:block;border:1px solid var(--hair-2);border-radius:12px;background:#000;object-fit:cover}
+
+/* 人物信息（紧凑版） */
+.character-dialog__profile{display:flex;gap:14px;align-items:flex-start}
+.character-dialog__portrait{width:84px;flex:0 0 84px;aspect-ratio:4/5;border-radius:12px;object-fit:cover;background:var(--s2)}
+.character-dialog__portrait .portrait-initial{border-radius:12px;font-size:30px}
 .character-dialog__meta{color:var(--ink-48);font-size:10px}
-.character-dialog__profile h2{margin:4px 0 2px;font-size:22px;color:var(--ink)}
+.character-dialog__profile h2{margin:4px 0 2px;font-size:20px;color:var(--ink)}
 .character-dialog__profile b{color:var(--ink-70);font-size:11px}
 .character-dialog__profile p{margin:7px 0;color:var(--ink-48);line-height:1.6;font-size:11.5px}
 .character-dialog__tags{display:flex;gap:5px;flex-wrap:wrap}
 .character-dialog__tags i{padding:3px 8px;border-radius:6px;background:var(--s2);border:1px solid var(--hair);color:var(--ink-48);font-size:9.5px;font-style:normal}
 
-.character-dialog__chat{display:flex;flex-direction:column;gap:9px;margin:16px 0;flex:1;min-height:180px;max-height:320px;overflow:auto;padding:2px}
-.character-chat{max-width:82%;padding:10px 13px;border-radius:12px;background:var(--s2);font-size:12px}
+/* 带入场景按钮网格 */
+.character-dialog__scenes{margin-top:16px}
+.character-dialog__scenes h3{margin:0 0 8px;font-size:10.5px;letter-spacing:.14em;color:var(--ink-48);font-weight:600}
+.character-dialog__scene-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.character-dialog__scene-grid button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:11px 4px;border:1px solid var(--hair);border-radius:11px;background:var(--s1);color:var(--ink-48);font-size:10.5px;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.character-dialog__scene-grid button:hover{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft)}
+
+/* Skill 人格折叠区 */
+.character-dialog__skill{margin-top:14px;border:1px solid var(--hair);border-radius:12px;background:var(--s1);overflow:hidden}
+.character-dialog__skill-head{width:100%;display:flex;align-items:center;gap:8px;padding:11px 12px;border:0;background:transparent;color:var(--ink-70);font-size:12px;cursor:pointer}
+.character-dialog__skill-head:hover{color:var(--ink)}
+.character-dialog__skill-head em{font-style:normal;margin-left:auto;padding:2px 8px;border-radius:999px;background:var(--s2);color:var(--ink-30);font-size:9px}
+.character-dialog__skill-caret{margin-left:4px;transition:transform .18s;color:var(--ink-48)}
+.character-dialog__skill-caret.is-open{transform:rotate(180deg)}
+.character-dialog__skill-body{padding:4px 12px 12px;border-top:1px solid var(--hair);font-size:11.5px}
+.character-dialog__skill-name{display:block;margin-top:8px;color:var(--ink);font-size:12.5px}
+.character-dialog__skill-desc{margin:5px 0 0;color:var(--ink-48);line-height:1.6}
+.character-dialog__skill-hint{display:flex;align-items:center;gap:6px;margin:10px 0;color:var(--ink-30);font-size:11px}
+.skill-section{margin-top:10px}
+.skill-section h4{margin:0 0 4px;font-size:9.5px;letter-spacing:.12em;color:var(--accent);font-weight:700}
+.skill-section p{margin:0;color:var(--ink-48);line-height:1.65;white-space:pre-wrap}
+.character-dialog__skill-editbtn{display:inline-flex;align-items:center;gap:5px;margin-top:10px;padding:6px 11px;border:1px solid var(--hair-2);border-radius:8px;background:var(--s2);color:var(--ink-70);font-size:11px;cursor:pointer}
+.character-dialog__skill-editbtn:hover{color:var(--accent);border-color:var(--accent-line)}
+.character-dialog__skill-edit{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.character-dialog__skill-edit textarea{width:100%;box-sizing:border-box;border:1px solid var(--hair-2);border-radius:8px;padding:9px 10px;background:var(--bg);color:var(--ink);font-size:11px;line-height:1.6;outline:none;resize:vertical;font-family:inherit}
+.character-dialog__skill-edit textarea:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
+.character-dialog__skill-actions{display:flex;gap:8px}
+.character-dialog__skill-actions button{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:0;border-radius:8px;background:var(--ink);color:var(--bg);font-size:11.5px;font-weight:700;cursor:pointer}
+.character-dialog__skill-actions button:last-child{background:var(--s2);color:var(--ink-70);border:1px solid var(--hair-2)}
+
+/* 聊天流：右栏内自适应高度 */
+.character-dialog__chat{display:flex;flex-direction:column;gap:9px;margin:0 0 12px;flex:1;min-height:0;overflow-y:auto;padding:2px}
+.character-chat{max-width:86%;padding:10px 13px;border-radius:12px;background:var(--s2);font-size:12px}
 .character-chat.character{align-self:flex-start;border-top-left-radius:3px}
 .character-chat.me{align-self:flex-end;background:var(--accent-soft);border-top-right-radius:3px}
 .character-chat span{display:block;color:var(--ink-30);font-size:9px;margin-bottom:3px}
@@ -116,24 +153,62 @@
 @keyframes ch-spin{to{transform:rotate(360deg)}}
 .character-chat-error{align-self:center;color:#ff9d9d;font-size:11px}
 
-.character-dialog__composer{display:flex;gap:9px;position:sticky;bottom:-24px;padding:10px 0;background:var(--s1);border-top:1px solid var(--hair)}
-.character-dialog__composer input{flex:1;min-width:0;border:1px solid var(--hair-2);border-radius:10px;padding:12px 14px;background:var(--bg);color:var(--ink);font-size:12px;outline:none}
+/* 输入模式切换 tab */
+.character-dialog__modes{display:flex;gap:6px;margin-bottom:10px}
+.character-dialog__modes button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 0;border:1px solid var(--hair-2);border-radius:9px;background:var(--s1);color:var(--ink-48);font-size:11px;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.character-dialog__modes button:hover{color:var(--ink-70);background:var(--s2)}
+.character-dialog__modes button.is-active{border-color:var(--accent-line);color:var(--accent);background:var(--accent-soft);font-weight:700}
+.character-dialog__asr-error{margin:0 0 10px;padding:8px 10px;border:1px solid rgba(255,120,135,.35);border-radius:8px;color:#ffb0b0;font-size:11px}
+
+/* 语音模式：大圆形麦克风 + 脉冲动画 */
+.character-dialog__voice{display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:10px 12px;border:1px solid var(--hair);border-radius:12px;background:var(--s1)}
+.voice-mic{width:50px;height:50px;flex:none;border-radius:50%;display:grid;place-items:center;border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent);cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.voice-mic:hover{background:var(--accent);color:#08130f}
+.voice-mic.is-listening{background:#3a1520;border-color:#ff6b7a;color:#ff8d98;animation:mic-pulse 1.2s ease-out infinite}
+@keyframes mic-pulse{0%{box-shadow:0 0 0 0 rgba(255,107,122,.45)}70%{box-shadow:0 0 0 18px rgba(255,107,122,0)}100%{box-shadow:0 0 0 0 rgba(255,107,122,0)}}
+.character-dialog__voice-hint{margin:0;color:var(--ink-48);font-size:11px;line-height:1.5;min-height:32px;display:flex;align-items:center}
+
+/* 电话模式：拟真通话界面（接管右栏） */
+.character-call{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:14px;border-radius:14px;background:radial-gradient(ellipse at 50% 30%,rgba(79,179,165,.12),transparent 70%)}
+.character-call__avatar{width:64px;height:64px;flex:none;border-radius:50%;object-fit:cover}
+.character-call__avatar .portrait-initial{border-radius:50%;font-size:26px}
+.character-call__name{color:var(--ink);font-size:15px}
+.character-call__status{color:var(--accent);font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:.05em}
+.character-call__wave{display:flex;align-items:center;gap:4px;height:44px;margin:6px 0}
+.character-call__wave i{width:3px;height:8px;border-radius:2px;background:var(--accent);animation:wave-bounce 1s ease-in-out infinite}
+@keyframes wave-bounce{0%,100%{height:6px;opacity:.55}50%{height:36px;opacity:1}}
+.character-call__interim{min-height:16px;margin:0;max-width:90%;color:var(--ink-70);font-size:11.5px;line-height:1.5}
+.character-call__controls{display:flex;align-items:center;gap:18px;margin-top:8px}
+.character-call__mic{width:64px;height:64px;border-radius:50%;border:0;background:var(--accent);color:#08130f;display:grid;place-items:center;cursor:pointer;touch-action:none;transition:transform .1s}
+.character-call__mic:active{transform:scale(.94)}
+.character-call__mic.is-listening{background:#ff6b7a;color:#1a0a0d;animation:mic-pulse 1.2s ease-out infinite}
+.character-call__hangup{width:52px;height:52px;border-radius:50%;border:0;background:#d94f5c;color:#fff;display:grid;place-items:center;cursor:pointer;transition:transform .1s}
+.character-call__hangup:active{transform:scale(.94)}
+.character-call__hint{margin:2px 0 0;color:var(--ink-30);font-size:10px}
+
+/* composer 贴右栏底部 */
+.character-dialog__composer{display:flex;gap:9px;flex:none;padding:10px 0 2px;border-top:1px solid var(--hair)}
+.character-dialog__composer input{flex:1;min-width:0;border:1px solid var(--hair-2);border-radius:10px;padding:11px 14px;background:var(--bg);color:var(--ink);font-size:12px;outline:none}
 .character-dialog__composer input:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
 .character-dialog__composer button{display:inline-flex;align-items:center;gap:7px;border:0;border-radius:10px;padding:0 16px;background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;cursor:pointer}
 .character-dialog__composer button:disabled{opacity:.55;cursor:not-allowed}
-.character-dialog__court{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;border:1px solid var(--hair-2);border-radius:11px;padding:12px;background:var(--s2);color:var(--ink-70);font-size:12px;font-weight:700;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
-.character-dialog__court:hover{color:var(--ink);background:var(--s3);border-color:var(--accent-line)}
+.character-dialog__court{display:flex;align-items:center;justify-content:center;gap:8px;flex:none;width:100%;margin-top:12px;padding:12px;border:1px solid var(--hair-2);border-radius:11px;background:var(--s1);color:var(--ink-70);font-size:12px;font-weight:700;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.character-dialog__court:hover{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-line)}
 
-/* 响应式 */
+/* 响应式：窄屏退化为纵向堆叠 */
+@media(max-width:900px){
+  .character-dialog{min-width:0;height:94vh;padding:14px}
+  .character-dialog__main{grid-template-columns:1fr;overflow-y:auto}
+  .character-dialog__viewer .character-viewer{height:300px}
+  .character-dialog__chatcol{border-left:0;border-top:1px solid var(--hair);padding-left:0;min-height:420px}
+}
 @media(max-width:760px){
   .character-hall__toolbar{flex-direction:column;align-items:stretch}
   .character-hall__search{min-width:0}
   .character-dialog-backdrop{padding:10px}
-  .character-dialog__main{flex-direction:column}
-  .character-dialog__viewer{flex:none;width:100%}
-  .character-viewer{height:320px}
   .character-dialog__profile{flex-direction:row}
-  .character-dialog__portrait{width:80px;flex-basis:80px}
+  .character-dialog__portrait{width:72px;flex-basis:72px}
+  .character-dialog__scene-grid{grid-template-columns:repeat(2,1fr)}
 }
 
 /* ===== M13 第五轮：3D 人物长廊 ===== */

@@ -99,6 +99,10 @@ function migrateCustomCharactersTable(): void {
   if (!tableHasColumn("custom_characters", "voice")) {
     db.exec("ALTER TABLE custom_characters ADD COLUMN voice TEXT DEFAULT ''");
   }
+  // 人物 skill 绑定：skill_md 存自定义人物的 skill markdown 原文；NULL/空串表示用默认。
+  if (!tableHasColumn("custom_characters", "skill_md")) {
+    db.exec("ALTER TABLE custom_characters ADD COLUMN skill_md TEXT DEFAULT ''");
+  }
 }
 
 function createTables(): void {
@@ -250,6 +254,8 @@ function createTables(): void {
       model_path TEXT DEFAULT '',
       portrait_path TEXT DEFAULT '',
       visibility TEXT NOT NULL DEFAULT 'private',
+      voice TEXT DEFAULT '',
+      skill_md TEXT DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -956,6 +962,8 @@ export type CustomCharacterRecord = {
   visibility: "private" | "public";
   /** StepFun 官方预置音色 id（M13 第五轮），空串表示未设置→默认音色。 */
   voice: string;
+  /** 人物 skill markdown 原文（空串表示用默认 skill）。 */
+  skillMd: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -964,7 +972,7 @@ type CustomCharacterRow = {
   id: string; user_id: string; name: string; title: string; intro: string;
   tags: string; persona: string; greeting: string;
   model_path: string; portrait_path: string; visibility: string;
-  voice?: string;
+  voice?: string; skill_md?: string;
   created_at: string; updated_at: string;
 };
 
@@ -982,6 +990,7 @@ function rowToCustomCharacter(row: CustomCharacterRow): CustomCharacterRecord {
     portraitPath: row.portrait_path || "",
     visibility: (row.visibility === "public" ? "public" : "private") as "private" | "public",
     voice: row.voice || "",
+    skillMd: row.skill_md || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -991,12 +1000,12 @@ export function createCustomCharacter(c: CustomCharacterRecord): CustomCharacter
   initDb();
   db.prepare(`
     INSERT OR REPLACE INTO custom_characters
-      (id, user_id, name, title, intro, tags, persona, greeting, model_path, portrait_path, visibility, voice, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, name, title, intro, tags, persona, greeting, model_path, portrait_path, visibility, voice, skill_md, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     c.id, c.userId, c.name, c.title, c.intro,
     safeStringify(c.tags), c.persona, c.greeting,
-    c.modelPath, c.portraitPath, c.visibility, c.voice ?? "",
+    c.modelPath, c.portraitPath, c.visibility, c.voice ?? "", c.skillMd ?? "",
     c.createdAt, c.updatedAt,
   );
   return c;
@@ -1027,12 +1036,12 @@ export function updateCustomCharacter(
   db.prepare(`
     UPDATE custom_characters SET
       user_id = ?, name = ?, title = ?, intro = ?, tags = ?, persona = ?,
-      greeting = ?, model_path = ?, portrait_path = ?, visibility = ?, voice = ?, updated_at = ?
+      greeting = ?, model_path = ?, portrait_path = ?, visibility = ?, voice = ?, skill_md = ?, updated_at = ?
     WHERE id = ?
   `).run(
     next.userId, next.name, next.title, next.intro,
     safeStringify(next.tags), next.persona, next.greeting,
-    next.modelPath, next.portraitPath, next.visibility, next.voice ?? "", next.updatedAt,
+    next.modelPath, next.portraitPath, next.visibility, next.voice ?? "", next.skillMd ?? "", next.updatedAt,
     next.id,
   );
   return next;

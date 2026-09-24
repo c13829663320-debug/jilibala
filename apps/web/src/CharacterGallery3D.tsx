@@ -1,39 +1,63 @@
 import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { SafeCanvas } from './SafeCanvas'
 import { Billboard, Environment, Lightformer, Text, useGLTF } from '@react-three/drei'
 import { Box3, Group, InstancedMesh, MathUtils, Matrix4, MeshStandardMaterial, Points, Vector3 } from 'three'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import NeutralMannequin from './NeutralMannequin'
 import { useSceneCleanup } from './useSceneCleanup'
-import {
-  BOOTH_SPACING,
-  clampGalleryIndex,
-  type GalleryEntry,
-} from './character-gallery'
+import type { GalleryEntry } from './character-gallery'
 
 /* ==========================================================================
- * 3D 人物长廊：全身模型站在弧形展台上，横向拖拽/箭头/键盘切换并吸附，
- * 悬停点亮，点击聚焦再进对话。布局/吸附/领域色/问候语在 character-gallery.ts。
- * 第七轮：人物放大、横排饱满居中、两侧近大远小退远不切边；自定义角色 C 位。
+ * 3D 人物馆：全屏环形选人界面。
+ * 所有人物围成一个水平圆环，相机固定在圈外正面，整圈绕 Y 轴旋转切换选中人物。
+ * 选中人物严格居于屏幕正中央（吸附后 group.rotation.y = -(activeIndex/count)*2π，
+ * 此时 activeIndex 号 booth 世界坐标 x=0, z=-RING_RADIUS）。
+ * 支持：拖拽 + 惯性 + 松手吸附、左右箭头 / ←/→ 循环切换、点两侧人物旋转聚焦、
+ * 点居中人物直接进对话。布局/角度约定在 character-gallery.ts 的 ringLayout。
  * ======================================================================== */
 
-const CAMERA_BASE_Z = 3.8
-const CAMERA_FOCUS_Z = 2.7
-const CAMERA_Y = 1.55
-const CAMERA_LOOK_Y = 1.2
-const FOV = 55
-/** 仅加载当前 ±N 个展台的真实 GLB，其余用占位人形，控制首屏模型数。 */
+/** 相机固定在圈外正面。 */
+const CAMERA_POS: [number, number, number] = [0, 1.6, 8.5]
+const CAMERA_LOOK: [number, number, number] = [0, 1.2, 0]
+const FOV = 50
+/** 仅加载当前 ±N 个展台的真实 GLB，其余用占位人形，控制首屏模型数（环形按圆周距离）。 */
 const LOAD_NEARBY = 4
 const PLINTH_TOP = 0.14
-/** 人物整体归一化身高（第七轮 2.05→2.35，人物放大 ~1.15x，占画面中部）。 */
+/** 人物整体归一化身高。 */
 const FIGURE_HEIGHT = 2.35
 const FIGURE_SCALE = FIGURE_HEIGHT / 1.7
 
-/** 按与居中位的距离计算人物缩放：C 位最大，两侧近大远小自然退远。 */
-function scaleForDist(dist: number): number {
-  const s = 1.38 - dist * 0.3
-  return Math.max(0.66, s)
+/** 拖拽手势状态（外层 DOM 事件写，Canvas 内 useFrame 读）。 */
+type DragState = {
+  down: boolean
+  moved: boolean
+  startX: number
+  startT: number
+  startRot: number
+  lastX: number
+  lastT: number
+  velocity: number
+  releaseAt: number
+}
+
+const freshDrag = (): DragState => ({
+  down: false, moved: false, startX: 0, startT: 0, startRot: 0,
+  lastX: 0, lastT: 0, velocity: 0, releaseAt: 0,
+})
+
+/** 圆周最短索引距离（0..count/2）。 */
+function circularDist(i: number, active: number, count: number): number {
+  if (count <= 1) return 0
+  const d = Math.abs(i - active) % count
+  return Math.min(d, count - d)
+}
+
+/** 按与居中位的角度距离计算缩放：C 位 1.15x，超过 90° 退到 0.6。 */
+function scaleForAngle(angleDist: number, active: boolean): number {
+  if (active) return 1.15
+  const t = Math.min(angleDist / (Math.PI / 2), 1)
+  return MathUtils.lerp(1.15, 0.6, t)
 }
 
 /** 整个 3D 长廊渲染失败时（如模型解码失败）→ 通知父级回退 2D 平面视图。 */
@@ -70,11 +94,10 @@ function BoothModel({ url, plinthTopY }: { url: string; plinthTopY: number }) {
 type BoothProps = {
   entry: GalleryEntry
   index: number
-  /** 与当前居中索引的距离（绝对值）。 */
-  dist: number
+  /** 与居中位的圆周角度距离（弧度）。 */
+  angleDist: number
   active: boolean
   hovered: boolean
-  focused: boolean
   near: boolean
   onHover: (index: number | null) => void
   onPick: (index: number, e: ThreeEvent<MouseEvent>) => void
@@ -108,28 +131,26 @@ function CreatePortal({ active }: { active: boolean }) {
   )
 }
 
-function Booth({ entry, index, dist, active, hovered, focused, near, onHover, onPick }: BoothProps) {
+function Booth({ entry, index, angleDist, active, hovered, near, onHover, onPick }: BoothProps) {
   const ringMat = useRef<MeshStandardMaterial | null>(null)
   const modelGroup = useRef<Group>(null)
   const { booth, color } = entry
   const isCreate = Boolean(entry.isCreateEntry)
-  const lit = active || focused || hovered
+  const lit = active || hovered
 
   useFrame(({ clock }) => {
     if (!ringMat.current) return
     const t = clock.getElapsedTime()
-    const target = focused ? 2.6 + Math.sin(t * 4) * 0.8 : active ? 1.8 : hovered ? 1.0 : 0.25
+    const target = active ? 2.0 + Math.sin(t * 4) * 0.4 : hovered ? 1.2 : 0.25
     ringMat.current.emissiveIntensity = MathUtils.lerp(ringMat.current.emissiveIntensity, target, 0.15)
   })
 
-  // 角色轻微转向镜头 + 极轻呼吸浮动 + 按距离缩放（C 位突出，两侧退远）。
+  // 按圆周角度距离缩放（C 位 1.15x 突出，两侧退远）+ 居中人物极轻呼吸浮动。
   useFrame(({ clock }, delta) => {
     if (!modelGroup.current) return
     const g = modelGroup.current
-    const wantRot = booth.rotationY + (active ? Math.sin(clock.getElapsedTime() * 0.6) * 0.06 : 0)
-    g.rotation.y = MathUtils.lerp(g.rotation.y, wantRot, 0.08)
     g.position.y = PLINTH_TOP + (active ? Math.sin(clock.getElapsedTime() * 1.4) * 0.015 : 0)
-    const wantScale = scaleForDist(dist)
+    const wantScale = scaleForAngle(angleDist, active)
     g.scale.setScalar(MathUtils.damp(g.scale.x, wantScale, 6, delta))
   })
 
@@ -153,7 +174,8 @@ function Booth({ entry, index, dist, active, hovered, focused, near, onHover, on
         />
       </mesh>
 
-      {/* 人物：近处加载真实 GLB，远处/无模型用占位人形；创建入口渲染 + 号门户 */}
+      {/* 人物：近处加载真实 GLB，远处/无模型用占位人形；创建入口渲染 + 号门户。
+          本地 rotationY=booth.rotationY 使角色面朝圆心；整圈 group 旋转后居中者正对相机。 */}
       <group ref={modelGroup} rotation={[0, booth.rotationY, 0]}>
         {isCreate ? (
           <CreatePortal active={active} />
@@ -204,18 +226,17 @@ function Booth({ entry, index, dist, active, hovered, focused, near, onHover, on
   )
 }
 
-/** 星尘：从当前 C 位向外缓缓发散的微弱冷白星点（真黑底 + 单一中心，UI 规范「暗色粒子底」手法）。 */
+/** 星尘：围绕圆心缓缓发散的微弱冷白星点（真黑底 + UI 规范「暗色粒子底」手法）。 */
 function StarDust() {
   const COUNT = 220
   const RESET_R2 = 13 * 13
   const pointsRef = useRef<Points>(null)
-  const groupRef = useRef<Group>(null)
   const sim = useMemo(() => {
     const positions = new Float32Array(COUNT * 3)
     const dirs = new Float32Array(COUNT * 3)
     const speeds = new Float32Array(COUNT)
     const spawn = (i: number) => {
-      // 星点在中心（group 原点，跟随 C 位）附近生成，向外上方缓慢飘散。
+      // 星点在圆环中心附近生成，向外上方缓慢飘散。
       const a = Math.random() * Math.PI * 2
       const r = 0.5 + Math.random() * 2.6
       positions[i * 3] = Math.cos(a) * r
@@ -234,10 +255,7 @@ function StarDust() {
     return { positions, dirs, speeds, spawn }
   }, [])
 
-  useFrame((state, delta) => {
-    // 发散中心跟随当前 C 位（相机 x），星点始终围绕居中人物向外飘散。
-    const g = groupRef.current
-    if (g) g.position.x = MathUtils.lerp(g.position.x, state.camera.position.x, Math.min(delta * 2.5, 1))
+  useFrame((_, delta) => {
     const pts = pointsRef.current
     if (!pts) return
     const { positions, dirs, speeds, spawn } = sim
@@ -255,18 +273,16 @@ function StarDust() {
   })
 
   return (
-    <group ref={groupRef}>
-      <points ref={pointsRef} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[sim.positions, 3]} />
-        </bufferGeometry>
-        <pointsMaterial size={0.03} color="#dfe3ec" transparent opacity={0.42} sizeAttenuation depthWrite={false} />
-      </points>
-    </group>
+    <points ref={pointsRef} frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[sim.positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial size={0.03} color="#dfe3ec" transparent opacity={0.42} sizeAttenuation depthWrite={false} />
+    </points>
   )
 }
 
-/** 所有展台底座：InstancedMesh，视锥外剔除。 */
+/** 所有展台底座：InstancedMesh，随圆环一起旋转（booth 坐标为 ring 局部坐标）。 */
 function Plinths({ entries }: { entries: GalleryEntry[] }) {
   const ref = useRef<InstancedMesh>(null)
   useLayoutEffect(() => {
@@ -290,30 +306,62 @@ function Plinths({ entries }: { entries: GalleryEntry[] }) {
 type GallerySceneProps = {
   entries: GalleryEntry[]
   activeIndex: number
-  focused: boolean
-  liveIndexRef: React.MutableRefObject<number>
+  ringRef: React.RefObject<Group>
+  dragRef: React.MutableRefObject<DragState>
   onIndexChange: (i: number) => void
-  onFocusToggle: () => void
   onEnter: (entry: GalleryEntry) => void
   onRequestCreate: () => void
   onHover: (i: number | null) => void
   hovered: number | null
 }
 
-function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChange, onFocusToggle, onEnter, onRequestCreate, onHover, hovered }: GallerySceneProps) {
-  const { camera } = useThree()
-  // booth 已按 centerIndex 居中（booth[centerIndex].x=0），由 booth[0].x 反推布局中心索引。
-  const layoutCenter = entries.length > 0 ? -entries[0].booth.x / BOOTH_SPACING : 0
-  const boothXAt = (floatIndex: number) => (floatIndex - layoutCenter) * BOOTH_SPACING
+function GalleryScene({ entries, activeIndex, ringRef, dragRef, onIndexChange, onEnter, onRequestCreate, onHover, hovered }: GallerySceneProps) {
+  const count = entries.length
+  // useFrame 闭包可能捕获旧 props，用 ref 镜像保证吸附回调取到最新值。
+  const activeRef = useRef(activeIndex)
+  activeRef.current = activeIndex
+  const onIndexRef = useRef(onIndexChange)
+  onIndexRef.current = onIndexChange
 
-  useFrame((_, delta) => {
-    const targetX = boothXAt(liveIndexRef.current)
-    const targetZ = focused ? CAMERA_FOCUS_Z : CAMERA_BASE_Z
-    const k = Math.min(delta * 3.2, 1)
-    camera.position.x = MathUtils.lerp(camera.position.x, targetX, k)
-    camera.position.z = MathUtils.lerp(camera.position.z, targetZ, k)
-    camera.position.y = MathUtils.lerp(camera.position.y, CAMERA_Y, k)
-    camera.lookAt(camera.position.x, CAMERA_LOOK_Y, 0)
+  // 首次挂载/列表变化时，圆环直接跳到目标角，避免开场扫动。
+  useLayoutEffect(() => {
+    const ring = ringRef.current
+    if (ring && count > 0) {
+      ring.rotation.y = -(activeRef.current / count) * Math.PI * 2
+    }
+  }, [count, ringRef])
+
+  useFrame(({ camera }, delta) => {
+    const ring = ringRef.current
+    if (!ring || count === 0) return
+    camera.position.set(CAMERA_POS[0], CAMERA_POS[1], CAMERA_POS[2])
+    camera.lookAt(CAMERA_LOOK[0], CAMERA_LOOK[1], CAMERA_LOOK[2])
+
+    const d = dragRef.current
+    if (d.down) return // 拖拽中：外层 onPointerMove 直接写 rotation.y
+
+    const step = (Math.PI * 2) / count
+    const now = performance.now()
+
+    // 惯性阶段：松手后 200ms 内或速度未衰减到阈值前继续滑行。
+    if (d.velocity !== 0 && now - d.releaseAt < 200) {
+      ring.rotation.y += d.velocity * delta
+      d.velocity *= Math.pow(0.92, delta * 60)
+      if (Math.abs(d.velocity) < 0.25) d.velocity = 0
+      return
+    }
+    d.velocity = 0
+
+    // 吸附：当前旋转 → 最近索引（取模循环）。
+    const snapIdx = ((Math.round(-ring.rotation.y / step) % count) + count) % count
+    if (snapIdx !== activeRef.current) onIndexRef.current(snapIdx)
+
+    // 阻尼到目标角（取最短路径），最终精确收敛到 -(activeIndex/count)*2π。
+    const target = -(activeRef.current / count) * Math.PI * 2
+    let t = target
+    while (t - ring.rotation.y > Math.PI) t -= Math.PI * 2
+    while (ring.rotation.y - t > Math.PI) t += Math.PI * 2
+    ring.rotation.y = MathUtils.damp(ring.rotation.y, t, 7, delta)
   })
 
   const handlePick = (index: number, e: ThreeEvent<MouseEvent>) => {
@@ -321,21 +369,16 @@ function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChan
     const entry = entries[index]
     if (!entry) return
     if (entry.isCreateEntry) { onRequestCreate(); return }
-    if (index !== activeIndex) {
-      liveIndexRef.current = index
-      onIndexChange(index)
-    } else if (!focused) {
-      onFocusToggle()
-    } else {
-      onEnter(entry)
-    }
+    // 点两侧人物：旋转到该人物并设为选中；点居中人物：直接进详情。
+    if (index !== activeIndex) onIndexChange(index)
+    else onEnter(entry)
   }
 
   return (
     <>
-      {/* 真黑舞台：背景/地面纯黑 + 黑雾让远处展台隐入虚空；人物只靠中性白主光 + 冷色轮廓光塑形（无暖调）。 */}
+      {/* 真黑舞台：背景纯黑 + 黑雾让圆环外缘隐入虚空；人物只靠中性白主光 + 冷色轮廓光塑形。 */}
       <color attach="background" args={['#000000']} />
-      <fog attach="fog" args={['#000000', 9, 26]} />
+      <fog attach="fog" args={['#000000', 9, 30]} />
       <ambientLight intensity={0.38} color="#ffffff" />
       <directionalLight position={[2.5, 6, 5]} intensity={1.0} color="#ffffff" />
       <directionalLight position={[-4, 3.5, -5]} intensity={0.5} color="#dfe8ff" />
@@ -347,27 +390,34 @@ function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChan
       </Environment>
 
       <StarDust />
-      <Plinths entries={entries} />
 
-      <Suspense fallback={null}>
-        {entries.map((entry, i) => (
-          <Booth
-            key={entry.character.id}
-            entry={entry}
-            index={i}
-            dist={Math.abs(i - activeIndex)}
-            active={i === activeIndex}
-            focused={focused && i === activeIndex}
-            hovered={hovered === i}
-            near={Math.abs(i - activeIndex) <= LOAD_NEARBY}
-            onHover={onHover}
-            onPick={handlePick}
-          />
-        ))}
-      </Suspense>
+      {/* 整圈展台（底座 + 人物）放在同一 group 内，绕 Y 旋转切换选中人物。 */}
+      <group ref={ringRef}>
+        <Plinths entries={entries} />
+        <Suspense fallback={null}>
+          {entries.map((entry, i) => {
+            const cdist = circularDist(i, activeIndex, count)
+            const angleDist = cdist * ((Math.PI * 2) / count)
+            return (
+              <Booth
+                key={entry.character.id}
+                entry={entry}
+                index={i}
+                angleDist={angleDist}
+                active={i === activeIndex}
+                hovered={hovered === i}
+                near={cdist <= LOAD_NEARBY}
+                onHover={onHover}
+                onPick={handlePick}
+              />
+            )
+          })}
+        </Suspense>
+      </group>
 
+      {/* 大圆形平台（半径 12），取代原长方形地面。 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
-        <planeGeometry args={[80, 40]} />
+        <circleGeometry args={[12, 64]} />
         <meshStandardMaterial color="#000000" roughness={1} metalness={0} />
       </mesh>
     </>
@@ -386,25 +436,26 @@ export type CharacterGallery3DProps = {
 
 export default function CharacterGallery3D({ entries, activeIndex, onIndexChange, onEnter, onModelError, onCreate }: CharacterGallery3DProps) {
   const [hovered, setHovered] = useState<number | null>(null)
-  const [focused, setFocused] = useState(false)
-  const liveIndexRef = useRef(activeIndex)
-  const dragRef = useRef({ down: false, startX: 0, startIndex: activeIndex, moved: false })
+  const ringRef = useRef<Group>(null)
+  const dragRef = useRef<DragState>(freshDrag())
   const wrapRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<Group>(null)
 
   useEffect(() => {
-    liveIndexRef.current = activeIndex
-    setFocused(false)
+    setHovered(null)
   }, [activeIndex, entries.length])
 
   useSceneCleanup(sceneRef, () => entries.map((e) => e.character.model).filter(Boolean) as string[])
 
   const count = entries.length
 
+  /** 一转对应屏幕宽 → 每弧度像素数。 */
+  const pxPerRadian = () => (wrapRef.current?.clientWidth ?? window.innerWidth) / (Math.PI * 2)
+
+  // 循环切换：圆环无首尾，左右箭头均可循环。
   const step = (delta: number) => {
-    const next = clampGalleryIndex(activeIndex + delta, count)
-    liveIndexRef.current = next
-    setFocused(false)
+    if (count === 0) return
+    const next = (((activeIndex + delta) % count) + count) % count
     onIndexChange(next)
   }
 
@@ -419,30 +470,38 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
   }, [activeIndex, count])
 
   const onPointerDown = (e: React.PointerEvent) => {
-    dragRef.current = { down: true, startX: e.clientX, startIndex: activeIndex, moved: false }
+    dragRef.current = {
+      ...freshDrag(),
+      down: true,
+      startX: e.clientX,
+      startT: performance.now(),
+      startRot: ringRef.current?.rotation.y ?? 0,
+      lastX: e.clientX,
+      lastT: performance.now(),
+    }
   }
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current
     if (!d.down) return
     const dx = e.clientX - d.startX
     if (Math.abs(dx) > 6) d.moved = true
-    const width = wrapRef.current?.clientWidth ?? window.innerWidth
-    const height = wrapRef.current?.clientHeight || 1
-    const visibleWidth = 2 * CAMERA_BASE_Z * Math.tan((FOV / 2) * Math.PI / 180) * (width / height)
-    const pxPerBooth = (width / Math.max(visibleWidth, 1)) * BOOTH_SPACING
-    const booths = -dx / Math.max(pxPerBooth, 1)
-    liveIndexRef.current = MathUtils.clamp(d.startIndex - booths, 0, count - 1)
+    // 右拖（dx>0）→ rotation.y 减小 → 切到下一位（与旧长廊手势一致）。
+    if (ringRef.current) ringRef.current.rotation.y = d.startRot - dx / pxPerRadian()
+    d.lastX = e.clientX
+    d.lastT = performance.now()
   }
-  const onPointerUp = () => {
+  const onPointerUp = (e: React.PointerEvent) => {
     const d = dragRef.current
     if (!d.down) return
-    dragRef.current.down = false
-    if (d.moved) {
-      const snapped = clampGalleryIndex(liveIndexRef.current, count)
-      liveIndexRef.current = snapped
-      setFocused(false)
-      onIndexChange(snapped)
-    }
+    d.down = false
+    const now = performance.now()
+    // 末段速度（px/s）→ rad/s，符号与实时旋转一致。
+    const dt = Math.max((now - d.lastT) / 1000, 0.008)
+    const vPx = (e.clientX - d.lastX) / dt
+    d.velocity = -vPx / pxPerRadian()
+    d.releaseAt = now
+    // 未移动视为点击（交给 booth onClick）；移动过则在 useFrame 惯性后吸附。
+    if (!d.moved) d.velocity = 0
   }
 
   const current = entries[activeIndex]
@@ -453,7 +512,7 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
       <GalleryErrorBoundary onError={onModelError}>
         <SafeCanvas
-          camera={{ position: [0, CAMERA_Y, CAMERA_BASE_Z], fov: FOV, near: 0.1, far: 120 }}
+          camera={{ position: CAMERA_POS, fov: FOV, near: 0.1, far: 120 }}
           dpr={[1, 1.5]}
           gl={{ antialias: true, alpha: false }}
         >
@@ -461,10 +520,9 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
             <GalleryScene
               entries={entries}
               activeIndex={activeIndex}
-              focused={focused}
-              liveIndexRef={liveIndexRef}
+              ringRef={ringRef}
+              dragRef={dragRef}
               onIndexChange={onIndexChange}
-              onFocusToggle={() => setFocused(true)}
               onEnter={onEnter}
               onRequestCreate={() => onCreate?.()}
               onHover={setHovered}
@@ -475,11 +533,11 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
       </GalleryErrorBoundary>
 
       <button type="button" className="gallery3d__arrow gallery3d__arrow--left"
-        onClick={() => step(-1)} disabled={activeIndex <= 0} aria-label="上一位">
+        onClick={() => step(-1)} aria-label="上一位">
         <ChevronLeft size={22} />
       </button>
       <button type="button" className="gallery3d__arrow gallery3d__arrow--right"
-        onClick={() => step(1)} disabled={activeIndex >= count - 1} aria-label="下一位">
+        onClick={() => step(1)} aria-label="下一位">
         <ChevronRight size={22} />
       </button>
 
@@ -497,12 +555,12 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
             </button>
           ) : (
             <button type="button" className="gallery3d__talk" onClick={() => onEnter(current)}>
-              {focused ? '开始对话 ↗' : '对话'}
+              对话 ↗
             </button>
           )}
         </div>
       )}
-      <div className="gallery3d__hint">拖拽滑动 · ←/→ 切换 · 点击聚焦 · 再点进入对话</div>
+      <div className="gallery3d__hint">拖拽旋转圆环 · ←/→ 切换 · 点两侧聚焦 · 点居中进入对话</div>
     </div>
   )
 }

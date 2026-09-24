@@ -156,7 +156,17 @@ function AppInner() {
     return <>
       <TopNav {...navProps} currentView="characters" />
       <LazyScene component={CharacterHall} label="角色馆"
-        props={{ onBack: () => setView('entry'), onEnterCourt: () => setView('court'), onPlaza: () => setView('plaza'), onCreateCharacter: () => setView('custom-studio') }} />
+        props={{
+          onBack: () => setView('entry'),
+          onEnterCourt: () => setView('court'),
+          onPlaza: () => setView('plaza'),
+          onCreateCharacter: () => setView('custom-studio'),
+          onEnterScene: (sceneId: string) => {
+            if (sceneId === 'court') setView('court')
+            else if (sceneId === 'plaza') setView('plaza')
+            else if (sceneId === 'gym' || sceneId === 'bar' || sceneId === 'library' || sceneId === 'talkshow' || sceneId === 'werewolf') setView(sceneId as View)
+          },
+        }} />
     </>
   }
 
