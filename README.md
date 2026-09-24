@@ -1,17 +1,19 @@
 <div align="center">
 
-<img src="apps/web/public/brand/balabala-mark.jpg" alt="叽里呱啦 BalaBala" width="96" />
+<img src="apps/web/public/brand/balabala-logo.jpg" alt="叽里呱啦 BalaBala" width="108" />
 
 # 叽里呱啦 · BalaBala
 
-### 一座由 AI 驱动的 3D 趣味社交世界
+### 一座 AI 驱动的 3D 社交与创作世界
 
 把生活里的小争议、脑洞和表达欲，变成和古今中外名人一起玩的沉浸式社交体验——
-开庭辩论、上台脱口秀、狼人杀、酒吧对辩、云健身、读书会，六大场景自由进出。
+开庭辩论、上台脱口秀、狼人杀、酒吧对辩、云健身、读书会，六大场景自由进出；
+还能用一句话让 AI 帮你生成专属 3D 场景与小游戏、布置 AI NPC，亲自当造物主。
 
 <br />
 
 ![场景](https://img.shields.io/badge/互动场景-6大-FFD60A)
+![创造](https://img.shields.io/badge/AI创造-场景%26游戏-6D5DFB)
 ![名人](https://img.shields.io/badge/古今名人-20位-4fb3a5)
 ![3D](https://img.shields.io/badge/3D渲染-Three.js-6D5DFB)
 ![联机](https://img.shields.io/badge/实时联机-WebSocket-191919)
@@ -32,14 +34,30 @@
 
 建筑里住着 **20 位古今中外名人**：从马斯克、爱因斯坦、牛顿，到李白、诸葛亮、莎士比亚……每个人都有独立的人设、3D 全身形象和符合身份的声音，能和你对话、辩论、同台表演。你也可以**上传一张照片，生成属于自己的 3D 人物**。
 
+不止于「玩」，你还能当**造物主**：在「场景工作室」里用一句话描述想要的世界，AI 自动生成地形、植被、建筑与道具，再把名人或你自己创造的角色作为 AI NPC 布置进去、配上玩法，保存后即可第三人称进入——你创造的世界，也能分享给大家。
+
 ## ✨ 核心亮点
 
+- 🛠️ **自定义场景工作室 · 当造物主**：一句话描述想要的世界，AI 自动生成地形、植被生态、建筑与道具（缺失的用 Tripo 实时 3D 建模）；把名人/自定义角色作为 AI NPC 自由摆位（自带人设、技能与专属语音），选择探索/收集/到达/任务玩法，保存后第三人称进入体验，数据驱动、可持续扩展。
 - ⚖️ **AI 趣味法庭 · 招牌玩法**：说一件生活里的小事，AI 自动整理事实、生成原告与被告，双方多轮辩论；你可以随时在「原告 / 观众 / 被告」视角间切换、补充证据弹药，最后由法官依据事实权重与逻辑下达判决书。
 - 🎭 **六座可进入的 3D 场景**：趣味法庭、脱口秀剧场、狼人杀馆、酒吧辩论赛、健身房、图书馆，各有完整玩法与专属空间，**全部开放**。
 - 👥 **20 位名人真实可互动**：独立人格（persona）＋ 3D 全身模型 ＋ 符合人设的语音，可对话、组队，担任你的教练、评委、对手或队友。
 - 🪄 **照片一键生成 3D 人物**：上传全身照或用文字描述，AI 生成可对话、可进入任意场景的专属 3D 角色。
 - 🌐 **3D 中央广场 ＋ 实时多人**：点击地面移动、点击建筑进入，实时看到其他在线玩家；WebSocket 断线自动重连。
 - 🛠️ **完整 AI 创作工具链**：AI 帮写段子与文案、TTS 语音合成、AI 视频生成，精彩内容一键发布到广场。
+
+## 🛠️ 自定义场景工作室（AI 造物）
+
+「场景工作室」让不写代码的人也能用 AI 创造可玩的 3D 世界：
+
+1. **描述世界**：一句话描述你想要的场景（如「一座有瀑布和古代酒馆的仙侠山谷，李白在门口迎客」），可让 AI 智能优化。
+2. **AI 生成蓝图**：大模型把描述解析为结构化场景蓝图——地形主题与起伏、水面/天气/光照、植被生态撒点、建筑与道具清单、NPC 阵容与站位、出生点与玩法目标。
+3. **资产生成与复用**：树/草/岩石等复用内置资产库并实例化；蓝图里缺失的关键建筑/道具自动交给 Tripo 文本生成 3D 模型，归一化（落地、居中、统一缩放）后入库。
+4. **布置 AI NPC**：从 20 位名人或你的自定义人物中挑选角色放入场景，每个 NPC 自带人设（persona）、技能（skill）与符合身份的语音，可设置身份（掌柜 / 守卫 / 任务发布者…）与站位。
+5. **选择玩法**：内置四种轻量模板——**对话探索、物品收集、到达目标、NPC 任务链**，AI 按描述自动推荐并配置目标。
+6. **保存进入**：一键发布，第三人称走进你创造的世界，与 NPC 对话、拾取物品、完成目标。
+
+> 场景蓝图与运行时解耦：地形、撒点、结构、NPC、玩法全部是可序列化数据，便于二次编辑、分享与扩展，未来可作为传送子区域接入更大的开放世界。
 
 ## 🧱 技术速览
 
@@ -196,22 +214,27 @@ npm run build        # 全量构建（shared + api + web）
 npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议庭编排 / db CRUD / WS 广播过滤）
 ```
 
-## 自动化测试（M10）
+## 自动化测试
 
-后端核心纯逻辑使用 **Vitest** 覆盖，共 117 个用例，全部 mock 外部服务（LLM / Tripo），零网络依赖、确定性通过：
+核心纯逻辑使用 **Vitest** 覆盖：后端 **158** 个、前端 **85** 个用例，全部 mock 外部服务（LLM / Tripo / TTS），零网络依赖、确定性通过。
 
-| 测试文件 | 用例数 | 覆盖范围 |
+| 后端测试文件 | 用例数 | 覆盖范围 |
 |---|---|---|
 | `werewolf-orchestrator.test.ts` | 20 | 阶段推进、胜负判定、视角过滤、信息隔离、AI 补位、战报 |
-| `db.test.ts` | 17 | 案件/内容/评论/反应去重/用户/证书/消息/场景记录 DAO + 重启持久化 |
+| `db.test.ts` | 19 | 案件/内容/评论/反应去重与点赞累加/用户/证书/消息/场景记录 DAO + 重启持久化 |
 | `bench-orchestrator.test.ts` | 9 | 合议庭流程事件序列、投票统计、互动消费、非法 JSON 兜底 |
 | `ws.test.ts` | 8 | 房间广播隔离、私密单发、场景房间状态、scene_event 广播 |
 | `gym-orchestrator.test.ts` | 15 | 训练计划生成、streak 连续天数计算（含跨月/断档）、成就解锁判定（器械分类/累计阈值） |
-| `custom-character-db.test.ts` | 11 | 自定义人物 CRUD、多用户隔离、可见性过滤、tags 序列化 |
+| `custom-character-db.test.ts` | 17 | 自定义人物 CRUD、多用户隔离、可见性过滤、tags 序列化 |
 | `character-resolver.test.ts` | 7 | 统一角色解析：预置名人/自定义人物/未知 ref/批量解析/URL 转换 |
-| `court-state.test.ts` | 13 | M13 状态机流转/非法流转/视角过滤/发言上下文 |
-| `court-db.test.ts` | 9 | M13 案件/证据/事实/turn/player_input/verdict DAO CRUD |
-| `court-orchestrator.test.ts` | 5 | M13 AI分析/庭审流程/player input消费/错误路径 |
+| `court-state.test.ts` | 16 | M13 状态机流转/非法流转/视角过滤/发言上下文 |
+| `court-db.test.ts` | 13 | M13 案件/证据/事实/turn/player_input/verdict DAO CRUD |
+| `court-orchestrator.test.ts` | 7 | M13 AI分析/庭审流程/player input消费/错误路径 |
+| `character-voices.test.ts` | 9 | 名人/自定义人物语音映射、音色选择、TTS 请求与兜底 |
+| `normalize-character-model.test.ts` | 5 | 全身模型归一化（落地/居中/统一身高）、全身/半身判定 |
+| `skill.test.ts` | 13 | 名人技能（skill）加载、解析、检索与匹配 |
+
+**前端另有 85 个用例（4 文件）**：`courtroom-camera.test.ts`（34，法庭机位/视角切换）、`character-gallery.test.ts`（29，人物馆环形选人/画廊）、`courtroom-seats.test.ts`（17，席位布局/人物转向）、`character-voices.web.test.ts`（5，语音开关/朗读）。
 
 测试使用临时 SQLite 文件（`process.env.DB_PATH` 覆盖），每个测试文件独立数据库，`afterAll` 清理。GitHub Actions 在 push/PR 时自动运行 `npm test` + `npm run build`。
 
@@ -228,6 +251,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 - 场景交互记录（脱口秀表演、酒吧发言、图书馆问答）
 - 狼人杀对局记录与战报
 - 健身训练计划、打卡记录、连续天数 streak、成就徽章
+- 自定义场景蓝图、NPC 布置与生成资产记录
 
 首次启动自动填充广场演示内容。
 
@@ -353,6 +377,16 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - `GET /api/court/cases/:id/verdict` — 判决（公开）
 - `POST /api/court/cases/:id/publish` — 发布判决到广场（`court_verdict` 类型）
 
+### 自定义场景工作室
+- `POST /api/scene-studio/generate` — 自然语言生成场景蓝图并构建资产（**SSE 进度**），body `{userId, description, options?}`
+- `GET /api/scene-studio/list?userId=` — 场景列表
+- `GET /api/scene-studio/:id` — 场景详情（蓝图）
+- `PUT /api/scene-studio/:id` — 编辑蓝图（增删挪 NPC / 结构 / 道具、改玩法）
+- `POST /api/scene-studio/:id/npc` — 添加 / 布置 AI NPC（`{characterId, position, role?}`）
+- `POST /api/scene-studio/:id/publish` — 保存发布
+- `DELETE /api/scene-studio/:id` — 删除场景
+- `GET /api/scene-studio/:id/play` — 运行时数据（解析后蓝图 + 资产 URL + NPC 资源）
+
 ### WebSocket
 - `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>|gym:lobby` — 实时连接
 - 场景房间：脱口秀/酒吧/图书馆/健身房各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby` / `gym:lobby`，通过场景专属事件广播（表演、发言、问答、打卡、加油等）
@@ -459,6 +493,7 @@ apps/
       court-state.ts    # M13: 状态机/视角过滤/发言上下文（纯逻辑）
       court-orchestrator.ts  # M13: AI分析+庭审循环+判决编排
       court-routes.ts   # M13: 案件 CRUD/分析/SSE庭审/玩家输入/判决
+      scene-studio/      # 自定义场景工作室：scene-planner(AI蓝图)/scene-asset-builder(Tripo资产)/scene-db/scene-routes
   web/          # Vite + React 18 + R3F 前端
     src/
       identity.tsx    # 用户身份 Provider
@@ -485,6 +520,7 @@ apps/
       CourtCreationWizard.tsx  # M13: 四步创建向导
       CourtTrialPanel.tsx  # M13: 庭审底部面板（发言/记录/视角/玩家输入）
       CourtVerdictPanel.tsx  # M13: 判决展示面板
+      scene-studio/      # 自定义场景：SceneStudio(创作向导)/SceneRunner(运行时)/MyScenes(列表)
 packages/
   shared/       # 共享类型与名人数据
 ```
@@ -493,7 +529,7 @@ packages/
 
 - **后端**：Fastify 5 + node:sqlite + @fastify/websocket + undici
 - **前端**：Vite 5 + React 18 + React Three Fiber + drei + three + vite-plugin-pwa
-- **测试**：Vitest（后端核心逻辑，117 用例）
+- **测试**：Vitest（后端 158 + 前端 85 用例）
 - **共享**：TypeScript 类型 + 名人数据
 - **CI**：GitHub Actions（push/PR 自动跑 test + build）
 - **AI**：StepFun / EvoMap（庭审生成、名人对话、润色）、Tripo（3D 模型）、StepFun TTS

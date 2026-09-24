@@ -21,9 +21,12 @@ const WerewolfShell = lazy(() => import('./WerewolfShell'))
 const BarShell = lazy(() => import('./BarShell'))
 const LibraryShell = lazy(() => import('./LibraryShell'))
 const GymShell = lazy(() => import('./GymShell'))
+const SceneStudio = lazy(() => import('./scene-studio/SceneStudio'))
+const MyScenes = lazy(() => import('./scene-studio/MyScenes'))
+const ScenePlay = lazy(() => import('./scene-studio/ScenePlay'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym'
+type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -59,6 +62,9 @@ function AppInner() {
     return 'entry'
   })
   const [roomId] = useState<string | null>(() => parseRoomParam())
+  // 场景工作室：正在编辑的场景 id（undefined = 新建）；正在播放的场景 id
+  const [sceneStudioId, setSceneStudioId] = useState<string | undefined>(undefined)
+  const [scenePlayId, setScenePlayId] = useState<string | null>(null)
   // 开庭前全局配置（合议庭流程在 CourtroomShell 内自治）
   const [caseText, setCaseText] = useState('泡泡借走了阿布的彩虹伞，但下雨后伞变成了会唱歌的蘑菇。')
   const [hearingMode, setHearingMode] = useState<HearingMode>('quick')
@@ -130,6 +136,8 @@ function AppInner() {
       onEnterBar={() => setView('bar')}
       onEnterLibrary={() => setView('library')}
       onEnterGym={() => setView('gym')}
+      onEnterSceneStudio={() => { setSceneStudioId(undefined); setView('scene-studio') }}
+      onMyScenes={() => setView('my-scenes')}
     />
   }
 
@@ -239,6 +247,38 @@ function AppInner() {
       <LazyScene component={GymShell} label="健身房"
         props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
     </>
+  }
+
+  // ===== 场景创作工作室（三步向导，懒加载） =====
+  if (view === 'scene-studio') {
+    return <>
+      <TopNav {...navProps} currentView="scene-studio" />
+      <LazyScene component={SceneStudio} label="创造世界"
+        props={{
+          onBack: () => setView(sceneStudioId ? 'my-scenes' : 'entry'),
+          sceneId: sceneStudioId,
+          onPublished: (id: string) => { setScenePlayId(id); setView('scene-play') },
+        }} />
+    </>
+  }
+
+  // ===== 我的场景列表（懒加载） =====
+  if (view === 'my-scenes') {
+    return <>
+      <TopNav {...navProps} currentView="my-scenes" />
+      <LazyScene component={MyScenes} label="我的场景"
+        props={{
+          onBack: () => setView('entry'),
+          onEdit: (id?: string) => { setSceneStudioId(id); setView('scene-studio') },
+          onPlay: (id: string) => { setScenePlayId(id); setView('scene-play') },
+        }} />
+    </>
+  }
+
+  // ===== 场景运行时播放（全屏，无 TopNav） =====
+  if (view === 'scene-play' && scenePlayId) {
+    return <LazyScene component={ScenePlay} label="场景播放"
+      props={{ sceneId: scenePlayId, onBack: () => setView('my-scenes') }} />
   }
 
   // ===== 我的 =====

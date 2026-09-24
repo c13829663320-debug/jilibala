@@ -19,6 +19,10 @@ export type RoomEntryProps = {
   onEnterBar?: () => void
   onEnterLibrary?: () => void
   onEnterGym?: () => void
+  /** 进入「创造世界」工作室。 */
+  onEnterSceneStudio?: () => void
+  /** 进入「我的场景」列表。 */
+  onMyScenes?: () => void
 }
 
 type Item = {
@@ -313,7 +317,7 @@ function OrbScene({ items, activeId, onActivate, onHover }: { items: Item[]; act
   </SafeCanvas>
 }
 
-export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, onMyPage }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, onMyPage, onEnterSceneStudio, onMyScenes }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
@@ -329,6 +333,8 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
       case 'bar': onEnterBar?.(); break
       case 'library': onEnterLibrary?.(); break
       case 'gym': onEnterGym?.(); break
+      case 'scene-studio': onEnterSceneStudio?.(); break
+      case 'my-scenes': onMyScenes?.(); break
       case 'court': setActiveId('court'); break
       default: break
     }
@@ -350,6 +356,19 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
     <TopNav currentView="home" onNavigate={onNavigate} />
 
     <section className="main-home__hero"><span className="main-home__kicker">BALA BALA SOCIAL WORLD</span><h1>选择一个场景，<em>开始你的故事。</em></h1><p>六大互动空间全部开放，自由进出。</p></section>
+
+    <section className="main-home__create" aria-label="创造入口">
+      <button type="button" className="main-home__create-card" onClick={() => onEnterSceneStudio?.()}>
+        <span className="main-home__create-emoji">🎨</span>
+        <span className="main-home__create-text"><b>创造世界</b><small>一句话生成专属 3D 场景，拉上 NPC 一起冒险</small></span>
+        <i>↗</i>
+      </button>
+      <button type="button" className="main-home__create-card" onClick={() => onMyScenes?.()}>
+        <span className="main-home__create-emoji">📁</span>
+        <span className="main-home__create-text"><b>我的场景</b><small>管理、编辑、发布你创造过的每一个世界</small></span>
+        <i>↗</i>
+      </button>
+    </section>
 
     <section className="main-home__scene" aria-label="场景空间">
       <OrbScene items={items} activeId={activeId} onActivate={openScene} onHover={(item) => setActiveId(item.id)} />
