@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import './court.css'
 import VerdictScreen from './screens/VerdictScreen'
+import { CourtroomShell } from './shared'
 import { backendCaseToUi, backendVerdictToUi } from './http-engine'
 import type { CourtCase, CourtVerdict } from './types'
 
 const noop = () => {}
+const only3d = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('only') === '3d'
 
 export default function VerdictPreview({ caseId }: { caseId: string }) {
   const [data, setData] = useState<{ c: CourtCase; v: CourtVerdict } | null>(null)
@@ -30,6 +33,13 @@ export default function VerdictPreview({ caseId }: { caseId: string }) {
 
   if (err) return <div style={{ padding: 40 }}>{err}</div>
   if (!data) return null
+  if (only3d) {
+    return (
+      <CourtroomShell courtCase={data.c} onExit={noop} onOpenArchive={noop}>
+        <div />
+      </CourtroomShell>
+    )
+  }
   return (
     <VerdictScreen
       courtCase={data.c}

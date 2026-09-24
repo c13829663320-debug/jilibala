@@ -39,8 +39,8 @@ export interface CameraConfig {
  *   关键：运行时相机就位后不再每帧拉回；发言者只靠 SeatRing/聚光/名牌高亮。
  */
 export const TRIAL_CAMERA = {
-  position: [0, 2.0, 1.0] as Vec3,
-  target: [0, 1.0, -2.5] as Vec3,
+  position: [0, 2.9, 1.0] as Vec3,
+  target: [0, 1.0, -2.9] as Vec3,
   fov: 50,
   minDistance: 1.2,
   maxDistance: 9.0,
@@ -61,9 +61,9 @@ export interface ViewCamera {
 }
 
 export const VIEW_CAMERAS: Record<CourtPerspective, ViewCamera> = {
-  audience: { position: [0, 2.0, 1.0], target: [0, 1.0, -2.5], fov: 55 },
-  plaintiff: { position: [-2.9, 1.5, 0.5], target: [0.4, 1.1, -2.6], fov: 55 },
-  defendant: { position: [2.9, 1.5, 0.5], target: [-0.4, 1.1, -2.6], fov: 55 },
+  audience: { position: [0, 2.9, 1.0], target: [0, 1.0, -2.9], fov: 60 },
+  plaintiff: { position: [-3.05, 1.55, 0.95], target: [0.6, 1.1, -2.7], fov: 55 },
+  defendant: { position: [3.05, 1.55, 0.95], target: [-0.6, 1.1, -2.7], fov: 55 },
 }
 
 export function getViewCamera(perspective: CourtPerspective): ViewCamera {

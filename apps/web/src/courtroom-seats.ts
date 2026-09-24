@@ -82,7 +82,7 @@ export function buildFixedSeats(): FixedSeatSpec[] {
     {
       id: 'seat-judge', name: '法官', kind: 'judge',
       model: seatModelUrl('judge'),
-      position: [0, 0.25, -3.0],
+      position: [0, 0.25, -3.45],
       facing: 0, // 面向法庭(+z)
       npc: false,
     },
