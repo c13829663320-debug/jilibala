@@ -22,6 +22,7 @@ import {
 } from "./db.js";
 import { resolveCharacter } from "./character-resolver.js";
 import { loadCharacterSkill, buildSystemPrompt } from "./character-skill.js";
+import { normalizeCharacterModel } from "./normalize-character-model.js";
 
 /** 运行时自定义人物文件根目录：.data/custom-characters/<id>/<filename>。 */
 const ASSETS_ROOT = pathResolve(process.cwd(), ".data", "custom-characters");
@@ -195,13 +196,18 @@ export function registerCustomCharacterRoutes(
       return reply.code(409).send({ message: "Tripo 模型尚未生成完成" });
     }
 
-    // 2. 下载 GLB 落盘。
+    // 2. 下载 GLB，归一化 + 全身判定后落盘。
     try {
       const res = await fetch(assetUrl, { signal: AbortSignal.timeout(60000) });
       if (!res.ok) return reply.code(502).send({ message: `模型文件下载失败（${res.status}）` });
       const bytes = Buffer.from(await res.arrayBuffer());
       if (!bytes.length) return reply.code(502).send({ message: "模型文件为空" });
-      writeFileSync(pathResolve(dir, "model.glb"), bytes);
+      const { glb, assessment } = await normalizeCharacterModel(new Uint8Array(bytes));
+      if (assessment.notFullBody) {
+        rmSync(dir, { recursive: true, force: true });
+        return reply.code(422).send({ code: "NOT_FULL_BODY", message: assessment.warning });
+      }
+      writeFileSync(pathResolve(dir, "model.glb"), Buffer.from(glb));
     } catch (error) {
       req.log.error(error, "finalize: download glb failed");
       return reply.code(502).send({ message: "模型文件下载失败" });

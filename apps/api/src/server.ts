@@ -511,6 +511,12 @@ app.get('/api/tripo/tasks/:taskId/download', async (req, reply) => {
   return reply.redirect(`/api/tripo/tasks/${encodeURIComponent(taskId)}/download.glb${query.asset ? `?asset=${encodeURIComponent(query.asset)}` : ''}`);
 });
 
+// 文生模型自动追加全身约束，避免 Tripo 生成半身/特写。
+function appendFullBodyConstraint(prompt: string): string {
+  const suffix = '，全身像，从头到脚完整站立，双脚完整可见，站姿自然，不要半身/特写/裁切腿部';
+  return prompt.endsWith('。') || prompt.endsWith('，') ? prompt + suffix.slice(1) : prompt + suffix;
+}
+
 // Backward-compatible aliases used by the first avatar UI prototype.
 app.post('/api/avatars/generate', async (req, reply) => {
   const body = (req.body ?? {}) as { type?: 'text_to_model'|'image_to_model'; prompt?: string; imageToken?: string; imageUrl?: string; modelVersion?: string };
@@ -519,7 +525,7 @@ app.post('/api/avatars/generate', async (req, reply) => {
     if (type === 'text_to_model' && !body.prompt?.trim()) return reply.code(400).send({ message: 'prompt 不能为空。' });
     if (type === 'image_to_model' && !body.imageToken && !body.imageUrl) return reply.code(400).send({ message: 'image_to_model 需要 imageToken 或 imageUrl。' });
     const task = type === 'text_to_model'
-      ? await createTextTask(body.prompt!.trim(), { modelVersion: body.modelVersion })
+      ? await createTextTask(appendFullBodyConstraint(body.prompt!.trim()), { modelVersion: body.modelVersion })
       : await createImageTask(body.imageToken ?? await uploadImageUrl(body.imageUrl!), { modelVersion: body.modelVersion });
     if (!task.task_id) return reply.code(502).send({ message: 'Tripo 未返回 task_id。' });
     return reply.code(202).send({ taskId: task.task_id, type });

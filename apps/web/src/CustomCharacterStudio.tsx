@@ -57,6 +57,8 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
   const [polishing, setPolishing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [notFullBodyError, setNotFullBodyError] = useState(false)
+  const [confirmedFullBody, setConfirmedFullBody] = useState(false)
   const [savedCharacter, setSavedCharacter] = useState<SavedCharacter | null>(null)
   const [form, setForm] = useState({
     name: '',
@@ -210,6 +212,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
     if (!task?.taskId) { setSaveError('请先生成 3D 模型。'); return }
     setSaving(true)
     setSaveError('')
+    setNotFullBodyError(false)
     try {
       const response = await fetch('/api/custom-characters/finalize', {
         method: 'POST',
@@ -228,7 +231,12 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
           ...(form.voice ? { voice: form.voice } : {}),
         }),
       })
-      const data = await response.json() as (SavedCharacter & { message?: string })
+      const data = await response.json() as (SavedCharacter & { message?: string; code?: string })
+      if (response.status === 422 && data.code === 'NOT_FULL_BODY') {
+        setNotFullBodyError(true)
+        setSaveError('生成的模型不是全身模型（可能因为上传了半身/头像照）。请重新上传从头到脚的全身照，或改用文字描述模式生成全身人物。')
+        return
+      }
       if (!response.ok || !data.id) throw new Error(data.message ?? '保存失败')
       setSavedCharacter(data)
       setStep(4)
@@ -249,6 +257,8 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
     setMessage('')
     setFormMessage('')
     setSaveError('')
+    setNotFullBodyError(false)
+    setConfirmedFullBody(false)
     setSavedCharacter(null)
     setForm({ name: '', title: '', intro: '', tags: '', persona: '', greeting: '', voice: '' })
     setPreviewingVoice(false)
@@ -262,7 +272,9 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
     ? (busy ? 18 : modelReady ? 100 : 0)
     : Math.max(0, Math.min(100, task.progress))
 
-  const canGoStep2 = mode === 'image' ? Boolean(imageData) : Boolean(prompt.trim())
+  const canGoStep2 = mode === 'image'
+    ? Boolean(imageData && confirmedFullBody)
+    : Boolean(prompt.trim())
   const canSave = Boolean(user?.userId && form.name.trim() && form.persona.trim() && modelReady && task?.taskId && !saving)
 
   return (
@@ -335,6 +347,14 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
                 <button className="ccs__photo-repick" type="button"
                   onClick={() => fileInputRef.current?.click()}>换一张照片</button>
               )}
+              <div className="ccs__warn-box" role="alert">
+                ⚠️ 注意：半身照/头像只能生成半身模型，无法自动补全腿部。需要全身模型请上传从头到脚、双脚完整可见的全身照。
+              </div>
+              <label className="ccs__confirm-check">
+                <input type="checkbox" checked={confirmedFullBody}
+                  onChange={(e) => setConfirmedFullBody(e.target.checked)} />
+                <span>我已上传全身照（从头到脚、双脚可见）</span>
+              </label>
             </>
           )}
 
@@ -496,6 +516,18 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
             将以「{form.name.trim() || '未命名'}」的身份保存到你的人物馆，默认私有。
           </p>
           {saveError && <div className="ccs__message is-error" role="alert">{saveError}</div>}
+          {notFullBodyError && (
+            <div className="ccs__error-actions">
+              <button className="ccs__ghost" type="button"
+                onClick={() => { setStep(1); setMode('image') }}>
+                重新上传照片
+              </button>
+              <button className="ccs__ghost" type="button"
+                onClick={() => { setStep(1); setMode('text') }}>
+                改用文字描述
+              </button>
+            </div>
+          )}
           <div className="ccs__nav-row">
             <button className="ccs__ghost" type="button" onClick={() => setStep(3)} disabled={saving}>← 上一步</button>
             <button className="ccs__primary ccs__primary--inline" type="button"
@@ -518,6 +550,12 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
             </div>
           )}
           <div className="ccs__success-actions">
+            {onViewCharacter && (
+              <button className="ccs__primary ccs__primary--inline" type="button"
+                onClick={() => onViewCharacter(savedCharacter.id)}>
+                ⚖️ 带入法庭
+              </button>
+            )}
             {onViewCharacter && (
               <button className="ccs__primary ccs__primary--inline" type="button"
                 onClick={() => onViewCharacter(savedCharacter.id)}>

@@ -161,6 +161,7 @@ export default function CourtFlow({
           engine={engine}
           initialPerspective={perspective}
           character={character}
+          defenderAssignments={defenderAssignments}
           onVerdict={handleVerdict}
           onExit={onExit}
           onOpenArchive={onOpenArchive}

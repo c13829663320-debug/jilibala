@@ -69,6 +69,14 @@
 .ccs__message{margin:12px 0;padding:9px 12px;border-radius:8px;background:rgba(109,224,198,.08);color:#4fb3a5;font-size:12px;line-height:1.5}
 .ccs__message.is-error{background:rgba(239,111,141,.1);color:#ff8a9a}
 
+/* 半身照警告 + 全身照确认 */
+.ccs__warn-box{margin:14px 0;padding:12px 14px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.5);color:#f5c26b;font-size:12px;line-height:1.7}
+.ccs__confirm-check{display:flex!important;align-items:center;gap:8px;margin:4px 0 0;color:#bdb7d0;font-size:12px;cursor:pointer}
+.ccs__confirm-check input{width:auto;margin:0;accent-color:#4fb3a5;cursor:pointer}
+
+/* 错误快捷操作按钮 */
+.ccs__error-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+
 /* 进度条 */
 .ccs__progress-wrap{margin-top:18px}
 .ccs__progress-row{display:flex;justify-content:space-between;align-items:center;color:#999;font-size:11px;margin-bottom:8px}

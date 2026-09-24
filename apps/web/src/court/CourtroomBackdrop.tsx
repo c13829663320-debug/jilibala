@@ -4,7 +4,7 @@
 import { lazy, Suspense, useMemo } from 'react'
 import type { CourtCase } from './types'
 import type { CourtSeat } from '../CourtroomView'
-import { buildFixedSeats, type FixedSeatSpec } from '../courtroom-seats'
+import { buildFixedSeats, type FixedSeatSpec, type Vec3 } from '../courtroom-seats'
 import type { CourtPerspective } from '../courtroom-camera'
 
 const CourtroomView = lazy(() => import('../CourtroomView'))
@@ -14,11 +14,80 @@ export interface ActiveSpeaker {
   speakerId?: string
 }
 
+export interface DefenderAssignmentMap {
+  plaintiff: string[]
+  defendant: string[]
+}
+
+export interface DefenderCharacterInfo {
+  id: string
+  name: string
+  model?: string
+}
+
 type Props = {
   courtCase?: CourtCase | null
   activeSpeaker?: ActiveSpeaker | null
+  /** 被指派的辅助人 id 列表（原告方/被告方） */
+  defenderAssignments?: DefenderAssignmentMap
+  /** UiCharacter 查找字典：id → 含 model URL 的人物信息 */
+  characterMap?: Map<string, DefenderCharacterInfo>
   /** 保留旧签名兼容(上传版 character/perspective/speaker/verdictShot),现已不影响机位。 */
   [key: string]: unknown
+}
+
+/**
+ * 被指派辅助人的席位槽位（每方最多 3 人）。
+ * 原告律师在 [-2.7,0,-1.4]，辅助人排在其左侧/身后（更负 x、z 错排）；
+ * 被告方对称取正 x。x 不越界 ±4.3，z 在 -3.9..4.6 内，且与固定席位不重叠。
+ */
+const DEFENDER_SLOTS: Record<'plaintiff' | 'defendant', Vec3[]> = {
+  plaintiff: [
+    [-3.5, 0, -1.0],
+    [-4.0, 0, -1.6],
+    [-3.8, 0, -2.2],
+  ],
+  defendant: [
+    [3.5, 0, -1.0],
+    [4.0, 0, -1.6],
+    [3.8, 0, -2.2],
+  ],
+}
+
+/**
+ * 纯函数：把被指派的辅助人 id 列表转成额外 CourtSeat。
+ * - 找不到 model 的 id 直接跳过；
+ * - facing=π（面向法官，与双方律师一致）；
+ * - 发言高亮按 speakerId 精确匹配。
+ */
+export function buildDefenderSeats(
+  assignments: DefenderAssignmentMap | undefined,
+  charMap: Map<string, DefenderCharacterInfo> | undefined,
+  active?: ActiveSpeaker | null,
+): CourtSeat[] {
+  const seats: CourtSeat[] = []
+  if (!assignments || !charMap) return seats
+  for (const side of ['plaintiff', 'defendant'] as const) {
+    const ids = assignments[side] ?? []
+    const slots = DEFENDER_SLOTS[side]
+    ids.slice(0, slots.length).forEach((id, i) => {
+      const char = charMap.get(id)
+      if (!char || !char.model) return
+      seats.push({
+        id: `seat-defender-${id}`,
+        name: char.name,
+        role: 'defender',
+        kind: 'defender',
+        model: char.model,
+        position: slots[i],
+        facing: Math.PI,
+        npc: false,
+        active: active?.speaker === 'defender' && active?.speakerId === id,
+        side,
+      })
+    })
+  }
+  return seats
 }
 
 function seatName(f: FixedSeatSpec, _courtCase?: CourtCase | null): string {
@@ -64,12 +133,13 @@ function toCourtSeat(f: FixedSeatSpec, courtCase?: CourtCase | null, active?: Ac
   }
 }
 
-export function CourtroomBackdrop({ courtCase, activeSpeaker, perspective }: Props) {
+export function CourtroomBackdrop({ courtCase, activeSpeaker, perspective, defenderAssignments, characterMap }: Props) {
   const fixedSeats = useMemo(() => buildFixedSeats(), [])
-  const seats = useMemo<CourtSeat[]>(
-    () => fixedSeats.map((f) => toCourtSeat(f, courtCase, activeSpeaker)),
-    [fixedSeats, courtCase, activeSpeaker],
-  )
+  const seats = useMemo<CourtSeat[]>(() => {
+    const fixed = fixedSeats.map((f) => toCourtSeat(f, courtCase, activeSpeaker))
+    const extra = buildDefenderSeats(defenderAssignments, characterMap, activeSpeaker)
+    return [...fixed, ...extra]
+  }, [fixedSeats, courtCase, activeSpeaker, defenderAssignments, characterMap])
   return (
     <div className="live-canvas-wrap">
       <Suspense fallback={null}>

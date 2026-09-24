@@ -5,6 +5,10 @@ import { resolveCharacterVoice } from '@balabala/shared'
 import { playTts, stopTts } from '../../tts'
 import { getVoiceEnabled } from '../../voice-settings'
 import { useReconnectingWebSocket } from '../../useReconnectingWebSocket'
+import { useIdentity } from '../../identity'
+import {
+  celebrityListToUi, fetchMyCharacters, fetchPublicCharacters, type UiCharacter,
+} from '../../custom-characters'
 import type { WSMessage } from '@balabala/shared'
 import type {
   CourtCase, CourtRecordSummary, CourtRoleType, CourtTurn, CourtVerdict,
@@ -22,6 +26,7 @@ type Props = {
   engine: HttpCourtEngine
   initialPerspective: Perspective
   character?: unknown
+  defenderAssignments?: { plaintiff: string[]; defendant: string[] }
   onVerdict: (verdict: CourtVerdict, backendCaseId?: string) => void
   onExit: () => void
   onOpenArchive: () => void
@@ -29,7 +34,7 @@ type Props = {
 
 const ROLE_LABEL: Record<string, string> = { judge: '法官', plaintiff: '原告', defendant: '被告', defender: '辩护人', witness: '证人' }
 
-export default function CourtroomLive({ courtCase, engine, initialPerspective, onVerdict, onExit, onOpenArchive }: Props) {
+export default function CourtroomLive({ courtCase, engine, initialPerspective, defenderAssignments, onVerdict, onExit, onOpenArchive }: Props) {
   const [perspective, setPerspective] = useState<Perspective>(initialPerspective)
   const [phase, setPhase] = useState<Phase>('idle')
   const [currentRound, setCurrentRound] = useState(0)
@@ -49,6 +54,23 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, o
   const [errorWhere, setErrorWhere] = useState<'trial' | 'verdict'>('trial')
   const [canContinueNext, setCanContinueNext] = useState(false)
   const [onlineCount, setOnlineCount] = useState(1)
+
+  // 被指派辅助人 → 3D 模型字典（名人 + 我的人物 + 广场人物）
+  const { user } = useIdentity()
+  const userId = user?.userId ?? ''
+  const [characterMap, setCharacterMap] = useState<Map<string, UiCharacter>>(new Map())
+  useEffect(() => {
+    let alive = true
+    Promise.all([fetchMyCharacters(userId), fetchPublicCharacters()]).then(([mine, pub]) => {
+      if (!alive) return
+      const map = new Map<string, UiCharacter>()
+      for (const c of celebrityListToUi()) map.set(c.id, c)
+      for (const c of mine) map.set(c.id, c)
+      for (const c of pub) if (!map.has(c.id)) map.set(c.id, c)
+      setCharacterMap(map)
+    })
+    return () => { alive = false }
+  }, [userId])
 
   const appendedRef = useRef<Set<string>>(new Set())
   const busyRef = useRef(false)
@@ -226,7 +248,13 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, o
       <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={onFileChange} />
 
       {/* 3D 法庭全屏(当前工程 CourtroomView + 13 角色 + TRIAL_CAMERA) */}
-      <CourtroomBackdrop courtCase={courtCase} activeSpeaker={currentSpeaker} perspective={perspective} />
+      <CourtroomBackdrop
+        courtCase={courtCase}
+        activeSpeaker={currentSpeaker}
+        perspective={perspective}
+        defenderAssignments={defenderAssignments}
+        characterMap={characterMap}
+      />
 
       {/* 磨砂层:盖在 3D 上,点击即继续 */}
       {phase !== 'error' && <div className="live-frost" onClick={advance} aria-hidden="true" />}

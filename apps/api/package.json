@@ -12,7 +12,11 @@
     "@balabala/shared": "*",
     "@fastify/cors": "^10.0.0",
     "@fastify/websocket": "^11.3.1",
+    "@gltf-transform/core": "^4.5.0",
+    "@gltf-transform/extensions": "^4.5.0",
+    "draco3d": "^1.5.7",
     "fastify": "^5.0.0",
+    "meshoptimizer": "^1.2.0",
     "undici": "^6.28.1"
   },
   "devDependencies": {
