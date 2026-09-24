@@ -357,6 +357,7 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0A0A0A', color: '#EDEDF0' }}>
+      <img src="/scenes/bar.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.2, zIndex: 0, pointerEvents: 'none' }} />
       {/* 顶栏 */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',

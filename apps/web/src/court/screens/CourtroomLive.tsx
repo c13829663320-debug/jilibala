@@ -273,6 +273,14 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, o
       {/* 底部坞 */}
       {phase !== 'judging' && phase !== 'error' && (
         <div className="live-dock">
+          {/* 视角 = 机位切换（整合进底部坞，常驻可见） */}
+          <div className="live-perspective-switch" role="group" aria-label="视角切换">
+            {(['plaintiff', 'audience', 'defendant'] as Perspective[]).map((p) => (
+              <button key={p} type="button" className={perspective === p ? 'is-active' : ''} onClick={() => changePerspective(p)}>
+                {p === 'plaintiff' ? '原告席' : p === 'audience' ? '观众席' : '被告席'}
+              </button>
+            ))}
+          </div>
           <div className="live-bubble">
             {currentTurn ? (
               <>
@@ -366,14 +374,6 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, o
         </div>
       )}
 
-      {/* 视角 = 机位切换 */}
-      <div className="live-perspective-switch">
-        {(['plaintiff', 'audience', 'defendant'] as Perspective[]).map((p) => (
-          <button key={p} className={perspective === p ? 'is-active' : ''} onClick={() => changePerspective(p)}>
-            {p === 'plaintiff' ? '原告席' : p === 'audience' ? '观众席' : '被告席'}
-          </button>
-        ))}
-      </div>
     </div>
   )
 }

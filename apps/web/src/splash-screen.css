@@ -10,8 +10,11 @@
 
 .splash{
   position:fixed;inset:0;z-index:90;
-  /* 半透明黑底：透出下层场景页，消散交叉淡出更自然 */
-  background:rgba(8,8,8,.82);
+  /* 品牌启动画面：纯黑底 + 明黄 logo 光晕 */
+  background-color:rgba(8,8,8,.82);
+  background-image:url('/brand/splash.png');
+  background-size:cover;
+  background-position:center;
   -webkit-backdrop-filter:blur(16px) saturate(130%);
   backdrop-filter:blur(16px) saturate(130%);
   color:var(--sp-white);

@@ -346,6 +346,7 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
   }
 
   return <main className="main-home" aria-label="BalaBala 平台主界面">
+    <img src="/brand/hero-bg.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.12, zIndex: 0, pointerEvents: 'none' }} />
     <TopNav currentView="home" onNavigate={onNavigate} />
 
     <section className="main-home__hero"><span className="main-home__kicker">BALA BALA SOCIAL WORLD</span><h1>选择一个场景，<em>开始你的故事。</em></h1><p>六大互动空间全部开放，自由进出。</p></section>
@@ -364,5 +365,11 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
 
     {notice && <button type="button" className="main-home__notice" onClick={() => setNotice('')}>{notice}<span>×</span></button>}
     <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>6 / 6 个场景已开放</span></footer>
+    {/* AI 生成短视频展示条 */}
+    <div style={{ position: 'fixed', left: 16, bottom: 118, zIndex: 3, display: 'flex', gap: 8, padding: 8, background: 'rgba(15,15,15,.72)', border: '1px solid rgba(79,179,165,.32)', borderRadius: 10, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+      {['/videos/court-opening.mp4', '/videos/plaza-overview.mp4'].map((src) => (
+        <video key={src} src={src} autoPlay muted loop playsInline style={{ width: 150, height: 84, objectFit: 'cover', borderRadius: 6, display: 'block' }} />
+      ))}
+    </div>
   </main>
 }

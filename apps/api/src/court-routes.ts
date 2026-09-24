@@ -10,7 +10,7 @@ import type {
   PlazaContent,
 } from "@balabala/shared";
 import type { ChatFn } from "./bench-orchestrator.js";
-import { analyzeCase, runCourtTrial } from "./court-orchestrator.js";
+import { analyzeCase, draftStory, runCourtTrial } from "./court-orchestrator.js";
 import { filterCaseForPerspective, transitionStatus } from "./court-state.js";
 import * as db from "./db.js";
 import type { StoredContent } from "./db.js";
@@ -66,6 +66,18 @@ export function registerCourtRoutes(
     return reply.code(201).send({ case: c });
   });
 
+  // ---- AI 帮写案情（CreateCase 页「AI 帮我写」按钮，不建案）----
+  app.post("/api/court/draft", async (req, reply) => {
+    const body = (req.body ?? {}) as { seed?: string };
+    try {
+      const result = await draftStory(chat, body.seed);
+      return { description: result.description, stance: result.stance };
+    } catch (err) {
+      req.log.error(err, "draftStory failed");
+      return reply.code(500).send({ message: "AI 帮写失败，请换个词再试" });
+    }
+  });
+
   // ---- 分析案件（DRAFT -> ANALYZING -> GENERATED）----
   app.post("/api/court/cases/:id/analyze", async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -105,11 +117,23 @@ export function registerCourtRoutes(
   // ---- 确认案件（GENERATED -> CONFIRMED）----
   app.post("/api/court/cases/:id/confirm", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const body = (req.body ?? {}) as { userId?: string };
+    const body = (req.body ?? {}) as {
+      userId?: string;
+      plaintiffComplaint?: string;
+      defendantAnswer?: string;
+    };
     const c = db.getCourtCase(id);
     if (!c) return reply.code(404).send({ message: "案件不存在" });
     if (!assertOwner(c, body.userId ?? "")) return reply.code(403).send({ message: "无权访问此案件" });
     if (c.status !== "GENERATED") return reply.code(409).send({ message: `案件状态非 GENERATED，当前: ${c.status}` });
+
+    // 用户在确认前可编辑起诉状/答辩状：落库后开庭时注入辩论上下文。
+    if (typeof body.plaintiffComplaint === "string" || typeof body.defendantAnswer === "string") {
+      db.updateCourtCaseDocs(id, {
+        plaintiffComplaint: body.plaintiffComplaint,
+        defendantAnswer: body.defendantAnswer,
+      });
+    }
 
     db.updateCourtCaseStatus(id, transitionStatus(c.status, "confirm"));
     return { case: db.getCourtCase(id) };
@@ -237,6 +261,81 @@ export function registerCourtRoutes(
   app.get("/api/court/cases/:id/verdict", async (req) => {
     const { id } = req.params as { id: string };
     return { verdict: db.getCourtVerdict(id) ?? null };
+  });
+
+  // ---- 案卷库：列出我的历史案件（摘要，按更新时间倒序）----
+  app.get("/api/court/cases", async (req, reply) => {
+    const query = req.query as { userId?: string };
+    const userId = query.userId ?? "";
+    if (!userId) return reply.code(400).send({ message: "userId 为必填" });
+    const cases = db.listCourtCasesByUser(userId).map((c) => ({
+      id: c.id,
+      title: c.title || c.user_input.slice(0, 20),
+      input: c.user_input,
+      status: c.status,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      verdict: c.final_verdict
+        ? {
+            title: c.final_verdict.case_summary,
+            quote: c.final_verdict.reasoning,
+            charge: c.final_verdict.verdict,
+            sentence: c.final_verdict.conclusion,
+          }
+        : null,
+    }));
+    return { cases };
+  });
+
+  // ---- 案卷库：删除案件 ----
+  app.delete("/api/court/cases/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const query = req.query as { userId?: string };
+    const c = db.getCourtCase(id);
+    if (!c) return reply.code(404).send({ message: "案件不存在" });
+    if (!assertOwner(c, query.userId ?? "")) return reply.code(403).send({ message: "无权删除此案件" });
+    db.deleteCourtCase(id);
+    return { ok: true, id };
+  });
+
+  // ---- 分享判决：生成分享链接 ----
+  app.post("/api/court/cases/:id/share", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as { userId?: string };
+    const c = db.getCourtCase(id);
+    if (!c) return reply.code(404).send({ message: "案件不存在" });
+    if (!assertOwner(c, body.userId ?? "")) return reply.code(403).send({ message: "无权分享此案件" });
+    if (!c.final_verdict) return reply.code(409).send({ message: "判决尚未生成，暂时不能分享" });
+
+    const existing = db.getCourtCase(id);
+    // share_token 列已在 cases 表；读当前 token，缺则生成。
+    let token = (existing as typeof existing & { share_token?: string }).share_token || "";
+    if (!token) {
+      token = randomUUID().replaceAll("-", "");
+      db.setCourtShareToken(id, token);
+    }
+    return {
+      shareId: token,
+      shareUrl: `/share/court/${token}`,
+      title: c.final_verdict.case_summary || c.title,
+      quote: c.final_verdict.reasoning || c.final_verdict.conclusion,
+      disclaimer: "本判决由 AI 趣味生成，仅供娱乐，不具有法律效力。",
+    };
+  });
+
+  // ---- 公开读取分享页（无需登录）----
+  app.get("/api/court/public/:shareId", async (req, reply) => {
+    const { shareId } = req.params as { shareId: string };
+    const c = db.getCourtCaseByShareToken(shareId);
+    if (!c || !c.final_verdict) return reply.code(404).send({ message: "分享内容不存在或已失效" });
+    return {
+      title: c.final_verdict.case_summary || c.title,
+      quote: c.final_verdict.reasoning,
+      charge: c.final_verdict.verdict,
+      sentence: c.final_verdict.conclusion,
+      facts: c.final_verdict.key_facts,
+      disclaimer: "本判决由 AI 趣味生成，仅供娱乐，不具有法律效力。",
+    };
   });
 
   // ---- 发布判决到广场 ----

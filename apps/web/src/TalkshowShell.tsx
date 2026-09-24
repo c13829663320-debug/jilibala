@@ -259,6 +259,7 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#0A0A0A', color: '#EDEDF0', fontFamily: 'inherit' }}>
+      <img src="/scenes/talkshow.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.18, zIndex: 0, pointerEvents: 'none' }} />
       {/* 3D 背景占满全屏 */}
       <div style={{ position: 'absolute', inset: 0 }}>
         <Suspense fallback={null}>

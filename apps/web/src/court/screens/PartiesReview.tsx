@@ -8,7 +8,7 @@ type Props = {
   character?: unknown
   courtCase: CourtCase
   onBack: () => void
-  onConfirm: () => void
+  onConfirm: (docs: { plaintiffComplaint: string; defendantAnswer: string }) => void
   onExit: () => void
   onOpenArchive: () => void
   confirming?: boolean
@@ -52,6 +52,8 @@ function PartyCard({ role, kb, open, onToggle }: { role: CourtRole; kb: Knowledg
 export default function PartiesReview({ courtCase, onBack, onConfirm, onExit, onOpenArchive, confirming, defenderAssignments, onDefendersChange }: Props) {
   const [openSide, setOpenSide] = useState<'plaintiff' | 'defendant' | null>(null)
   const [factsOpen, setFactsOpen] = useState(false)
+  const [complaint, setComplaint] = useState(courtCase.complaint ?? '')
+  const [answer, setAnswer] = useState(courtCase.answer ?? '')
   const toggle = (side: 'plaintiff' | 'defendant') => setOpenSide((cur) => (cur === side ? null : side))
 
   return (
@@ -75,6 +77,32 @@ export default function PartiesReview({ courtCase, onBack, onConfirm, onExit, on
           )}
         </div>
 
+        <div className="live-review__docs">
+          <h3 className="court-section-title">📜 诉讼文书（可编辑后开庭）</h3>
+          <div className="live-review__doc-grid">
+            <div className="court-doc-card">
+              <div className="court-doc-card__tag">原告起诉状</div>
+              <textarea
+                className="court-doc-card__editor"
+                value={complaint}
+                onChange={(e) => setComplaint(e.target.value)}
+                placeholder="AI 已生成起诉状，可在此修改…"
+                maxLength={600}
+              />
+            </div>
+            <div className="court-doc-card">
+              <div className="court-doc-card__tag">被告答辩状</div>
+              <textarea
+                className="court-doc-card__editor"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="AI 已生成答辩状，可在此修改…"
+                maxLength={600}
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="live-review__parties">
           <PartyCard role={courtCase.plaintiff} kb={courtCase.knowledgeBases.plaintiff} open={openSide === 'plaintiff'} onToggle={() => toggle('plaintiff')} />
           <PartyCard role={courtCase.defendant} kb={courtCase.knowledgeBases.defendant} open={openSide === 'defendant'} onToggle={() => toggle('defendant')} />
@@ -84,7 +112,7 @@ export default function PartiesReview({ courtCase, onBack, onConfirm, onExit, on
 
         <div className="live-review__actions">
           <button className="court-btn court-btn--secondary" onClick={onBack} disabled={confirming}>← 返回修改</button>
-          <button className="court-btn court-btn--primary" style={{ flex: 1 }} onClick={onConfirm} disabled={confirming}>
+          <button className="court-btn court-btn--primary" style={{ flex: 1 }} onClick={() => onConfirm({ plaintiffComplaint: complaint.trim(), defendantAnswer: answer.trim() })} disabled={confirming}>
             {confirming ? '确认中…' : '确认开庭'}
           </button>
         </div>

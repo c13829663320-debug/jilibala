@@ -75,12 +75,15 @@ export default function CourtFlow({
     setFlowState('review')
   }, [])
 
-  const handleConfirm = useCallback(async () => {
+  const handleConfirm = useCallback(async (docs: { plaintiffComplaint: string; defendantAnswer: string }) => {
     setConfirming(true)
     setError('')
     try {
       engine.configure({ userId, perspective, defenderAssignments })
-      await engine.confirmCase()
+      await engine.confirmCase({
+        plaintiffComplaint: docs.plaintiffComplaint || undefined,
+        defendantAnswer: docs.defendantAnswer || undefined,
+      })
       setFlowState('live')
     } catch (e) {
       setError(e instanceof Error ? e.message : '确认开庭失败')

@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CustomCharacterRecord } from "./db.js";
+import { parseSuggestedQuestions } from "./custom-character-routes.js";
 
 type DbModule = typeof import("./db.js");
 
@@ -176,5 +177,44 @@ describe("custom_characters DAO", () => {
     expect(mine.length).toBe(2);
     const vis = mine.map((c) => c.visibility).sort();
     expect(vis).toEqual(["private", "public"]);
+  });
+});
+
+describe("parseSuggestedQuestions 纯函数", () => {
+  it("解析 JSON 数组", () => {
+    expect(parseSuggestedQuestions('["你如何看待第一性原理？", "为什么要去火星？", "电动车的瓶颈在哪？"]'))
+      .toEqual(["你如何看待第一性原理？", "为什么要去火星？", "电动车的瓶颈在哪？"]);
+  });
+
+  it("容忍 markdown 代码块包裹", () => {
+    const raw = '```json\n["你如何看待第一性原理？", "为什么坚持去火星？", "电动车的瓶颈在哪？"]\n```';
+    expect(parseSuggestedQuestions(raw)).toEqual(["你如何看待第一性原理？", "为什么坚持去火星？", "电动车的瓶颈在哪？"]);
+  });
+
+  it("解析 {questions:[...]} 对象形态", () => {
+    expect(parseSuggestedQuestions('{"questions": ["你最看重的做事原则是什么？", "能分享一个影响你的决定吗？", "对年轻人有什么忠告？"]}')).toEqual(["你最看重的做事原则是什么？", "能分享一个影响你的决定吗？", "对年轻人有什么忠告？"]);
+  });
+
+  it("解析编号纯文本行并去掉序号", () => {
+    const raw = "1. 你是如何坚持理想的？\n2. 怎样面对人生的贬谪？\n3. 美食与写作有何共通？";
+    expect(parseSuggestedQuestions(raw)).toEqual([
+      "你是如何坚持理想的？",
+      "怎样面对人生的贬谪？",
+      "美食与写作有何共通？",
+    ]);
+  });
+
+  it("去重、过滤过短项、最多取 3 条", () => {
+    const raw = '["合适的问题一？", "合适的问题一？", "短", "合适的问题二？", "合适的问题三？", "第四个也该被截断？"]';
+    const out = parseSuggestedQuestions(raw);
+    expect(out).toHaveLength(3);
+    expect(out[0]).toBe("合适的问题一？");
+    expect(out).not.toContain("短");
+    expect(out).not.toContain("第四个也该被截断？");
+  });
+
+  it("空字符串返回空数组", () => {
+    expect(parseSuggestedQuestions("")).toEqual([]);
+    expect(parseSuggestedQuestions("   ")).toEqual([]);
   });
 });

@@ -86,6 +86,8 @@ function migrateCourtCasesTable(): void {  const cols: Array<[string, string]> =
     ["current_round", "INTEGER DEFAULT 0"],
     ["current_turn", "INTEGER DEFAULT 0"],
     ["final_verdict", "TEXT DEFAULT ''"],
+    ["plaintiff_complaint", "TEXT DEFAULT ''"],
+    ["defendant_answer", "TEXT DEFAULT ''"],
   ];
   for (const [col, def] of cols) {
     if (!tableHasColumn("cases", col)) {
@@ -1070,9 +1072,17 @@ type CourtCaseRow = {
   current_round: number; current_turn: number; final_verdict: string;
   created_at: string; updated_at: string;
   perspective: string;
+  plaintiff_complaint?: string;
+  defendant_answer?: string;
 };
 
-function rowToCourtCase(row: CourtCaseRow): CourtCase {
+/** CourtCase + 前端展示用扩展（起诉状/答辩状文书，非 shared 字段）。 */
+export type CourtCaseWithDocs = CourtCase & {
+  plaintiff_complaint?: string;
+  defendant_answer?: string;
+};
+
+export function rowToCourtCase(row: CourtCaseRow): CourtCaseWithDocs {
   const evidence = getCourtEvidence(row.id);
   const facts = getCourtFacts(row.id);
   const verdict = getCourtVerdict(row.id);
@@ -1100,6 +1110,8 @@ function rowToCourtCase(row: CourtCaseRow): CourtCase {
     final_verdict: verdict ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
+    plaintiff_complaint: row.plaintiff_complaint || "",
+    defendant_answer: row.defendant_answer || "",
   };
 }
 
@@ -1153,6 +1165,8 @@ export function updateCourtCaseAnalysis(
     defendantRole: Omit<CourtPartyRole, "id" | "caseId" | "createdAt">;
     plaintiffKb: Omit<CourtKnowledgeBase, "caseId" | "updatedAt">;
     defendantKb: Omit<CourtKnowledgeBase, "caseId" | "updatedAt">;
+    plaintiffComplaint?: string;
+    defendantAnswer?: string;
   },
 ): void {
   initDb();
@@ -1167,6 +1181,7 @@ export function updateCourtCaseAnalysis(
       title = ?, facts = ?, dispute_points = ?,
       plaintiff_role = ?, defendant_role = ?,
       plaintiff_kb = ?, defendant_kb = ?,
+      plaintiff_complaint = ?, defendant_answer = ?,
       updated_at = ?
     WHERE id = ?
   `).run(
@@ -1177,9 +1192,56 @@ export function updateCourtCaseAnalysis(
     safeStringify({ ...data.defendantRole, id: `cr-de-${id}`, caseId: id, createdAt: now }),
     safeStringify({ ...data.plaintiffKb, caseId: id, updatedAt: now }),
     safeStringify({ ...data.defendantKb, caseId: id, updatedAt: now }),
+    data.plaintiffComplaint ?? "",
+    data.defendantAnswer ?? "",
     now,
     id,
   );
+}
+
+/** 仅更新两份诉讼文书（用户在确认前编辑过起诉状/答辩状）。 */
+export function updateCourtCaseDocs(
+  id: string,
+  docs: { plaintiffComplaint?: string; defendantAnswer?: string },
+): void {
+  initDb();
+  db.prepare("UPDATE cases SET plaintiff_complaint = ?, defendant_answer = ?, updated_at = ? WHERE id = ?").run(
+    docs.plaintiffComplaint ?? "", docs.defendantAnswer ?? "", new Date().toISOString(), id,
+  );
+}
+
+/** 案卷库：列出某用户的全部法庭案件（按更新时间倒序，含判决摘要）。 */
+export function listCourtCasesByUser(userId: string): CourtCaseWithDocs[] {
+  initDb();
+  const rows = db.prepare(
+    "SELECT * FROM cases WHERE user_id = ? ORDER BY updated_at DESC",
+  ).all(userId) as CourtCaseRow[];
+  return rows.map((r) => rowToCourtCase(r));
+}
+
+/** 案卷库：删除案件及其全部子表数据（证据/事实/发言/玩家输入/判决）。 */
+export function deleteCourtCase(id: string): void {
+  initDb();
+  db.prepare("DELETE FROM court_evidence WHERE case_id = ?").run(id);
+  db.prepare("DELETE FROM court_facts WHERE case_id = ?").run(id);
+  db.prepare("DELETE FROM court_turns WHERE case_id = ?").run(id);
+  db.prepare("DELETE FROM court_player_inputs WHERE case_id = ?").run(id);
+  db.prepare("DELETE FROM court_verdicts WHERE case_id = ?").run(id);
+  db.prepare("DELETE FROM cases WHERE id = ?").run(id);
+}
+
+/** 按 share_token 查找已结案案件（公开分享用）。 */
+export function getCourtCaseByShareToken(shareToken: string): CourtCaseWithDocs | undefined {
+  initDb();
+  const row = db.prepare("SELECT * FROM cases WHERE share_token = ?").get(shareToken) as CourtCaseRow | undefined;
+  if (!row) return undefined;
+  return rowToCourtCase(row);
+}
+
+/** 写入 share_token（生成分享链接时调用）。 */
+export function setCourtShareToken(id: string, token: string): void {
+  initDb();
+  db.prepare("UPDATE cases SET share_token = ?, updated_at = ? WHERE id = ?").run(token, new Date().toISOString(), id);
 }
 
 export function updateCourtRecord(id: string, record: CourtRecord): void {

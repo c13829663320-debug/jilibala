@@ -49,6 +49,44 @@ const toPublic = (c: CustomCharacterRecord): PublicCharacter => {
 const isSafeSegment = (v: string): boolean =>
   Boolean(v) && !v.includes("..") && !v.includes("/") && !v.includes("\\");
 
+/**
+ * 从 LLM 返回中解析出建议问题列表。
+ * 兼容三种返回形态：JSON 数组 / {questions:[...]} / 编号或项目符号的纯文本行。
+ * 去重、过滤过短项、最多取 3 条。纯函数，便于单测。
+ */
+export function parseSuggestedQuestions(raw: string): string[] {
+  const clean = (raw ?? "").replace(/```(?:json)?/gi, "").trim();
+  if (!clean) return [];
+
+  let list: unknown = null;
+  const arrMatch = clean.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try { list = JSON.parse(arrMatch[0]); } catch { list = null; }
+  }
+  if (!Array.isArray(list)) {
+    const objMatch = clean.match(/\{[\s\S]*\}/);
+    if (objMatch) {
+      try {
+        const obj = JSON.parse(objMatch[0]) as { questions?: unknown };
+        if (Array.isArray(obj.questions)) list = obj.questions;
+      } catch { list = null; }
+    }
+  }
+
+  let items: string[];
+  if (Array.isArray(list)) {
+    items = list.map((x) => String(x ?? "").trim()).filter(Boolean);
+  } else {
+    items = clean
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*(?:\d+\s*[.、)]\s*|[-*•]\s*)/, "").trim())
+      .filter(Boolean);
+  }
+
+  return [...new Set(items)]
+    .filter((q) => q.length >= 4 && q.length <= 80)
+    .slice(0, 3);
+}
 export function registerCustomCharacterRoutes(
   app: FastifyInstance,
   deps: { chat: ChatFn; contents: StoredContent[] },
@@ -333,6 +371,42 @@ export function registerCustomCharacterRoutes(
     }
   });
 
+  /** POST /api/characters/:id/suggest-questions — 为任意人物（名人/自定义）推荐 3 个有趣提问。 */
+  app.post("/api/characters/:id/suggest-questions", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const resolved = resolveCharacter(id);
+    if (!resolved) return reply.code(404).send({ message: "人物不存在" });
+    // 私有自定义人物仅 owner 可取建议（避免泄露未公开 persona）；公开人物与名人不限。
+    if (resolved.isCustom) {
+      const stored = getCustomCharacter(id);
+      if (stored && stored.visibility === "private") {
+        const body = (req.body ?? {}) as { userId?: string };
+        const userId = (body.userId ?? "").trim();
+        if (!userId || userId !== stored.userId) {
+          return reply.code(403).send({ message: "该人物为私有" });
+        }
+      }
+    }
+    const system = `你是${resolved.name}的对话助手。请根据其身份，为初次见面的访客推荐 3 个最值得向 TA 提出的问题。要求：1）符合${resolved.name}所处的时代、地域与语言风格；2）有趣、有深度、能引出 TA 的真知灼见，避免泛泛而问；3）每个问题 15-35 字；4）只输出这 3 个问题本身，每行一个，不要序号、不要引号、不要解释。`;
+    const user = `人物：${resolved.name}｜头衔：${resolved.title}｜简介：${resolved.intro}｜标签：${resolved.tags.join("、")}`;
+    try {
+      const raw = await chat(
+        [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        300,
+      );
+      const questions = parseSuggestedQuestions(raw);
+      if (questions.length === 0) {
+        return reply.code(502).send({ message: "暂时想不出合适的问题，请稍后再试。" });
+      }
+      return { questions };
+    } catch (error) {
+      req.log.error(error, "suggest questions failed");
+      return reply.code(502).send({ message: "暂时连不上建议服务，请稍后再试。" });
+    }
+  });
   /** POST /api/custom-characters/:id/publish — 发布到广场（需 owner）。 */
   app.post("/api/custom-characters/:id/publish", async (req, reply) => {
     const { id } = req.params as { id: string };

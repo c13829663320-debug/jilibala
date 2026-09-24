@@ -375,6 +375,7 @@ export default function CourtroomShell({
 
   return (
     <div className="workspace">
+      <img src="/scenes/court.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.16, zIndex: 0, pointerEvents: 'none' }} />
       {wsStatusLabel(wsStatus, wsRetryCount) && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998, background: '#4fb3a5', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
           {wsStatusLabel(wsStatus, wsRetryCount)}

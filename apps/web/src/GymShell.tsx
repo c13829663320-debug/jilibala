@@ -439,6 +439,7 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
   return (
     <div className="gym-root">
+      <img src="/scenes/gym.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.18, zIndex: 0, pointerEvents: 'none' }} />
       <header className="gym-header">
         <button onClick={onBack} style={iconBtn}><ArrowLeft size={16} /></button>
         <Dumbbell size={18} color={ACCENT} />

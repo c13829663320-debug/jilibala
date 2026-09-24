@@ -78,7 +78,7 @@ describe("character-resolver", () => {
     expect(r!.id).toBe("elon-musk");
     expect(r!.name).toBe("马斯克");
     // 名人路径原样返回，不做 /api/custom-characters/assets/ 转换
-    expect(r!.portrait).toBe("/portraits/celebrities/elon-musk.jpg");
+    expect(r!.portrait).toBe("/portraits/elon-musk.png");
     expect(r!.model).toBe("/models/celebrities/elon-musk.glb");
     expect(r!.field).toBe("科技");
     expect(r!.era).toBeTruthy();

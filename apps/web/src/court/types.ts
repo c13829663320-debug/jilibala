@@ -141,6 +141,10 @@ export interface CourtCase {
   verdict?: CourtVerdict
   /** 后端真实案件 id(判决书走真实 API 时写入,用于分享/广场发布)。 */
   backendCaseId?: string
+  /** AI 生成、用户可编辑的起诉状（原告文书）。 */
+  complaint?: string
+  /** AI 生成、用户可编辑的答辩状（被告文书）。 */
+  answer?: string
 }
 
 /** 分析输入。 */

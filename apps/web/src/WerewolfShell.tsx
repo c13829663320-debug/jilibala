@@ -345,6 +345,7 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#0A0A0A', color: '#EDEDF0', fontFamily: 'inherit' }}>
+      <img src="/scenes/werewolf.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.2, zIndex: 0, pointerEvents: 'none' }} />
       {wsStatusLabel(wsStatus, wsRetryCount) && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998, background: '#4fb3a5', color: '#1a1a1a', padding: '8px 16px', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
           {wsStatusLabel(wsStatus, wsRetryCount)}

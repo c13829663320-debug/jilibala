@@ -180,4 +180,64 @@ describe("court DAO", () => {
     expect(read.court_record).not.toBeNull();
     expect(read.court_record!.facts).toEqual(["f1"]);
   });
+
+  it("updateCourtCaseDocs 持久化起诉状/答辩状", () => {
+    const c = ctx.mod.createCourtCase("u1", "案情");
+    ctx.mod.updateCourtCaseDocs(c.id, {
+      plaintiffComplaint: "原告主张对方赔偿",
+      defendantAnswer: "被告不同意",
+    });
+    const read = ctx.mod.getCourtCase(c.id)!;
+    expect((read as { plaintiff_complaint?: string }).plaintiff_complaint).toBe("原告主张对方赔偿");
+    expect((read as { defendant_answer?: string }).defendant_answer).toBe("被告不同意");
+  });
+
+  it("listCourtCasesByUser 按用户列出并按更新时间倒序", () => {
+    const a = ctx.mod.createCourtCase("alice", "案件甲");
+    ctx.mod.updateCourtCaseStatus(a.id, "COMPLETED");
+    const b = ctx.mod.createCourtCase("alice", "案件乙");
+    ctx.mod.updateCourtCaseStatus(b.id, "GENERATED");
+    ctx.mod.createCourtCase("bob", "只属于 bob");
+
+    const mine = ctx.mod.listCourtCasesByUser("alice");
+    expect(mine).toHaveLength(2);
+    expect(mine.map((x) => x.user_input)).toContain("案件甲");
+    expect(mine.map((x) => x.user_input)).toContain("案件乙");
+    // 倒序：后建的 b 在前
+    expect(mine[0].id).toBe(b.id);
+    const bob = ctx.mod.listCourtCasesByUser("bob");
+    expect(bob).toHaveLength(1);
+  });
+
+  it("deleteCourtCase 级联删除案件及子表数据", () => {
+    const c = ctx.mod.createCourtCase("u1", "待删除案件");
+    ctx.mod.addCourtEvidence(c.id, { type: "TEXT", name: "证", content: "x", submittedBy: "user" });
+    ctx.mod.addCourtFact(c.id, { content: "f", source: "user_input", disputed: false });
+    ctx.mod.addCourtTurn({
+      caseId: c.id, round: 1, turn: 1, speaker: "judge", speakerId: "judge",
+      speakerName: "法官", content: "开庭", referenced_evidence: [], response_to_turn_id: null,
+    });
+    ctx.mod.addCourtPlayerInput({ caseId: c.id, userId: "u1", player_role: "plaintiff", type: "argument", content: "y" });
+    ctx.mod.setCourtVerdict(c.id, {
+      id: "ctv-x", caseId: c.id, case_summary: "s", key_facts: [], key_evidence: [],
+      plaintiff_arguments: [], defendant_arguments: [], judge_analysis: "", reasoning: "",
+      verdict: "mixed", conclusion: "", createdAt: new Date().toISOString(),
+    });
+
+    ctx.mod.deleteCourtCase(c.id);
+    expect(ctx.mod.getCourtCase(c.id)).toBeUndefined();
+    expect(ctx.mod.getCourtTurns(c.id)).toHaveLength(0);
+    expect(ctx.mod.getCourtEvidence(c.id)).toHaveLength(0);
+    expect(ctx.mod.getCourtFacts(c.id)).toHaveLength(0);
+    expect(ctx.mod.getCourtPlayerInputs(c.id)).toHaveLength(0);
+    expect(ctx.mod.getCourtVerdict(c.id)).toBeUndefined();
+  });
+
+  it("setCourtShareToken / getCourtCaseByShareToken", () => {
+    const c = ctx.mod.createCourtCase("u1", "可分享案件");
+    ctx.mod.setCourtShareToken(c.id, "tok123");
+    const found = ctx.mod.getCourtCaseByShareToken("tok123");
+    expect(found?.id).toBe(c.id);
+    expect(ctx.mod.getCourtCaseByShareToken("nope")).toBeUndefined();
+  });
 });

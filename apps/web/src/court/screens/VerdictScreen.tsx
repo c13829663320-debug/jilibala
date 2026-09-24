@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { CourtroomShell } from '../shared'
 import type { CourtCase, CourtVerdict } from '../types'
 
@@ -18,6 +19,31 @@ export default function VerdictScreen({
   courtCase, verdict, onSaveArchive, onOpenArchive, onPublishToPlaza, onNewTrial, onExit,
   publishing, publishError,
 }: Props) {
+  const [sharing, setSharing] = useState(false)
+  const [shareMsg, setShareMsg] = useState('')
+
+  const copyShareLink = async () => {
+    const caseId = courtCase.backendCaseId
+    if (!caseId || sharing) return
+    setSharing(true); setShareMsg('')
+    try {
+      const res = await fetch(`/api/court/cases/${encodeURIComponent(caseId)}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: '' }),
+      })
+      const data = await res.json().catch(() => ({})) as { shareUrl?: string; message?: string }
+      if (!res.ok || !data.shareUrl) throw new Error(data.message ?? '生成分享链接失败')
+      const full = `${window.location.origin}${data.shareUrl}`
+      try { await navigator.clipboard.writeText(full) } catch { window.prompt('复制此分享链接', full) }
+      setShareMsg('分享链接已复制 ✓')
+    } catch (e) {
+      setShareMsg(e instanceof Error ? e.message : '分享失败')
+    } finally {
+      setSharing(false)
+    }
+  }
+
   const outcomeText =
     verdict.outcome === 'plaintiff' ? '原告方胜诉'
     : verdict.outcome === 'defendant' ? '被告方胜诉'
@@ -70,6 +96,13 @@ export default function VerdictScreen({
           <button className="court-btn court-btn--secondary" onClick={onSaveArchive}>归档案卷</button>
           <button className="court-btn court-btn--secondary" onClick={onNewTrial}>再来一场</button>
           <button
+            className="court-btn court-btn--secondary"
+            onClick={() => void copyShareLink()}
+            disabled={sharing}
+          >
+            {sharing ? '生成中…' : '复制分享链接'}
+          </button>
+          <button
             className="court-btn court-btn--primary"
             onClick={onPublishToPlaza}
             disabled={publishing}
@@ -77,6 +110,7 @@ export default function VerdictScreen({
             {publishing ? '发布中…' : '分享到广场'}
           </button>
         </div>
+        {shareMsg && <div className="live-hint" style={{ marginTop: 8 }}>{shareMsg}</div>}
         {publishError && <div className="court-error" style={{ marginTop: 10 }}>{publishError}</div>}
       </div>
     </CourtroomShell>

@@ -85,6 +85,8 @@ export function backendCaseToUi(b: BackendCourtCase): CourtCase {
     currentRound: b.current_round,
     createdAt: b.createdAt,
     backendCaseId: b.id,
+    complaint: (b as unknown as Record<string, unknown>).plaintiff_complaint as string | undefined,
+    answer: (b as unknown as Record<string, unknown>).defendant_answer as string | undefined,
   }
 }
 
@@ -161,6 +163,10 @@ export class HttpCourtEngine implements CourtEngineClient {
   private lastRecord: BackendRecord | null = null
   private continueInfo: ContinueSignal | null = null
   private continueWaiters: ((c: ContinueSignal) => void)[] = []
+  /** 按轮次缓存 should_continue 信号，避免快进播放时串到后续轮次。 */
+  private continueByRound = new Map<number, ContinueSignal>()
+  private continueWaitersByRound = new Map<number, (c: ContinueSignal) => void>()
+  private waitingContinueRound = 1
 
   private verdict: BackendVerdict | null = null
   private verdictWaiters: ((v: BackendVerdict) => void)[] = []
@@ -203,12 +209,12 @@ export class HttpCourtEngine implements CourtEngineClient {
     return backendCaseToUi(an.case)
   }
 
-  async confirmCase(): Promise<void> {
+  async confirmCase(docs?: { plaintiffComplaint?: string; defendantAnswer?: string }): Promise<void> {
     if (!this.caseId) throw new Error('案件尚未创建')
     const res = await fetch(`/api/court/cases/${encodeURIComponent(this.caseId)}/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: this.cfg.userId }),
+      body: JSON.stringify({ userId: this.cfg.userId, ...(docs ?? {}) }),
     })
     const data = await res.json().catch(() => ({})) as { message?: string }
     if (!res.ok) throw new Error(data.message ?? '确认开庭失败')
@@ -250,6 +256,8 @@ export class HttpCourtEngine implements CourtEngineClient {
     this.lastRecord = null
     this.continueInfo = null
     this.continueWaiters = []
+    this.continueByRound = new Map()
+    this.continueWaitersByRound = new Map()
     this.verdict = null
     this.verdictWaiters = []
     this.streamDone = false
@@ -317,9 +325,13 @@ export class HttpCourtEngine implements CourtEngineClient {
         this.completedRounds.add(round)
         const waiter = this.roundWaiters.get(round)
         if (waiter) { waiter(this.byRound.get(round) ?? []); this.roundWaiters.delete(round) }
-        this.continueInfo = { shouldContinue: ev.shouldContinue, unresolvedPoints: ev.unresolvedPoints, reason: ev.reason }
+        const info: ContinueSignal = { shouldContinue: ev.shouldContinue, unresolvedPoints: ev.unresolvedPoints, reason: ev.reason }
+        this.continueInfo = info
+        this.continueByRound.set(round, info)
+        const cw = this.continueWaitersByRound.get(round)
+        if (cw) { cw(info); this.continueWaitersByRound.delete(round) }
         const cbs = this.continueWaiters; this.continueWaiters = []
-        cbs.forEach((w) => w(this.continueInfo!))
+        cbs.forEach((w) => w(info))
         break
       }
       case 'court_verdict':
@@ -362,6 +374,7 @@ export class HttpCourtEngine implements CourtEngineClient {
     _previousRecord?: CourtRecordSummary,
   ): Promise<RoundScript> {
     await this.startTrial()
+    this.waitingContinueRound = round
     const turns = await this.waitForRound(round)
     return {
       turns: turns.map(backendTurnToUi),
@@ -370,10 +383,13 @@ export class HttpCourtEngine implements CourtEngineClient {
   }
 
   async waitForContinue(): Promise<ContinueSignal> {
+    const round = this.waitingContinueRound
+    const cached = this.continueByRound.get(round)
+    if (cached) return cached
     if (this.continueInfo) return this.continueInfo
     if (this.streamError) return { shouldContinue: false, unresolvedPoints: [], reason: this.streamError.message }
-    if (this.streamDone) return this.continueInfo ?? { shouldContinue: false, unresolvedPoints: [], reason: '庭审结束' }
-    return new Promise<ContinueSignal>((resolve) => { this.continueWaiters.push(resolve) })
+    if (this.streamDone) return this.continueByRound.get(round) ?? { shouldContinue: false, unresolvedPoints: [], reason: '庭审结束' }
+    return new Promise<ContinueSignal>((resolve) => { this.continueWaitersByRound.set(round, resolve) })
   }
 
   async buildFinalStatements(): Promise<{ turns: CourtTurn[] }> {

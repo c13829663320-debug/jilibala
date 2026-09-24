@@ -20,6 +20,28 @@ export default function CreateCase({ character: _character, initialInput, initia
   const [stance, setStance] = useState('')
   const [evidenceOpen, setEvidenceOpen] = useState(initialEvidenceOpen ?? false)
   const [evidence, setEvidence] = useState<RawEvidence[]>([])
+  const [drafting, setDrafting] = useState(false)
+  const [draftError, setDraftError] = useState('')
+
+  const aiDraft = async () => {
+    if (drafting) return
+    setDrafting(true); setDraftError('')
+    try {
+      const res = await fetch('/api/court/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seed: description.trim() || undefined }),
+      })
+      const data = await res.json().catch(() => ({})) as { description?: string; stance?: string; message?: string }
+      if (!res.ok || !data.description) throw new Error(data.message ?? 'AI 帮写失败')
+      setDescription(data.description)
+      if (data.stance && !stance.trim()) setStance(data.stance)
+    } catch (e) {
+      setDraftError(e instanceof Error ? e.message : 'AI 帮写失败，请重试')
+    } finally {
+      setDrafting(false)
+    }
+  }
 
   const addFiles = (files: FileList | null) => {
     if (!files) return
@@ -39,6 +61,12 @@ export default function CreateCase({ character: _character, initialInput, initia
         <div className="live-create__field">
           <label className="live-create__label" htmlFor="desc">案件描述 · 客观叙述</label>
           <textarea id="desc" className="live-create__textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="例如:泡泡借走了阿布的彩虹伞,但下雨后伞变成了会唱歌的蘑菇。" maxLength={500} />
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button type="button" className="court-btn court-btn--secondary court-btn--sm" onClick={() => void aiDraft()} disabled={drafting}>
+              <WandSparkles size={14} /> {drafting ? 'AI 正在构思…' : 'AI 帮我写案情'}
+            </button>
+            {draftError && <span style={{ color: '#ff8a8a', fontSize: 12 }}>{draftError}</span>}
+          </div>
         </div>
 
         <div className="live-create__field">

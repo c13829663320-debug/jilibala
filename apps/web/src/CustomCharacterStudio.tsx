@@ -400,7 +400,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
           <div className="ccs__card-label">STEP 03 · 填写人设</div>
           <h2>告诉大家这个人物是谁</h2>
 
-          <button className="ccs__ai-btn" type="button" onClick={() => void polishPersona} disabled={polishing}>
+          <button className="ccs__ai-btn" type="button" onClick={() => void polishPersona()} disabled={polishing}>
             <Sparkles size={15} /> {polishing ? 'AI 正在帮填…' : 'AI 帮填人设'}
           </button>
           {formMessage && <div className="ccs__message" role="status">{formMessage}</div>}

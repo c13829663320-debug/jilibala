@@ -230,4 +230,27 @@ describe("court-orchestrator", () => {
       markPlayerInputHandled: vi.fn(),
     })).rejects.toThrow();
   });
+
+  it("analyzeCase: 起诉状/答辩状落库（LLM 未给文书时用兜底，仍非空）", async () => {
+    const { analyzeCase } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试案情");
+    const chat = makeMockChat();
+    const updated = await analyzeCase(c.id, chat);
+    const docs = updated as typeof updated & { plaintiff_complaint?: string; defendant_answer?: string };
+    expect(docs.plaintiff_complaint && docs.plaintiff_complaint.length).toBeGreaterThan(0);
+    expect(docs.defendant_answer && docs.defendant_answer.length).toBeGreaterThan(0);
+  });
+
+  it("draftStory: LLM 返回 JSON 时采用之；失败时落到本地兜底", async () => {
+    const { draftStory } = await import("./court-orchestrator.js");
+    // LLM 正常返回
+    const okChat: ChatFn = vi.fn(async () => JSON.stringify({ description: "用户的咖啡被同事喝了", stance: "要求赔偿一杯" }));
+    const r1 = await draftStory(okChat, "咖啡");
+    expect(r1.description).toContain("咖啡");
+    expect(r1.stance).toContain("赔偿");
+    // LLM 抛错 -> 本地兜底，仍返回合法 description
+    const badChat: ChatFn = vi.fn(async () => { throw new Error("down"); });
+    const r2 = await draftStory(badChat);
+    expect(r2.description.length).toBeGreaterThan(10);
+  });
 });

@@ -283,6 +283,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#0A0A0A', color: '#EDEDF0' }}>
+      <img src="/scenes/library.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.2, zIndex: 0, pointerEvents: 'none' }} />
       {/* 顶栏 */}
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#141414' }}>
         <button onClick={onBack} style={iconBtn}><ArrowLeft size={16} /></button>

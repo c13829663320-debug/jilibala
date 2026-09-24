@@ -1,22 +1,16 @@
 /**
- * M13 第七轮 — 法庭固定席位纯逻辑（无 React / three 依赖，仅数值与字符串）。
+ * M13 — 法庭固定席位纯逻辑（无 React / three 依赖，仅数值与字符串）。
  *
- * 固定席位（接 apps/web/public/models/court/*.glb）：
- *   judge / plaintiff / plaintiff-counsel / defendant / defendant-counsel / witness / juror
- *   + audience-01..06（后部阶梯长椅氛围 NPC，不发言、不朗读、不高亮）。
+ * buildFixedSeats 当前只渲染核心 5 席（接 apps/web/public/models/court/*.glb）：
+ *   judge / plaintiff / plaintiff-counsel / defendant / defendant-counsel
  *
- * 坐标基准（第七轮：真机密度/穿模/证人居中修复）：
- *   默认主机位相机 [0,4.3,4.5] → target [0,0.9,-1.3]，fov 60；
- *   法官桌后 [0,0.98,-3.1]（面向 +z 法庭）；原被告+双方律师同排 z=-1.3，
- *   当事人在中、律师靠外（x=±1.8 / ±2.8，拉开水平间距杜绝穿模）；
- *   证人移到右前侧 [2.3,0.6,-2.4]，斜向法官、完全不占中轴、不挡看法官视轴；
- *   陪审团居中前排 gallery [0,0.71,1.77]；6 旁听三排阶梯：
- *   前排 z=1.77 y=0.71、中排 z=2.54 y=0.87、后排 z=3.31 y=1.04（每排 2 人，x 错开）。
+ * 坐标基准：
+ *   法官桌后 [0,0.25,-3.9]（面向 +z 法庭，facing=0）；
+ *   原告/被告同排 z=-1.7（x=∓1.6），双方律师在外侧 z=-1.4（x=∓2.7），
+ *   均面向法官（facing=π）。
  *
- * 朝向（模型默认面向 +z，即朝观众/相机）：
- *   judge 面向法庭(+z) → facing=0；
- *   原被告/双方律师/陪审团/旁听者 面向法官(-z) → facing=π；
- *   证人斜向法官 → facing=-1.9（右侧侧身朝左前方法官，背对相机）。
+ * 注：witness / juror / audience 的 GLB 映射（seatModelUrl）与 isNpcKind 仍保留，
+ * 但 buildFixedSeats 不再渲染它们，以保持庭审画面清爽、不拥挤。
  */
 import type { CourtTurn } from '@balabala/shared'
 
@@ -51,9 +45,9 @@ export const COURT_MODELS_DIR = '/models/court'
 export function seatModelUrl(kind: Exclude<CourtSeatKind, 'defender'>, audienceIndex = 0): string {
   switch (kind) {
     case 'judge': return `${COURT_MODELS_DIR}/judge.glb`
-    case 'plaintiff': return `${COURT_MODELS_DIR}/plaintiff.glb`
+    case 'plaintiff': return `${COURT_MODELS_DIR}/plaintiff-single.glb`
     case 'plaintiff-counsel': return `${COURT_MODELS_DIR}/plaintiff-counsel.glb`
-    case 'defendant': return `${COURT_MODELS_DIR}/defendant.glb`
+    case 'defendant': return `${COURT_MODELS_DIR}/defendant-single.glb`
     case 'defendant-counsel': return `${COURT_MODELS_DIR}/defendant-counsel.glb`
     case 'witness': return `${COURT_MODELS_DIR}/witness.glb`
     case 'juror': return `${COURT_MODELS_DIR}/juror.glb`
@@ -72,27 +66,23 @@ export function isNpcKind(kind: CourtSeatKind): boolean {
 const PI = Math.PI
 
 /**
- * 核心 7 固定席位 + 6 旁听者（第七轮密度修复坐标）。
- * 原被告与双方律师同排 z=-1.3，水平拉开 ±1.8/±2.8 杜绝穿模；
- * 证人移右前侧 [2.3,0.6,-2.4] 斜向法官、不占中轴；
- * 动态名人辩护人仍排 z=0.4（旧坐标不动，与固定席位不冲突）。
+ * 核心 5 固定席位：法官 + 原告/被告 + 双方律师。
+ * 当事人同排 z=-1.7（x=∓1.6）、律师外侧 z=-1.4（x=∓2.7），水平拉开杜绝穿模。
  */
 export function buildFixedSeats(): FixedSeatSpec[] {
   return [
     {
       id: 'seat-judge', name: '法官', kind: 'judge',
       model: seatModelUrl('judge'),
-      // 后移到高背审判椅（环境 GLB 椅上有个装饰假发，会被法官身体挡住）；
-      // 原 -3.45 太靠前，法官胸像悬在法官桌前讲台上，没坐进席位。
       position: [0, 0.25, -3.9],
-      facing: 0, // judge.glb 默认正面朝 +z（观众席），真机实测 facing=0 露正脸、π 露后脑勺
+      facing: 0,
       npc: false,
     },
     {
       id: 'seat-plaintiff', name: '原告', kind: 'plaintiff',
       model: seatModelUrl('plaintiff'),
       position: [-1.6, 0, -1.7],
-      facing: PI, // 面向法官(-z)
+      facing: PI,
       npc: false,
     },
     {
@@ -115,31 +105,6 @@ export function buildFixedSeats(): FixedSeatSpec[] {
       position: [2.7, 0, -1.4],
       facing: PI,
       npc: false,
-    },
-    {
-      id: 'seat-witness', name: '证人', kind: 'witness',
-      model: seatModelUrl('witness'),
-      // 移出中轴：原 [0,0,-1.55] 正对观众机位视轴，code-npc 胶囊挡住法官。
-      // 右前侧 [2.3,-0.4,-2.4] 完全不占中轴、不挡看法官视轴；y=-0.4 把站立胶囊
-      // （NpcFigure 胶囊底在 local≈0.4）压到地面，避免悬浮半空。
-      position: [2.3, -0.4, -2.4],
-      facing: -1.9, // 右侧侧身斜向法官（不面向相机）
-      npc: true,
-    },
-    // 旁听者：仅后排台阶左右两侧（中轴与前排清空，不挡观众全景视轴）。
-    {
-      id: 'seat-audience-1', name: '旁听者1', kind: 'audience',
-      model: seatModelUrl('audience', 0),
-      position: [-3.0, 0, 0.7],
-      facing: PI,
-      npc: true,
-    },
-    {
-      id: 'seat-audience-2', name: '旁听者2', kind: 'audience',
-      model: seatModelUrl('audience', 1),
-      position: [3.0, 0, 0.7],
-      facing: PI,
-      npc: true,
     },
   ]
 }

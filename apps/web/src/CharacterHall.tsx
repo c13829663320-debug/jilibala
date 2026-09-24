@@ -2,7 +2,7 @@ import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type E
 import { SafeCanvas } from './SafeCanvas'
 import { OrbitControls, ContactShadows, useGLTF } from '@react-three/drei'
 import { Box3, Group, Vector3 } from 'three'
-import { ChevronRight, Gavel, Loader2, MessageCircle, Pencil, Plus, RotateCw, Search, Trash2, Upload, X } from 'lucide-react'
+import { ChevronRight, Gavel, Loader2, MessageCircle, Pencil, Plus, RotateCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { CELEBRITIES, CELEBRITY_FIELDS, resolveCharacterVoice, type CelebrityField } from '@balabala/shared'
 import { TtsPlayButton } from './TtsPlayButton'
 import { useSceneCleanup } from './useSceneCleanup'
@@ -90,6 +90,10 @@ function FullBodyModel({ url }: { url: string }) {
   const { scene } = useGLTF(url, false, true)
   const normalized = (() => {
     const clone = scene.clone(true)
+    // Tripo 导出人物默认正面朝 +X，统一绕 Y 轴转 -90° 让正面朝 +Z（相机在 +Z 一侧），
+    // 与 3D 长廊 BoothModel 保持一致；旋转后必须重算包围盒再归一化。
+    clone.rotation.y = -Math.PI / 2;
+    clone.updateMatrixWorld(true)
     const bounds = new Box3().setFromObject(clone)
     const size = bounds.getSize(new Vector3())
     const center = bounds.getCenter(new Vector3())
@@ -198,6 +202,9 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestError, setSuggestError] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   // 自定义人物列表
@@ -254,6 +261,8 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
     setError('')
     setEditing(false)
     setConfirmDelete(false)
+    setSuggestions([])
+    setSuggestError('')
     setChats((prev) => prev[character.id] ? prev : { ...prev, [character.id]: [{ from: 'character', text: character.greeting }] })
   }
 
@@ -264,14 +273,17 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chats, selected, sending])
 
-  const send = async () => {
-    if (!selected || !draft.trim() || sending) return
+  const send = async (overrideText?: string) => {
+    if (!selected || sending) return
+    const userText0 = (overrideText ?? draft).trim()
+    if (!userText0) return
     const character = selected
-    const userText = draft.trim()
+    const userText = userText0
     const prior = chats[character.id] ?? []
     const nextHistory = [...prior, { from: 'me' as const, text: userText }]
     setChats((prev) => ({ ...prev, [character.id]: nextHistory }))
-    setDraft('')
+    if (!overrideText) setDraft('')
+    setSuggestions([])
     setSending(true)
     setError('')
     const payload = {
@@ -299,6 +311,26 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
     }
   }
 
+  // AI 帮写提问：根据当前人物身份推荐 3 个可直接发送的问题。
+  const suggestQuestions = async () => {
+    if (!selected || suggesting) return
+    setSuggesting(true)
+    setSuggestError('')
+    try {
+      const r = await fetch(`/api/characters/${selected.id}/suggest-questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selected.isCustom ? { userId: user?.userId ?? '' } : {}),
+      })
+      const d = await r.json().catch(() => ({})) as { questions?: string[]; message?: string }
+      if (!r.ok || !d.questions?.length) throw new Error(d.message || '暂时想不出问题')
+      setSuggestions(d.questions)
+    } catch (e) {
+      setSuggestError(e instanceof Error ? e.message : '推荐问题失败')
+    } finally {
+      setSuggesting(false)
+    }
+  }
   // ===== 自定义人物：编辑 / 发布 / 删除 =====
   const startEdit = async () => {
     if (!selected || !isOwner) return
@@ -636,6 +668,21 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
                   <div ref={chatEndRef} />
                 </div>
 
+                <div className="character-dialog__suggest">
+                  <button type="button" className="character-dialog__suggest-btn" onClick={() => void suggestQuestions()} disabled={suggesting}>
+                    <Sparkles size={13} aria-hidden="true" /> {suggesting ? '正在想问题…' : 'AI 帮我问'}
+                  </button>
+                  {suggestError && <span className="character-dialog__suggest-error">{suggestError}</span>}
+                </div>
+                {suggestions.length > 0 && (
+                  <div className="character-dialog__chips">
+                    {suggestions.map((q, i) => (
+                      <button key={`${i}-${q}`} type="button" className="character-chip" onClick={() => void send(q)}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="character-dialog__composer">
                   <input
                     aria-label="发送消息"

@@ -81,6 +81,10 @@ interface AnalyzeResult {
   defendant_role: Omit<CourtPartyRole, "id" | "caseId" | "createdAt">;
   plaintiff_kb: Omit<CourtKnowledgeBase, "caseId" | "updatedAt">;
   defendant_kb: Omit<CourtKnowledgeBase, "caseId" | "updatedAt">;
+  /** 原告起诉状（叙事文书）。 */
+  plaintiff_complaint: string;
+  /** 被告答辩状（叙事文书）。 */
+  defendant_answer: string;
 }
 
 function fallbackAnalyze(userInput: string): AnalyzeResult {
@@ -121,6 +125,8 @@ function fallbackAnalyze(userInput: string): AnalyzeResult {
       opponent_arguments: [],
       user_additions: [],
     },
+    plaintiff_complaint: `原告认为，根据上述事实，被告应当对此事负责。恳请法庭查明真相，主持公道。`,
+    defendant_answer: `被告认为，事发经过与原告所述并不完全一致，被告并无过错，请求法庭依法驳回原告的诉求。`,
   };
 }
 
@@ -159,7 +165,9 @@ export async function analyzeCase(caseId: string, chat: ChatFn): Promise<CourtCa
 - plaintiff_role: {name, stance, persona}（原告方角色，persona 是一段简短人设）
 - defendant_role: {name, stance, persona}（被告方角色）
 - plaintiff_kb: {facts:[], evidence:[], claims:[], arguments:[], assumptions:[], opponent_arguments:[], user_additions:[]}，每个数组最多 2-3 条、每条 20 字以内，没有内容就留空数组
-- defendant_kb: 同上结构，同样精简`;
+- defendant_kb: 同上结构，同样精简
+- plaintiff_complaint: 原告起诉状正文（一段，80-150字，以第一人称原告口吻陈述事实与诉求，语气可以活泼但要讲清主张）
+- defendant_answer: 被告答辩状正文（一段，80-150字，以第一人称被告口吻回应、提出辩解）`;
 
   let result: AnalyzeResult;
   try {
@@ -183,6 +191,12 @@ export async function analyzeCase(caseId: string, chat: ChatFn): Promise<CourtCa
       defendant_role: (parsed.defendant_role ?? fallbackAnalyze(full.user_input).defendant_role) as AnalyzeResult["defendant_role"],
       plaintiff_kb: (parsed.plaintiff_kb ?? fallbackAnalyze(full.user_input).plaintiff_kb) as AnalyzeResult["plaintiff_kb"],
       defendant_kb: (parsed.defendant_kb ?? fallbackAnalyze(full.user_input).defendant_kb) as AnalyzeResult["defendant_kb"],
+      plaintiff_complaint: typeof parsed.plaintiff_complaint === "string" && parsed.plaintiff_complaint.trim()
+        ? tidySpeech(parsed.plaintiff_complaint)
+        : fallbackAnalyze(full.user_input).plaintiff_complaint,
+      defendant_answer: typeof parsed.defendant_answer === "string" && parsed.defendant_answer.trim()
+        ? tidySpeech(parsed.defendant_answer)
+        : fallbackAnalyze(full.user_input).defendant_answer,
     };
   } catch {
     result = fallbackAnalyze(full.user_input);
@@ -196,11 +210,67 @@ export async function analyzeCase(caseId: string, chat: ChatFn): Promise<CourtCa
     defendantRole: result.defendant_role,
     plaintiffKb: result.plaintiff_kb,
     defendantKb: result.defendant_kb,
+    plaintiffComplaint: result.plaintiff_complaint,
+    defendantAnswer: result.defendant_answer,
   });
 
   const updated = getCourtCase(caseId)!;
   updateCourtCaseStatus(caseId, transitionStatus(updated.status, "analysis_done"));
   return getCourtCase(caseId)!;
+}
+
+// ===== AI 帮写案情（CreateCase 页「AI 帮我写」按钮）=====
+const DRAFT_SYSTEM =
+  "你是趣味法庭的点子编剧。把用户随口一句话或一个主题，扩写成一件轻松、友善、适合开庭的生活小事。只返回合法 JSON，不要 Markdown。不要辱骂、不涉及真实法律纠纷、不碰隐私/家暴/自残。";
+
+interface DraftStoryResult {
+  description: string;
+  stance: string;
+}
+
+const DRAFT_FALLBACKS: DraftStoryResult[] = [
+  {
+    description: "泡泡借走了阿布的彩虹伞，说好下雨用完就还。结果一连晴了三天，泡泡却把伞借给了楼下的小松鼠，伞上还被画了一个笑脸。",
+    stance: "我觉得泡泡至少应该把伞擦干净再还我。",
+  },
+  {
+    description: "合租室友阿白每天凌晨两点在厨房叮叮当当做夜宵，抽油烟机响得像直升机，我第三天终于在冰箱上贴了纸条，结果被回贴了一张「这是生活的气息」。",
+    stance: "我认为凌晨两点的生活气息应该小声一点。",
+  },
+  {
+    description: "班长在群里发了接龙说 AA 聚餐，我转了钱，结果吃完没人提账单，三天后我发现自己一个人付了八个人的钱。",
+    stance: "我要求大家按接龙把钱补回来。",
+  },
+];
+
+/** AI 帮写一段趣味案情：返回 { description, stance }。LLM 失败时用本地兜底。 */
+export async function draftStory(chat: ChatFn, seed?: string): Promise<DraftStoryResult> {
+  const prompt = seed?.trim()
+    ? `用户给的主题：「${seed.trim()}」。围绕它编一件具体、有画面感、双方都能吵起来的生活小事。`
+    : `随便给一个有趣的生活小冲突主题，编一件具体、有画面感、双方都能吵起来的小事。`;
+  try {
+    const raw = await withTimeout(
+      chat([
+        { role: "system", content: DRAFT_SYSTEM },
+        {
+          role: "user",
+          content: `${prompt}\n\n返回 JSON：{ "description": "60-120字案情", "stance": "一句玩家可能的立场，20字以内" }`,
+        },
+      ], 1500),
+      20_000,
+      "draftStory",
+    );
+    const parsed = extractJson(raw) as Partial<DraftStoryResult>;
+    if (typeof parsed.description === "string" && parsed.description.trim().length >= 10) {
+      return {
+        description: tidySpeech(parsed.description),
+        stance: typeof parsed.stance === "string" ? tidySpeech(parsed.stance) : "",
+      };
+    }
+  } catch {
+    // 落到本地兜底
+  }
+  return DRAFT_FALLBACKS[Math.floor(Math.random() * DRAFT_FALLBACKS.length)];
 }
 
 // ===== 编排器 opts =====
@@ -233,6 +303,15 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
 
   updateCourtCaseStatus(caseId, transitionStatus(full.status, "start"));
   full = getCourtCase(caseId)!;
+
+  // 把用户确认过的起诉状/答辩状注入对应方知识库，作为辩论的正式主张依据。
+  const docs = full as typeof full & { plaintiff_complaint?: string; defendant_answer?: string };
+  if (docs.plaintiff_complaint?.trim() && full.plaintiff_kb) {
+    full.plaintiff_kb.arguments = [`起诉状：${docs.plaintiff_complaint.trim()}`, ...full.plaintiff_kb.arguments];
+  }
+  if (docs.defendant_answer?.trim() && full.defendant_kb) {
+    full.defendant_kb.arguments = [`答辩状：${docs.defendant_answer.trim()}`, ...full.defendant_kb.arguments];
+  }
 
   let turnCounter = 0;
   const allTurns: CourtTurn[] = getCourtTurns(caseId);
