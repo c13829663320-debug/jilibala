@@ -3,10 +3,17 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { SafeCanvas } from './SafeCanvas'
 import { Billboard, Text, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
-import { ArrowLeft, MessagesSquare, Users } from 'lucide-react'
+import { ArrowLeft, MessagesSquare, Users, Mic, MicOff } from 'lucide-react'
 import { Plaza } from './Plaza'
 import { useIdentity, hashColor, getCelebrity } from './identity'
-import type { WSMessage, WSUser } from '@balabala/shared'
+import type { WSMessage, WSUser, EmoteType, AvatarExpression } from '@balabala/shared'
+import { RemoteAvatar, type PresencePlayer } from './avatar/RemoteAvatar'
+import type { AvatarRig } from './avatar/avatar-rig'
+import { EmoteWheel } from './avatar/EmoteWheel'
+import { useEmote } from './avatar/useEmote'
+import { useAvatarLipSync } from './avatar/useAvatarLipSync'
+import { useSpatialVoice } from './voice/useSpatialVoice'
+import { useVoiceEnabled } from './voice-settings'
 import './plaza-3d.css'
 
 const BUILDINGS = [
@@ -23,17 +30,10 @@ const CAMERA_Y = 16
 
 type Marker = { id: number; x: number; z: number; born: number }
 
-/** A remote player tracked in the plaza. Positions are lerped toward targetX/targetZ. */
-type RemotePlayer = {
-  userId: string
-  nickname: string
-  avatarType: string
-  avatarRef: string
-  x: number
-  z: number
-  rotation: number
-  targetX: number
-  targetZ: number
+/** A remote player tracked in the plaza. Positions are lerped toward targetX/targetZ.
+ *  临场感字段（talkingIntensity/emote/expression）全部可选，向后兼容旧客户端。 */
+type RemotePlayer = PresencePlayer & {
+  animation?: string
 }
 
 function PlazaModel({ onPick }: { onPick: (e: ThreeEvent<MouseEvent>) => void }) {
@@ -82,51 +82,6 @@ function CameraRig({ target, lookAt }: { target: MutableRefObject<THREE.Vector3>
   return null
 }
 
-/** Single remote player avatar: colored capsule + floating name label. */
-function RemoteAvatar({ userId, playersRef }: { userId: string; playersRef: MutableRefObject<Map<string, RemotePlayer>> }) {
-  const groupRef = useRef<THREE.Group>(null)
-  const player = playersRef.current.get(userId)
-
-  // Resolve display color and name
-  let displayName = '玩家'
-  let avatarColor = hashColor(userId)
-  if (player) {
-    displayName = player.nickname
-    if (player.avatarType === 'celebrity' && player.avatarRef) {
-      const celeb = getCelebrity(player.avatarRef)
-      if (celeb) displayName = celeb.name
-    }
-    avatarColor = player.avatarType === 'capsule' ? hashColor(player.userId) : '#4fb3a5'
-  }
-
-  useFrame(() => {
-    const p = playersRef.current.get(userId)
-    if (!p || !groupRef.current) return
-    const g = groupRef.current
-    g.position.x = THREE.MathUtils.lerp(g.position.x, p.targetX, 0.12)
-    g.position.z = THREE.MathUtils.lerp(g.position.z, p.targetZ, 0.12)
-    g.rotation.y = p.rotation
-  })
-
-  if (!player) return null
-
-  return (
-    <group ref={groupRef} position={[player.x, 0, player.z]}>
-      {/* capsule body */}
-      <mesh position={[0, 0.6, 0]} castShadow>
-        <capsuleGeometry args={[0.25, 0.6, 8, 16]} />
-        <meshStandardMaterial color={avatarColor} roughness={0.4} metalness={0.1} />
-      </mesh>
-      {/* floating name label */}
-      <Billboard position={[0, 1.6, 0]}>
-        <Text fontSize={0.28} color="#FFFFFF" anchorX="center" anchorY="middle" outlineWidth={0.015} outlineColor="#000000" raycast={() => null}>
-          {displayName}
-        </Text>
-      </Billboard>
-    </group>
-  )
-}
-
 interface PlazaSceneProps {
   onEnterCourt: () => void
   onEnterTalkshow: () => void
@@ -135,7 +90,7 @@ interface PlazaSceneProps {
   onEnterLibrary: () => void
   onEnterGym: () => void
   toast: (msg: string) => void
-  playersRef: MutableRefObject<Map<string, RemotePlayer>>
+  playersRef: MutableRefObject<Map<string, PresencePlayer>>
   remoteUserIds: string[]
   onMove: (x: number, z: number) => void
 }
@@ -251,6 +206,77 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const shouldReconnect = useRef(true)
   // 触屏 tap 与 drag 区分：记录 pointerdown 的位置/时间
   const tapRef = useRef({ downX: 0, downY: 0, downT: 0 })
+  // 本地玩家世界坐标（供空间音频衰减 / 头部注视使用）
+  const localPosRef = useRef({ x: 0, z: 0 })
+  // 全局语音开关（与 voice-settings 联动）
+  const [voiceEnabled] = useVoiceEnabled()
+  // 本地麦克风电平分析器（自建，用于驱动 talking 强度上报）
+  const [localAnalyser, setLocalAnalyser] = useState<AnalyserNode | null>(null)
+  const localAudioCtxRef = useRef<AudioContext | null>(null)
+  // talking 消息发送节流（100ms）
+  const lastTalkingSendRef = useRef(0)
+  // 本地口型不需要渲染 rig（广场不渲染本地 avatar），用空 ref 占位
+  const dummyRigRef = useRef<AvatarRig | null>(null)
+
+  // ===== 空间语音（另一个 Agent 实现的 useSpatialVoice）=====
+  const voice = useSpatialVoice({
+    wsRef,
+    userId: user?.userId ?? 'plaza',
+    roomId: 'plaza',
+    playersRef: playersRef as MutableRefObject<Map<string, { x: number; z: number }>>,
+    localPosRef,
+    enabled: voiceEnabled,
+  })
+
+  // ===== emote 发送/接收 =====
+  const { sendEmote, handleEmoteMessage } = useEmote({
+    wsRef,
+    playersRef: playersRef as MutableRefObject<Map<string, PresencePlayer>>,
+    localUserId: user?.userId ?? '',
+  })
+
+  // ===== 本地口型电平 → WS talking（mic 模式，rig 占位）=====
+  useAvatarLipSync({
+    source: 'mic',
+    analyser: localAnalyser,
+    rigRef: dummyRigRef,
+    onIntensity: (level) => {
+      const now = performance.now()
+      if (now - lastTalkingSendRef.current < 100) return // 客户端节流 100ms
+      lastTalkingSendRef.current = now
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN && level > 0.02) {
+        ws.send(JSON.stringify({ type: 'talking', intensity: level }))
+      }
+    },
+  })
+
+  /** 点击麦克风：首次请求麦克风授权并自建电平分析器；之后切换静音 */
+  const handleMicToggle = useCallback(async () => {
+    if (voice.muted) {
+      // 取消静音：若尚未建分析器，先请求麦克风
+      if (!localAnalyser) {
+        const ok = await voice.requestMic()
+        if (ok) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const ctx = new AudioContext()
+            const src = ctx.createMediaStreamSource(stream)
+            const an = ctx.createAnalyser()
+            an.fftSize = 1024
+            src.connect(an)
+            localAudioCtxRef.current = ctx
+            setLocalAnalyser(an)
+          } catch {
+            /* 无麦克风设备，降级为纯文字 */
+          }
+        }
+      }
+      voice.setMuted(false)
+    } else {
+      voice.setMuted(true)
+    }
+  }, [voice, localAnalyser])
 
   const toast = useCallback((msg: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current)
@@ -261,6 +287,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const upsertPlayer = useCallback((u: WSUser) => {
     const existing = playersRef.current.get(u.userId)
     playersRef.current.set(u.userId, {
+      // 保留已有临场感字段（talkingIntensity/emote/expression），仅刷新位置与身份
+      ...existing,
       userId: u.userId,
       nickname: u.nickname,
       avatarType: u.avatarType,
@@ -318,8 +346,23 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
                 existing.targetX = p.x
                 existing.targetZ = p.z
                 existing.rotation = p.rotation
+                // 同步临场感扩展字段（向后兼容：旧客户端不发则不动）
+                if (p.talkingIntensity !== undefined) existing.talkingIntensity = p.talkingIntensity
+                if (p.animation !== undefined) existing.animation = p.animation
+                if (p.expression !== undefined) existing.expression = p.expression as AvatarExpression
               }
             }
+            break
+          }
+          case 'talking': {
+            // 远端玩家说话强度：更新口型驱动源
+            const p = playersRef.current.get(msg.userId)
+            if (p) p.talkingIntensity = msg.intensity
+            break
+          }
+          case 'emote': {
+            // 远端玩家表情动作：更新动画状态，超时后自动清除
+            handleEmoteMessage({ userId: msg.userId, emote: msg.emote, durationMs: msg.durationMs })
             break
           }
           case 'chat':
@@ -348,10 +391,13 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [user?.userId, showDiscuss, upsertPlayer, removePlayer, toast])
+  }, [user?.userId, showDiscuss, upsertPlayer, removePlayer, toast, handleEmoteMessage])
 
   // Send move message when the player clicks the ground
   const handleMove = useCallback((x: number, z: number) => {
+    // 维护本地坐标（供空间音频/头部注视）
+    localPosRef.current.x = x
+    localPosRef.current.z = z
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     ws.send(JSON.stringify({ type: 'move', x, z, rotation: 0 }))
@@ -376,7 +422,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           onEnterLibrary={onEnterLibrary ?? (() => toast('图书馆即将开放'))}
           onEnterGym={onEnterGym ?? (() => toast('健身房即将开放'))}
           toast={toast}
-          playersRef={playersRef}
+          playersRef={playersRef as MutableRefObject<Map<string, PresencePlayer>>}
           remoteUserIds={remoteUserIds}
           onMove={handleMove}
           tapRef={tapRef}
@@ -396,6 +442,26 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         padding: '4px 12px', color: '#4fb3a5', fontSize: 12, fontWeight: 600,
       }}>
         <Users size={13} /> 在线 {onlineCount} 人
+      </div>
+      {/* 麦克风按钮（静音/取消静音，首次点击请求授权） */}
+      <button
+        onClick={handleMicToggle}
+        title={voice.muted ? '取消静音（开启语音）' : '静音'}
+        style={{
+          position: 'absolute', top: 56, right: 16, zIndex: 10,
+          width: 36, height: 36, borderRadius: '50%',
+          border: '1px solid #4fb3a5',
+          background: voice.muted ? 'rgba(20,18,10,0.8)' : 'rgba(79,179,165,0.3)',
+          color: voice.muted ? '#4fb3a5' : '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        {voice.muted ? <MicOff size={16} /> : <Mic size={16} />}
+      </button>
+      {/* Emote 表情动作轮盘 */}
+      <div style={{ position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+        <EmoteWheel onSelect={(emote) => sendEmote(emote)} />
       </div>
       <div className="plaza-3d-hint">点击地面移动 · 点击建筑进入</div>
       <button className="plaza-3d-discuss" onClick={() => setShowDiscuss(true)}>
