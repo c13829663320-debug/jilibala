@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent } from 'react'
-import { ChevronRight, Eye, Bot, Sparkles, Play, Scale, Upload, FileText, Gavel, WandSparkles, Users, Clock3, Check, Download, Link2 } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Eye, Bot, Sparkles, Play, Scale, Upload, FileText, Gavel, WandSparkles, Users, Clock3, Check, Download, Link2 } from 'lucide-react'
 import {
   CELEBRITIES, getCelebrity,
   type BenchEvent, type BenchMember, type BenchSpeech, type BenchStage,
@@ -505,6 +505,9 @@ export default function CourtroomShell({
                 <Link2 size={12} /> {roomCopyStatus || '邀请他人'}
               </button>
             )}
+            <button type="button" className="secondary-button" onClick={onExitToEntry ?? (() => window.location.assign('/'))} style={{ fontSize: 12, padding: '4px 12px' }}>
+              <ArrowLeft size={12} /> 退出法庭
+            </button>
           </div>
         </div>
 

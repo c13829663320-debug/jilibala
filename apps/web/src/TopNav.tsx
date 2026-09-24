@@ -1,54 +1,42 @@
-import { RotateCcw, ArrowLeft } from 'lucide-react'
 import { VoiceToggleButton } from './voice-settings'
 import { useIdentity } from './identity'
 
 /**
  * 统一顶部导航：左侧品牌 + 三大入口（人物 / 场景 / 广场），
- * 右侧语音开关、重置、用户头像（点击进入「我的」）。庭审页复用同一条导航。
+ * 右侧语音开关、用户头像（点击进入「我的」）。
+ * 法庭页不使用本导航（法庭自带 court-topbar）；品牌与「场景」均回到场景选择首页。
  */
-export type TopView = 'court' | 'characters' | 'plaza' | 'mypage' | 'video' | 'archive' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym'
+export type TopView = 'court' | 'characters' | 'plaza' | 'mypage' | 'video' | 'archive' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'home'
 
 export type TopNavProps = {
   currentView: TopView
   onNavigate: (view: TopView) => void
-  /** 庭审页内可置 true，状态文案显示「庭审进行中」 */
-  inCourtroom?: boolean
-  onOpenArchive?: () => void
-  onReset?: () => void
-  /** 法庭流程的「返回入口」按钮，仅 currentView=court 时显示 */
-  onBack?: () => void
 }
 
 const NAV_ITEMS: Array<{ view: TopView; label: string }> = [
   { view: 'characters', label: '人物' },
-  { view: 'court', label: '场景' },
+  { view: 'home', label: '场景' },
   { view: 'plaza', label: '广场' },
 ]
 
-/** 场景内页（脱口秀/酒吧/图书馆）高亮「场景」导航。 */
+/** 首页与各场景内页（法庭/脱口秀/狼人杀/酒吧/图书馆/健身房）高亮「场景」导航。 */
 const activeNavView = (v: TopView): TopView =>
-  v === 'talkshow' || v === 'werewolf' || v === 'bar' || v === 'library' || v === 'gym' ? 'court' : v
+  v === 'talkshow' || v === 'werewolf' || v === 'bar' || v === 'library' || v === 'gym' || v === 'court' || v === 'home' ? 'home' : v
 
-export default function TopNav({ currentView, onNavigate, inCourtroom, onReset, onBack }: TopNavProps) {
+export default function TopNav({ currentView, onNavigate }: TopNavProps) {
   const navActive = activeNavView(currentView)
   const { user } = useIdentity()
   const nickname = user?.nickname ?? '我'
   const isPhoto = user?.avatarType === 'photo' && Boolean(user.avatarRef)
   return (
     <header className="topnav">
-      {currentView === 'court' && onBack && (
-        <button type="button" className="topnav__icon topnav__back" title="返回场景选择" aria-label="返回场景选择" onClick={onBack}>
-          <ArrowLeft size={18} />
-        </button>
-      )}
-      <div className="topnav__brand" onClick={() => onNavigate('court')} role="button" tabIndex={0}
-        onKeyDown={(event) => { if (event.key === 'Enter') onNavigate('court') }}>
+      <button type="button" className="topnav__brand" onClick={() => onNavigate('home')} title="回到场景首页">
         <img className="topnav__mark" src="/brand/balabala-mark.jpg" alt="BalaBala" />
-        <div className="topnav__brand-text">
-          <div className="topnav__brand-name">叽里呱啦</div>
-          <div className="topnav__brand-sub">BALA BALA</div>
-        </div>
-      </div>
+        <span className="topnav__brand-text">
+          <span className="topnav__brand-name">叽里呱啦</span>
+          <span className="topnav__brand-sub">BALA BALA</span>
+        </span>
+      </button>
 
       <nav className="topnav__links" aria-label="主导航">
         {NAV_ITEMS.map((item) => (
@@ -65,9 +53,8 @@ export default function TopNav({ currentView, onNavigate, inCourtroom, onReset, 
       </nav>
 
       <div className="topnav__actions">
-        <span className="topnav__status"><span className="topnav__dot" /> {inCourtroom ? '庭审进行中' : '在线'}</span>
+        <span className="topnav__status"><span className="topnav__dot" /> 在线</span>
         <VoiceToggleButton className="topnav__voice" />
-        <button type="button" className="topnav__icon" title="重置体验" onClick={onReset}><RotateCcw size={16} /></button>
         <button
           type="button"
           className="topnav__avatar"

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
 import { createPortal } from 'react-dom'
 import { Gavel } from 'lucide-react'
 import RoomEntry from './RoomEntry'
@@ -70,6 +70,8 @@ function AppInner() {
   const [archives, setArchives] = useState<ArchiveRecord[]>([])
   const [archiveLoading, setArchiveLoading] = useState(false)
   const [archiveError, setArchiveError] = useState('')
+  // 记录从哪里进入案卷库，返回时回到来源页（法庭 / 我的 / 入口大厅）
+  const archiveOriginRef = useRef<View>('entry')
   // 分享页
   const [sharedCase, setSharedCase] = useState<{ title: string; quote: string; charge: string; sentence: string; disclaimer: string } | null>(null)
 
@@ -99,13 +101,8 @@ function AppInner() {
     finally { setArchiveLoading(false) }
   }
 
-  const reset = () => {
-    setCaseText(''); setHearingMode('quick'); setPerspective('audience'); setEvidenceFiles([])
-    setView('court')
-  }
-
-  const navigate = (next: TopView) => setView(next)
-  const openArchives = () => { void fetchArchives(); setView('archive') }
+  const navigate = (next: TopView) => setView(next === 'home' ? 'entry' : next)
+  const openArchives = (origin: View) => { archiveOriginRef.current = origin; void fetchArchives(); setView('archive') }
 
   // ===== 分享页（路径直达，无导航） =====
   if (shareId) {
@@ -122,13 +119,12 @@ function AppInner() {
   if (view === 'entry') {
     return <RoomEntry
       onEnter={() => setView('court')}
-      onArchive={openArchives}
+      onArchive={() => openArchives('entry')}
       onAvatar={() => setView('avatar')}
       onCharacters={() => setView('characters')}
       onCreateCharacter={() => setView('custom-studio')}
       onPlaza={() => setView('plaza')}
       onMyPage={() => setView('mypage')}
-      onReset={reset}
       onEnterTalkshow={() => setView('talkshow')}
       onEnterWerewolf={() => setView('werewolf')}
       onEnterBar={() => setView('bar')}
@@ -144,21 +140,15 @@ function AppInner() {
 
   const navProps = {
     onNavigate: navigate,
-    onOpenArchive: openArchives,
-    onReset: reset,
-    onBack: () => setView('entry'),
   }
 
-  // ===== 案卷库 =====
+  // ===== 案卷库（独立全屏页：顶部仅一个返回按钮，不再叠全局导航；返回回到来路页） =====
   if (view === 'archive') {
-    return <>
-      <TopNav {...navProps} currentView="archive" />
-      <ArchivePage archives={archives} loading={archiveLoading} error={archiveError}
-        onBack={() => setView('court')} onCourt={() => setView('court')} onRefresh={() => void fetchArchives()}
+    return <ArchivePage archives={archives} loading={archiveLoading} error={archiveError}
+        onBack={() => setView(archiveOriginRef.current)} onCourt={() => setView('court')} onRefresh={() => void fetchArchives()}
         onOpenCase={(record) => { setCaseText(record.input); setView('court') }}
         onDelete={async (record) => { try { await fetch(`/api/cases/${encodeURIComponent(record.id)}`, { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('删除案卷失败') } }}
         onClear={async () => { try { await fetch('/api/archives', { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('清空案卷失败') } }} />
-    </>
   }
 
   // ===== 角色馆（懒加载） =====
@@ -245,7 +235,7 @@ function AppInner() {
   if (view === 'mypage') {
     return <>
       <TopNav {...navProps} currentView="mypage" />
-      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} onEnterGym={() => setView('gym')} onCustomCharacter={() => setView('custom-studio')} onAvatarStudio={() => setView('avatar')} onArchive={openArchives} />
+      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} onEnterGym={() => setView('gym')} onCustomCharacter={() => setView('custom-studio')} onAvatarStudio={() => setView('avatar')} onArchive={() => openArchives('mypage')} />
     </>
   }
 
@@ -257,11 +247,10 @@ function AppInner() {
     </>
   }
 
-  // ===== 默认：庭审（合议庭） =====
+  // ===== 默认：庭审（合议庭）——法庭自带 court-topbar（退出法庭/案卷库），不再叠加全局导航 =====
   return (
     <main className="app-shell">
       <ApiHealthBanner />
-      <TopNav {...navProps} currentView="court" inCourtroom />
       <CourtroomShell
         caseText={caseText} onCaseTextChange={setCaseText}
         hearingMode={hearingMode} onHearingModeChange={setHearingMode}
@@ -271,7 +260,7 @@ function AppInner() {
         onPublishToPlaza={() => setView('plaza')}
         roomId={roomId ?? undefined}
         onExitToEntry={() => setView('entry')}
-        onOpenArchive={openArchives}
+        onOpenArchive={() => openArchives('court')}
       />
     </main>
   )

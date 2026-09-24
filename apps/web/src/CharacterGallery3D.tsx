@@ -2,7 +2,7 @@ import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useSt
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { SafeCanvas } from './SafeCanvas'
 import { Billboard, Environment, Lightformer, Text, useGLTF } from '@react-three/drei'
-import { Box3, Group, InstancedMesh, MathUtils, Matrix4, MeshStandardMaterial, Vector3 } from 'three'
+import { Box3, Group, InstancedMesh, MathUtils, Matrix4, MeshStandardMaterial, Points, Vector3 } from 'three'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import NeutralMannequin from './NeutralMannequin'
 import { useSceneCleanup } from './useSceneCleanup'
@@ -137,7 +137,7 @@ function Booth({ entry, index, dist, active, hovered, focused, near, onHover, on
 
   return (
     <group position={[booth.x, 0, booth.z]}>
-      {/* 光环底座（可点）——自定义/创建入口用青绿，其余用暖金 */}
+      {/* 光环底座（可点）——点亮=青绿 accent（当前选中），未点亮=中性灰 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, PLINTH_TOP + 0.005, 0]}
         onClick={(e) => onPick(index, e)}
         onPointerOver={(e) => { e.stopPropagation(); onHover(index) }}
@@ -145,8 +145,8 @@ function Booth({ entry, index, dist, active, hovered, focused, near, onHover, on
         <ringGeometry args={[0.62, 0.86, 48]} />
         <meshStandardMaterial
           ref={ringMat}
-          color={lit ? '#4fb3a5' : '#3a3320'}
-          emissive={lit ? '#4fb3a5' : '#2a2410'}
+          color={lit ? '#4fb3a5' : '#1a1a1a'}
+          emissive={lit ? '#4fb3a5' : '#141414'}
           emissiveIntensity={0.25}
           transparent opacity={lit ? 1 : 0.6}
           side={2}
@@ -172,43 +172,97 @@ function Booth({ entry, index, dist, active, hovered, focused, near, onHover, on
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={lit ? 1.2 : 0.35} />
       </mesh>
 
-      {/* 名牌（始终面向相机） */}
+      {/* 名牌（始终面向相机）：名字为主、Title 为副，极细描边仅用于与人物模型分离 */}
       <Billboard position={[0, PLINTH_TOP + 0.52, 1.12]}>
         <Text
-          fontSize={0.23}
-          color={lit ? '#ffffff' : '#cfcfcf'}
+          position={[0, 0.075, 0]}
+          fontSize={0.185}
+          color={lit ? '#EDEDF0' : 'rgba(237,237,240,.55)'}
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.014}
-          outlineColor="#000000"
+          outlineWidth={0.004}
+          outlineColor="#050505"
           raycast={() => null}
         >
-          {`${entry.character.name}\n${entry.character.title}`}
+          {entry.character.name}
+        </Text>
+        <Text
+          position={[0, -0.085, 0]}
+          fontSize={0.115}
+          letterSpacing={0.04}
+          color={lit ? 'rgba(237,237,240,.48)' : 'rgba(237,237,240,.30)'}
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.004}
+          outlineColor="#050505"
+          raycast={() => null}
+        >
+          {entry.character.title}
         </Text>
       </Billboard>
     </group>
   )
 }
 
-/** 星空微尘：简单 Points，无外部 HDR/CDN。 */
+/** 星尘：从当前 C 位向外缓缓发散的微弱冷白星点（真黑底 + 单一中心，UI 规范「暗色粒子底」手法）。 */
 function StarDust() {
-  const positions = useMemo(() => {
-    const n = 260
-    const arr = new Float32Array(n * 3)
-    for (let i = 0; i < n; i++) {
-      arr[i * 3] = (Math.random() - 0.5) * 60
-      arr[i * 3 + 1] = Math.random() * 8 + 0.5
-      arr[i * 3 + 2] = -Math.random() * 30 + 2
+  const COUNT = 220
+  const RESET_R2 = 13 * 13
+  const pointsRef = useRef<Points>(null)
+  const groupRef = useRef<Group>(null)
+  const sim = useMemo(() => {
+    const positions = new Float32Array(COUNT * 3)
+    const dirs = new Float32Array(COUNT * 3)
+    const speeds = new Float32Array(COUNT)
+    const spawn = (i: number) => {
+      // 星点在中心（group 原点，跟随 C 位）附近生成，向外上方缓慢飘散。
+      const a = Math.random() * Math.PI * 2
+      const r = 0.5 + Math.random() * 2.6
+      positions[i * 3] = Math.cos(a) * r
+      positions[i * 3 + 1] = 0.2 + Math.random() * 3.0
+      positions[i * 3 + 2] = Math.sin(a) * r * 0.6 - 1.4
+      const dx = Math.cos(a)
+      const dz = Math.sin(a)
+      const up = 0.12 + Math.random() * 0.3
+      const len = Math.hypot(dx, up, dz) || 1
+      dirs[i * 3] = dx / len
+      dirs[i * 3 + 1] = up / len
+      dirs[i * 3 + 2] = dz / len
+      speeds[i] = 0.1 + Math.random() * 0.25
     }
-    return arr
+    for (let i = 0; i < COUNT; i++) spawn(i)
+    return { positions, dirs, speeds, spawn }
   }, [])
+
+  useFrame((state, delta) => {
+    // 发散中心跟随当前 C 位（相机 x），星点始终围绕居中人物向外飘散。
+    const g = groupRef.current
+    if (g) g.position.x = MathUtils.lerp(g.position.x, state.camera.position.x, Math.min(delta * 2.5, 1))
+    const pts = pointsRef.current
+    if (!pts) return
+    const { positions, dirs, speeds, spawn } = sim
+    for (let i = 0; i < COUNT; i++) {
+      const sp = speeds[i] * delta
+      positions[i * 3] += dirs[i * 3] * sp
+      positions[i * 3 + 1] += dirs[i * 3 + 1] * sp
+      positions[i * 3 + 2] += dirs[i * 3 + 2] * sp
+      const px = positions[i * 3]
+      const pz = positions[i * 3 + 2]
+      if (px * px + pz * pz > RESET_R2) spawn(i)
+    }
+    const attr = pts.geometry.getAttribute('position')
+    if (attr) attr.needsUpdate = true
+  })
+
   return (
-    <points frustumCulled>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial size={0.035} color="#ffe9a8" transparent opacity={0.55} sizeAttenuation depthWrite={false} />
-    </points>
+    <group ref={groupRef}>
+      <points ref={pointsRef} frustumCulled={false}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[sim.positions, 3]} />
+        </bufferGeometry>
+        <pointsMaterial size={0.03} color="#dfe3ec" transparent opacity={0.42} sizeAttenuation depthWrite={false} />
+      </points>
+    </group>
   )
 }
 
@@ -228,7 +282,7 @@ function Plinths({ entries }: { entries: GalleryEntry[] }) {
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, Math.max(entries.length, 0)]} frustumCulled>
       <cylinderGeometry args={[0.95, 1.08, PLINTH_TOP, 32]} />
-      <meshStandardMaterial color="#161513" roughness={0.6} metalness={0.25} />
+      <meshStandardMaterial color="#101010" roughness={0.6} metalness={0.25} />
     </instancedMesh>
   )
 }
@@ -279,14 +333,17 @@ function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChan
 
   return (
     <>
-      <color attach="background" args={['#0a0a0a']} />
-      <ambientLight intensity={0.55} color="#fff2d0" />
-      <directionalLight position={[4, 8, 6]} intensity={0.9} color="#ffffff" />
+      {/* 真黑舞台：背景/地面纯黑 + 黑雾让远处展台隐入虚空；人物只靠中性白主光 + 冷色轮廓光塑形（无暖调）。 */}
+      <color attach="background" args={['#000000']} />
+      <fog attach="fog" args={['#000000', 9, 26]} />
+      <ambientLight intensity={0.38} color="#ffffff" />
+      <directionalLight position={[2.5, 6, 5]} intensity={1.0} color="#ffffff" />
+      <directionalLight position={[-4, 3.5, -5]} intensity={0.5} color="#dfe8ff" />
       <Environment resolution={128}>
-        <Lightformer intensity={1.1} color="#ffdcb0" position={[0, 5, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[12, 12, 1]} />
-        <Lightformer intensity={0.5} color="#dfe8ff" position={[-6, 2, 2]} rotation={[0, Math.PI / 2, 0]} scale={[8, 4, 1]} />
-        <Lightformer intensity={0.5} color="#dfe8ff" position={[6, 2, 2]} rotation={[0, -Math.PI / 2, 0]} scale={[8, 4, 1]} />
-        <Lightformer intensity={0.9} color="#ffe8c8" position={[0, 2, 6]} scale={[10, 4, 1]} />
+        <Lightformer intensity={0.5} color="#ffffff" position={[0, 5, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[12, 12, 1]} />
+        <Lightformer intensity={0.35} color="#dfe8ff" position={[-6, 2, 2]} rotation={[0, Math.PI / 2, 0]} scale={[8, 4, 1]} />
+        <Lightformer intensity={0.35} color="#dfe8ff" position={[6, 2, 2]} rotation={[0, -Math.PI / 2, 0]} scale={[8, 4, 1]} />
+        <Lightformer intensity={0.3} color="#ffffff" position={[0, 2, 6]} scale={[10, 4, 1]} />
       </Environment>
 
       <StarDust />
@@ -311,7 +368,7 @@ function GalleryScene({ entries, activeIndex, focused, liveIndexRef, onIndexChan
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
         <planeGeometry args={[80, 40]} />
-        <meshStandardMaterial color="#0d0d0d" roughness={1} metalness={0} />
+        <meshStandardMaterial color="#000000" roughness={1} metalness={0} />
       </mesh>
     </>
   )
@@ -428,7 +485,7 @@ export default function CharacterGallery3D({ entries, activeIndex, onIndexChange
 
       {current && (
         <div className="gallery3d__now">
-          <span className="gallery3d__dot" style={{ background: current.color, boxShadow: `0 0 10px ${current.color}` }} />
+          <span className="gallery3d__dot" style={{ background: current.color }} />
           <div className="gallery3d__now-text">
             <b>{current.character.name}</b>
             <span>{current.character.title}</span>
