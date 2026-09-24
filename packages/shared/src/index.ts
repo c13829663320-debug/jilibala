@@ -568,3 +568,6 @@ export type CourtTrialEvent =
 export * from "./celebrities.js";
 export * from "./character-voices.js";
 export * from "./skill.js";
+
+// ===== 自定义场景工作室 =====
+export * from "./scene-studio.js";
