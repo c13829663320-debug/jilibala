@@ -2,6 +2,13 @@
 
 :root { font-family: 'Manrope','Noto Sans SC',sans-serif; color: #f5f5f5; background: #050505; font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
+/* 全局滚动条：黑色滑轨 + 浅灰滑块（scrollbar-color 兼容 Firefox/新版 Chrome，::-webkit-scrollbar 兼容旧版内核） */
+* { scrollbar-width: thin; scrollbar-color: rgba(237,237,240,.35) #000; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: #000; }
+*::-webkit-scrollbar-thumb { border-radius: 4px; background: rgba(237,237,240,.3); }
+*::-webkit-scrollbar-thumb:hover { background: rgba(237,237,240,.5); }
+*::-webkit-scrollbar-corner { background: #000; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: #050505; }
 button, textarea { font: inherit; }
 button { cursor: pointer; }
@@ -187,8 +194,9 @@ button { cursor: pointer; }
   .live-transcript__stage{flex:1 1 30%}
 }
 /* ===== M6 统一顶栏 TopNav ===== */
-.topnav{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 30px;border-bottom:1px solid rgba(255,255,255,.13);background:rgba(8,8,8,.82);backdrop-filter:blur(15px)}
-.topnav__brand{display:flex;align-items:center;gap:10px;cursor:pointer}
+.topnav{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 30px;border-bottom:1px solid rgba(255,255,255,.13);background:rgba(8,8,8,.82);backdrop-filter:blur(15px);user-select:none;font-family:'Manrope','Noto Sans SC',sans-serif;font-size:15px;line-height:1.5}
+.topnav__brand{display:flex;align-items:center;gap:10px;cursor:pointer;border:0;background:transparent;padding:0;font:inherit;color:inherit;text-align:left}
+.topnav__brand-text{display:flex;flex-direction:column;align-items:flex-start}
 .topnav__mark{width:32px;height:32px;border-radius:9px;object-fit:cover;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .topnav__brand-name{font-size:14px;font-weight:800;letter-spacing:.02em;color:#f5f5f5;line-height:1.1}
 .topnav__brand-sub{font:500 8px 'DM Mono',monospace;color:#888;letter-spacing:.13em;margin-top:3px}
@@ -201,8 +209,6 @@ button { cursor: pointer; }
 .topnav__dot{width:7px;height:7px;border-radius:50%;background:#7ce3b0;box-shadow:0 0 8px rgba(124,227,176,.7)}
 .topnav__archive{padding:8px 13px;border:1px solid rgba(255,255,255,.23);border-radius:9px;background:rgba(24,24,24,.6);color:#ccc;font-size:11px;cursor:pointer}
 .topnav__archive:hover{color:#4fb3a5;border-color:rgba(79,179,165,.4)}
-.topnav__icon{display:grid;place-items:center;width:32px;height:32px;border:1px solid rgba(255,255,255,.18);border-radius:9px;color:#aaa;background:transparent;cursor:pointer}
-.topnav__icon:hover{color:#fff;background:rgba(255,255,255,.06)}
 .topnav__voice{display:inline-flex;align-items:center;gap:6px;padding:0 14px;border:1px solid rgba(255,255,255,.18);border-radius:9px;color:#ccc;background:transparent;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .topnav__voice:hover{color:#fff;background:rgba(255,255,255,.06)}
 .topnav__avatar{display:grid;place-items:center;width:40px;height:40px;padding:0;border-radius:50%;background:#fff;color:#141414;font-size:15px;font-weight:700;cursor:pointer;overflow:hidden;border:1px solid rgba(255,255,255,.25);flex-shrink:0}
@@ -321,8 +327,7 @@ button, a, [role="button"], input[type="button"], input[type="submit"] {
   touch-action: manipulation;
 }
 button { min-height: 44px; }
-.topnav__link, .topnav__archive, .topnav__icon, .topnav__voice { min-height: 44px; }
-.topnav__icon { width: 44px !important; }
+.topnav__link, .topnav__archive, .topnav__voice { min-height: 44px; }
 
 /* iOS 安全区：顶部刘海 / 底部 home indicator */
 @supports (padding-top: env(safe-area-inset-top)) {
@@ -353,7 +358,6 @@ button { min-height: 44px; }
   .topnav__actions { gap: 4px; }
   .topnav__status { display: none; }
   .topnav__archive { padding: 6px 10px; font-size: 10px; min-height: 44px; }
-  .topnav__icon { width: 44px !important; height: 44px !important; min-height: 44px; }
   .topnav__avatar { display: none; }
 
   /* 给底部 tab 栏腾位：所有主内容底部留 64px 安全边距 */
@@ -422,4 +426,14 @@ button { min-height: 44px; }
   .room-grid { grid-template-columns: 1fr; }
   .phase-list { grid-template-columns: 1fr; }
   .topnav__link { font-size: 9px; }
+}
+
+/* ========== 案卷库：极简顶栏（仅返回按钮，不叠全局导航） ========== */
+.archive-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; height: 64px; padding: 0 34px; border-bottom: 1px solid rgba(255,255,255,.13); background: rgba(8,8,8,.82); backdrop-filter: blur(15px); }
+.archive-back-button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.2); border-radius: 9px; padding: 10px 14px; color: #ccc; background: rgba(255,255,255,.045); font-size: 11px; cursor: pointer; transition: background .2s, color .2s; }
+.archive-back-button:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+@media (max-width: 800px) {
+  .archive-topbar { padding: 0 18px; }
+  .archive-back-button { min-height: 44px; }
 }

@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const apiPort = process.env.PORT || '8787';
+const webPort = Number(process.env.WEB_PORT) || 5173;
+
 export default defineConfig({
   plugins: [
     react(),
@@ -100,12 +103,12 @@ export default defineConfig({
     }),
   ],
   server: {
-    port: 5173,
+    port: webPort,
     proxy: {
       // The API exposes its liveness route at /health (no /api prefix); alias it
       // so the frontend can probe it through the same /api origin.
-      '/api/health': { target: 'http://localhost:8787', rewrite: () => '/health' },
-      '/api': { target: 'http://localhost:8787', ws: true },
+      '/api/health': { target: `http://localhost:${apiPort}`, rewrite: () => '/health' },
+      '/api': { target: `http://localhost:${apiPort}`, ws: true },
     },
   },
   build: {

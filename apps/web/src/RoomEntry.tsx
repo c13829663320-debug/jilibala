@@ -14,7 +14,6 @@ export type RoomEntryProps = {
   onCreateCharacter?: () => void
   onPlaza?: () => void
   onMyPage?: () => void
-  onReset?: () => void
   onEnterTalkshow?: () => void
   onEnterWerewolf?: () => void
   onEnterBar?: () => void
@@ -314,7 +313,7 @@ function OrbScene({ items, activeId, onActivate, onHover }: { items: Item[]; act
   </SafeCanvas>
 }
 
-export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, onMyPage, onReset }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, onMyPage }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
@@ -347,7 +346,7 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
   }
 
   return <main className="main-home" aria-label="BalaBala 平台主界面">
-    <TopNav currentView="court" onNavigate={onNavigate} onReset={onReset} />
+    <TopNav currentView="home" onNavigate={onNavigate} />
 
     <section className="main-home__hero"><span className="main-home__kicker">BALA BALA SOCIAL WORLD</span><h1>选择一个场景，<em>开始你的故事。</em></h1><p>六大互动空间全部开放，自由进出。</p></section>
 

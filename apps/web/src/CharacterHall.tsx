@@ -117,7 +117,7 @@ function ModelCanvas({ url, onReady, autoRotate }: { url: string; onReady: () =>
   if (!url) return null
   return (
     <SafeCanvas camera={{ position: [0, 1.35, 3.4], fov: 38 }} dpr={[1, 1.5]} shadows>
-      <color attach="background" args={['#0b0b0b']} />
+      <color attach="background" args={['#0A0A0A']} />
       <ambientLight intensity={0.75} color="#fff4d6" />
       <directionalLight position={[3, 6, 4]} intensity={1.5} color="#ffffff" castShadow />
       <pointLight position={[-2.5, 2, 2.5]} intensity={12} distance={9} color="#4fb3a5" />
