@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { CELEBRITIES, getCelebrity, type User } from '@balabala/shared'
 import { Sparkles } from 'lucide-react'
 import { fetchMyCharacters, type UiCharacter } from './custom-characters'
@@ -7,7 +7,7 @@ const LS_USER_ID = 'balabala.userId'
 
 type AvatarType = User['avatarType']
 
-type IdentityPhase = 'loading' | 'setup' | 'ready'
+type IdentityPhase = 'loading' | 'setup' | 'ready' | 'error'
 
 interface IdentityContextValue {
   user: User | null
@@ -28,12 +28,62 @@ export function useIdentity() {
   return useContext(IdentityContext)
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
 /* ---------- avatar color helpers ---------- */
 function hashColor(seed: string): string {
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0
   const hue = Math.abs(h) % 360
   return `hsl(${hue}, 65%, 55%)`
+}
+
+/* ---------- full-screen overlays ---------- */
+const overlayWrap: CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 100000, background: '#0a0a0a',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+}
+
+function LoadingOverlay() {
+  return (
+    <div style={overlayWrap}>
+      <div style={{ textAlign: 'center', color: '#4fb3a5' }}>
+        <div style={{
+          width: 38, height: 38, margin: '0 auto 16px', borderRadius: '50%',
+          border: '3px solid #2a2a2a', borderTopColor: '#4fb3a5',
+          animation: 'bala-spin 0.9s linear infinite',
+        }} />
+        <div style={{ fontSize: 13, letterSpacing: 3, fontWeight: 600 }}>BALA BALA</div>
+      </div>
+      <style>{'@keyframes bala-spin{to{transform:rotate(360deg)}}'}</style>
+    </div>
+  )
+}
+
+function RetryOverlay({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div style={overlayWrap}>
+      <div style={{
+        background: '#1a1a1a', border: '1px solid #333', borderRadius: 16, padding: 32,
+        maxWidth: 420, width: '100%', color: '#f4f2ec', textAlign: 'center',
+      }}>
+        <h2 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 700 }}>连接遇到问题</h2>
+        <p style={{ margin: '0 0 22px', color: '#9a9c92', fontSize: 14, lineHeight: 1.6 }}>
+          暂时无法连接到服务器，你的登录状态已在本地保留，无需重新创建身份。
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          style={{
+            width: '100%', padding: '12px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+            background: '#4fb3a5', color: '#1a1a1a', fontSize: 15, fontWeight: 700,
+          }}
+        >
+          重新连接
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /* ---------- setup modal ---------- */
@@ -84,7 +134,7 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 100000, background: 'rgba(10,10,10,0.92)',
+      position: 'fixed', inset: 0, zIndex: 100000, background: 'rgba(10,10,10,0.96)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
       <div style={{
@@ -174,7 +224,7 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
                 <img src={c.portrait} alt={c.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
-                  <div style={{ fontSize: 11, color: '#6a6d64' }}>{c.title}</div>
+                  <div style={{ fontSize: 11, color: '#6a6d64'}}>{c.title}</div>
                 </div>
               </button>
             ))}
@@ -209,7 +259,7 @@ function SetupModal({ userId, onSubmit }: { userId?: string; onSubmit: (nickname
                     )}
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: '#6a6d64' }}>{c.title}</div>
+                      <div style={{ fontSize: 11, color: '#6a6d64'}}>{c.title}</div>
                     </div>
                   </button>
                 ))}
@@ -254,10 +304,41 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [phase, setPhase] = useState<IdentityPhase>('loading')
   const mountedRef = useRef(true)
+  const storedIdRef = useRef('')
 
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
+  }, [])
+
+  /**
+   * 加载已有用户资料。关键：网络错误 / 服务器未就绪只重试，
+   * 只有后端明确 404（身份不存在）才进入 setup，避免把老用户误判成新用户。
+   */
+  const loadProfile = useCallback(async (storedId: string) => {
+    setPhase('loading')
+    const delays = [400, 800, 1500, 2400]
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        const res = await fetch(`/api/users/${encodeURIComponent(storedId)}`)
+        if (res.status === 404) {
+          if (mountedRef.current) setPhase('setup')
+          return
+        }
+        if (!res.ok) throw new Error('bad status')
+        const data = (await res.json()) as User
+        if (mountedRef.current) {
+          setUser(data)
+          setPhase('ready')
+        }
+        return
+      } catch {
+        if (!mountedRef.current) return
+        if (attempt < delays.length) await sleep(delays[attempt])
+      }
+    }
+    // 重试用尽：进入可重试错误态，绝不弹创建框
+    if (mountedRef.current) setPhase('error')
   }, [])
 
   const createUser = useCallback(async (nickname: string, avatarType: AvatarType, avatarRef: string) => {
@@ -277,34 +358,23 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     }
     try { window.localStorage.setItem(LS_USER_ID, newUser.userId) } catch { /* ignore */ }
     if (mountedRef.current) {
+      storedIdRef.current = newUser.userId
       setUser(newUser)
       setPhase('ready')
     }
   }, [])
 
-  // On mount: read userId, fetch profile
+  // On mount: read userId, fetch profile (with retry); only a missing id => setup
   useEffect(() => {
     let storedId = ''
     try { storedId = window.localStorage.getItem(LS_USER_ID) ?? '' } catch { /* ignore */ }
+    storedIdRef.current = storedId
     if (!storedId) {
       if (mountedRef.current) setPhase('setup')
       return
     }
-    fetch(`/api/users/${encodeURIComponent(storedId)}`)
-      .then(async (res) => {
-        if (res.status === 404) {
-          if (mountedRef.current) setPhase('setup')
-          return
-        }
-        if (!res.ok) throw new Error('加载用户资料失败')
-        const data = await res.json() as User
-        if (mountedRef.current) {
-          setUser(data)
-          setPhase('ready')
-        }
-      })
-      .catch(() => { if (mountedRef.current) setPhase('setup') })
-  }, [])
+    void loadProfile(storedId)
+  }, [loadProfile])
 
   const updateProfile = useCallback(async (nickname: string, avatarType: AvatarType, avatarRef: string) => {
     if (!user) return
@@ -327,8 +397,11 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
 
   return (
     <IdentityContext.Provider value={value}>
-      {children}
-      {phase === 'setup' && <SetupModal userId={user?.userId} onSubmit={createUser} />}
+      {/* 主界面只在就绪后挂载，杜绝场景页 / 开屏 / 模态层级重合 */}
+      {phase === 'ready' ? children : null}
+      {phase === 'setup' && <SetupModal userId={storedIdRef.current} onSubmit={createUser} />}
+      {phase === 'loading' && <LoadingOverlay />}
+      {phase === 'error' && <RetryOverlay onRetry={() => void loadProfile(storedIdRef.current)} />}
     </IdentityContext.Provider>
   )
 }
