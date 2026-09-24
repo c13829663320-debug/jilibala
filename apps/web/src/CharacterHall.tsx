@@ -2,13 +2,14 @@ import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type E
 import { SafeCanvas } from './SafeCanvas'
 import { OrbitControls, ContactShadows, useGLTF } from '@react-three/drei'
 import { Box3, Group, Vector3 } from 'three'
-import { ChevronRight, Gavel, Loader2, MessageCircle, Pencil, Plus, RotateCw, Search, Sparkles, Trash2, Upload, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Dumbbell, Gavel, Loader2, MessageCircle, Mic, Pencil, Phone, PhoneOff, Plus, RotateCw, Save, Search, Sparkles, Trash2, Type, Upload, Users, Wine, X, BookOpen } from 'lucide-react'
 import { CELEBRITIES, CELEBRITY_FIELDS, resolveCharacterVoice, type CelebrityField } from '@balabala/shared'
 import { TtsPlayButton } from './TtsPlayButton'
 import { useSceneCleanup } from './useSceneCleanup'
 import { useIdentity } from './identity'
-import { playTts } from './tts'
+import { playTts, stopTts } from './tts'
 import { useVoiceEnabled } from './voice-settings'
+import { useSpeechRecognition } from './use-speech-recognition'
 import { buildGallerySequence, type GalleryEntry } from './character-gallery'
 import {
   assetUrl, celebrityListToUi, celebrityToUi, customToUi,
@@ -32,6 +33,30 @@ function readStoredIndex(): number {
 
 type ChatTurn = { from: 'me' | 'character'; text: string }
 type HallTab = 'all' | 'mine' | 'plaza'
+type InputMode = 'text' | 'voice' | 'phone'
+
+/** Skill 人格（契约由后端提供：GET /api/characters/:id/skill） */
+type CharacterSkill = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  persona?: string
+  knowledge?: string
+  behavior?: string
+  raw?: string
+}
+
+/** 可带入的场景 Shell 清单（id 与 App.tsx 的 view 路由一致） */
+const SCENE_LIST = [
+  { id: 'court', label: '趣味法庭', Icon: Gavel },
+  { id: 'gym', label: '健身房', Icon: Dumbbell },
+  { id: 'bar', label: '酒吧', Icon: Wine },
+  { id: 'talkshow', label: '脱口秀', Icon: Mic },
+  { id: 'werewolf', label: '狼人杀', Icon: Users },
+  { id: 'library', label: '图书馆', Icon: BookOpen },
+  { id: 'plaza', label: '广场', Icon: Users },
+] as const
 
 type CharacterHallProps = {
   onBack: () => void
@@ -39,6 +64,8 @@ type CharacterHallProps = {
   onPlaza?: () => void
   /** 点击「创建我的人物」占位入口 → 跳分身工坊。 */
   onCreateCharacter?: () => void
+  /** 带入场景入口；不传则按钮显示「即将开放」。 */
+  onEnterScene?: (sceneId: string, character: UiCharacter) => void
 }
 
 const FIELD_GRADIENTS: Record<string, string> = {
@@ -50,6 +77,13 @@ const FIELD_GRADIENTS: Record<string, string> = {
   哲学: 'linear-gradient(145deg,#5b3b8f,#201240)',
 }
 const CUSTOM_GRADIENT = 'linear-gradient(145deg,#4a3a6a,#1a1430)'
+
+/** 通话计时 MM:SS */
+function formatCallTime(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0')
+  const s = Math.floor(totalSeconds % 60).toString().padStart(2, '0')
+  return `${m}:${s}`
+}
 
 function Portrait({ character, className }: { character: UiCharacter; className?: string }) {
   const [failed, setFailed] = useState(false)
@@ -90,10 +124,6 @@ function FullBodyModel({ url }: { url: string }) {
   const { scene } = useGLTF(url, false, true)
   const normalized = (() => {
     const clone = scene.clone(true)
-    // Tripo 导出人物默认正面朝 +X，统一绕 Y 轴转 -90° 让正面朝 +Z（相机在 +Z 一侧），
-    // 与 3D 长廊 BoothModel 保持一致；旋转后必须重算包围盒再归一化。
-    clone.rotation.y = -Math.PI / 2;
-    clone.updateMatrixWorld(true)
     const bounds = new Box3().setFromObject(clone)
     const size = bounds.getSize(new Vector3())
     const center = bounds.getCenter(new Vector3())
@@ -192,7 +222,7 @@ type EditDraft = {
   tags: string; persona: string; greeting: string
 }
 
-export default function CharacterHall({ onEnterCourt, onCreateCharacter }: CharacterHallProps) {
+export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnterScene }: CharacterHallProps) {
   const { user } = useIdentity()
   const [tab, setTab] = useState<HallTab>('all')
   const [activeField, setActiveField] = useState<CelebrityField | '全部'>('全部')
@@ -202,10 +232,24 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [suggesting, setSuggesting] = useState(false)
-  const [suggestError, setSuggestError] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
+
+  // ===== 多模态输入：文字 / 语音 / 电话 =====
+  const [inputMode, setInputMode] = useState<InputMode>('text')
+  const [callActive, setCallActive] = useState(false)
+  const [callSeconds, setCallSeconds] = useState(0)
+  const [interimText, setInterimText] = useState('')
+
+  // ===== Skill 人格展示与编辑 =====
+  const [skillData, setSkillData] = useState<CharacterSkill | null>(null)
+  const [skillLoading, setSkillLoading] = useState(false)
+  const [skillOpen, setSkillOpen] = useState(false)
+  const [skillEditing, setSkillEditing] = useState(false)
+  const [skillMarkdown, setSkillMarkdown] = useState('')
+  const [skillSaving, setSkillSaving] = useState(false)
+
+  // ===== 人物视频（/videos/<id>.mp4 不存在时静默隐藏） =====
+  const [videoMissing, setVideoMissing] = useState(false)
 
   // 自定义人物列表
   const [mine, setMine] = useState<UiCharacter[]>([])
@@ -224,6 +268,27 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
   const [activeIndex, setActiveIndex] = useState<number>(readStoredIndex)
   const [voiceEnabled] = useVoiceEnabled()
   const greetedOnceRef = useRef(false)
+
+  // ASR 实例：语音模式与电话模式共用。
+  // - 语音模式：final 文本填入输入框，用户编辑后点发送
+  // - 电话模式：按住说话，松手 final 后直接发送（半双工）
+  const {
+    supported: speechSupported,
+    listening: asrListening,
+    start: startAsr,
+    stop: stopAsr,
+  } = useSpeechRecognition({
+    onFinal: (text) => {
+      setInterimText('')
+      if (!text.trim()) return
+      if (callActive) {
+        void send(text)
+      } else {
+        setDraft((prev) => (prev ? `${prev}${text}` : text))
+      }
+    },
+    onInterim: (t) => setInterimText(t),
+  })
 
   const showNotice = (msg: string) => {
     setNotice(msg)
@@ -261,13 +326,104 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
     setError('')
     setEditing(false)
     setConfirmDelete(false)
-    setSuggestions([])
-    setSuggestError('')
     setChats((prev) => prev[character.id] ? prev : { ...prev, [character.id]: [{ from: 'character', text: character.greeting }] })
   }
 
   const currentMessages = selected ? (chats[selected.id] ?? []) : []
   const isOwner = selected?.isCustom && Boolean(user?.userId) && selected.userId === user?.userId
+
+  // 关闭弹窗时清理：停止 TTS / ASR、退出电话模式
+  const closeDialog = () => {
+    stopTts()
+    stopAsr()
+    setCallActive(false)
+    setInputMode('text')
+    setInterimText('')
+    setSelected(null)
+  }
+
+  // ===== 电话模式 =====
+  const enterPhoneMode = () => {
+    if (!speechSupported) { showNotice('当前浏览器不支持语音输入'); return }
+    setInputMode('phone')
+    setCallActive(true)
+  }
+  const exitPhoneMode = () => {
+    stopAsr()
+    setInterimText('')
+    setCallActive(false)
+    setInputMode('text')
+  }
+
+  // 通话计时器（MM:SS）
+  useEffect(() => {
+    if (!callActive) return
+    setCallSeconds(0)
+    const id = window.setInterval(() => setCallSeconds((s) => s + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [callActive])
+
+  // ===== 带入场景 =====
+  const enterScene = (sceneId: string) => {
+    if (!selected) return
+    if (onEnterScene) onEnterScene(sceneId, selected)
+    else showNotice('即将开放')
+  }
+
+  // ===== Skill 人格加载 / 保存 =====
+  useEffect(() => {
+    if (!selected) {
+      setSkillData(null); setSkillLoading(false); setSkillEditing(false); setSkillOpen(false)
+      return
+    }
+    // UiCharacter 后续会带 skill 字段（另一代理实现），有缓存直接用
+    const cached = (selected as { skill?: CharacterSkill }).skill
+    if (cached) { setSkillData(cached); setSkillLoading(false); return }
+    let cancelled = false
+    setSkillLoading(true)
+    fetch(`/api/characters/${selected.id}/skill`)
+      .then((r) => (r.ok ? (r.json() as Promise<CharacterSkill>) : null))
+      .then((d) => { if (!cancelled && d) setSkillData(d) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setSkillLoading(false) })
+    return () => { cancelled = true }
+  }, [selected])
+
+  const saveSkill = async () => {
+    if (!selected || !isOwner || skillSaving) return
+    setSkillSaving(true)
+    try {
+      const r = await fetch(`/api/custom-characters/${selected.id}/skill`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.userId ?? '', skillMarkdown: skillMarkdown }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({})) as { message?: string }
+        throw new Error(d.message || '保存 Skill 失败')
+      }
+      setSkillData((prev) => (prev ? { ...prev, raw: skillMarkdown } : prev))
+      setSkillEditing(false)
+      showNotice('Skill 已保存')
+    } catch (e) {
+      showNotice(e instanceof Error ? e.message : '保存 Skill 失败')
+    } finally {
+      setSkillSaving(false)
+    }
+  }
+
+  // 切换人物时重置视频错误标记，让新人物重新尝试加载视频
+  useEffect(() => { setVideoMissing(false) }, [selected?.id])
+
+  // 弹窗被异常关闭（删除等路径直接置空 selected）时释放麦克风 / TTS
+  useEffect(() => {
+    if (selected) return
+    stopAsr()
+    stopTts()
+    setCallActive(false)
+    setInputMode('text')
+    setInterimText('')
+  }, [selected, stopAsr])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -275,15 +431,13 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
 
   const send = async (overrideText?: string) => {
     if (!selected || sending) return
-    const userText0 = (overrideText ?? draft).trim()
-    if (!userText0) return
     const character = selected
-    const userText = userText0
+    const userText = (overrideText ?? draft).trim()
+    if (!userText) return
     const prior = chats[character.id] ?? []
     const nextHistory = [...prior, { from: 'me' as const, text: userText }]
     setChats((prev) => ({ ...prev, [character.id]: nextHistory }))
-    if (!overrideText) setDraft('')
-    setSuggestions([])
+    setDraft('')
     setSending(true)
     setError('')
     const payload = {
@@ -304,6 +458,10 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
       const data = await response.json().catch(() => ({})) as { reply?: string; name?: string; message?: string }
       if (!response.ok || !data.reply) throw new Error(data.message || '对话失败，请稍后再试。')
       setChats((prev) => ({ ...prev, [character.id]: [...(prev[character.id] ?? nextHistory), { from: 'character', text: data.reply! }] }))
+      // 语音 / 电话模式：收到回复自动朗读（playTts 是单例，新回复自动打断旧播放）
+      if (voiceEnabled && inputMode !== 'text') {
+        void playTts(data.reply, resolveCharacterVoice(character.id, character.voice)).catch(() => {})
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : '连不上对话服务。')
     } finally {
@@ -311,26 +469,6 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
     }
   }
 
-  // AI 帮写提问：根据当前人物身份推荐 3 个可直接发送的问题。
-  const suggestQuestions = async () => {
-    if (!selected || suggesting) return
-    setSuggesting(true)
-    setSuggestError('')
-    try {
-      const r = await fetch(`/api/characters/${selected.id}/suggest-questions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(selected.isCustom ? { userId: user?.userId ?? '' } : {}),
-      })
-      const d = await r.json().catch(() => ({})) as { questions?: string[]; message?: string }
-      if (!r.ok || !d.questions?.length) throw new Error(d.message || '暂时想不出问题')
-      setSuggestions(d.questions)
-    } catch (e) {
-      setSuggestError(e instanceof Error ? e.message : '推荐问题失败')
-    } finally {
-      setSuggesting(false)
-    }
-  }
   // ===== 自定义人物：编辑 / 发布 / 删除 =====
   const startEdit = async () => {
     if (!selected || !isOwner) return
@@ -585,18 +723,32 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
       )}
 
       {selected && (
-        <div className="character-dialog-backdrop" onClick={() => setSelected(null)}>
+        <div className="character-dialog-backdrop" onClick={closeDialog}>
           <section className="character-dialog" role="dialog" aria-modal="true" aria-labelledby="character-dialog-title" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="character-dialog__close" onClick={() => setSelected(null)} aria-label="关闭人物详情"><X size={20} /></button>
+            <button type="button" className="character-dialog__close" onClick={closeDialog} aria-label="关闭人物详情"><X size={20} /></button>
 
             <div className="character-dialog__main">
-              {/* 左侧：3D 全身模型展示 */}
+              {/* 左栏（35%）：3D 全身模型 + 人物视频 */}
               <div className="character-dialog__viewer">
                 <CharacterModelViewer key={selected.id} character={selected} />
+                {!videoMissing && (
+                  <div className="character-dialog__video-wrap">
+                    <video
+                      className="character-dialog__video"
+                      src={`/videos/${selected.id}.mp4`}
+                      poster={selected.portrait || undefined}
+                      playsInline controls
+                      ref={(el) => { if (el && !el.dataset.mutedSet) { el.muted = true; el.dataset.mutedSet = '1' } }}
+                      autoPlay
+                      loop
+                      onError={() => setVideoMissing(true)}
+                    />
+                  </div>
+                )}
               </div>
 
-              {/* 右侧：信息 + 聊天 */}
-              <div className="character-dialog__side">
+              {/* 中栏（40%）：profile + 场景代入 + Skill 人格 */}
+              <div className="character-dialog__center">
                 <div className="character-dialog__profile">
                   <Portrait character={selected} className="character-dialog__portrait" />
                   <div>
@@ -650,51 +802,188 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter }: Chara
                   </div>
                 )}
 
-                <div className="character-dialog__chat" aria-live="polite">
-                  {currentMessages.map((m, i) => (
-                    <div className={`character-chat ${m.from}`} key={`${m.from}-${i}`}>
-                      <span>{m.from === 'me' ? '你' : selected.name}</span>
-                      <p>{m.text}</p>
-                      {m.from === 'character' && <TtsPlayButton text={m.text} voice={resolveCharacterVoice(selected.id, selected.voice)} label="朗读" className="character-chat__tts" />}
-                    </div>
-                  ))}
-                  {sending && (
-                    <div className="character-chat character">
-                      <span>{selected.name}</span>
-                      <p className="character-typing"><Loader2 size={13} className="spin" /> 正在思考…</p>
-                    </div>
-                  )}
-                  {error && <p className="character-chat-error">{error}</p>}
-                  <div ref={chatEndRef} />
-                </div>
-
-                <div className="character-dialog__suggest">
-                  <button type="button" className="character-dialog__suggest-btn" onClick={() => void suggestQuestions()} disabled={suggesting}>
-                    <Sparkles size={13} aria-hidden="true" /> {suggesting ? '正在想问题…' : 'AI 帮我问'}
-                  </button>
-                  {suggestError && <span className="character-dialog__suggest-error">{suggestError}</span>}
-                </div>
-                {suggestions.length > 0 && (
-                  <div className="character-dialog__chips">
-                    {suggestions.map((q, i) => (
-                      <button key={`${i}-${q}`} type="button" className="character-chip" onClick={() => void send(q)}>
-                        {q}
+                {/* 带入场景 */}
+                <div className="character-dialog__scenes">
+                  <h3>带入场景</h3>
+                  <div className="character-dialog__scene-grid">
+                    {SCENE_LIST.map(({ id, label, Icon }) => (
+                      <button key={id} type="button" onClick={() => enterScene(id)}>
+                        <Icon size={15} aria-hidden="true" />
+                        <span>{label}</span>
                       </button>
                     ))}
                   </div>
-                )}
-                <div className="character-dialog__composer">
-                  <input
-                    aria-label="发送消息"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void send() }}
-                    placeholder={`和${selected.name}说点什么…`}
-                  />
-                  <button type="button" onClick={() => void send()} disabled={sending || !draft.trim()}>
-                    {sending ? <Loader2 size={15} className="spin" /> : <MessageCircle size={15} aria-hidden="true" />} 发送
-                  </button>
                 </div>
+
+                {/* Skill 人格（折叠区） */}
+                <div className="character-dialog__skill">
+                  <button type="button" className="character-dialog__skill-head" onClick={() => setSkillOpen((v) => !v)} aria-expanded={skillOpen}>
+                    <Sparkles size={14} aria-hidden="true" />
+                    <span>Skill 人格</span>
+                    {!selected.isCustom && <em>默认 Skill</em>}
+                    <ChevronDown size={14} className={`character-dialog__skill-caret ${skillOpen ? 'is-open' : ''}`} aria-hidden="true" />
+                  </button>
+                  {skillOpen && (
+                    <div className="character-dialog__skill-body">
+                      {skillLoading && <p className="character-dialog__skill-hint"><Loader2 size={12} className="spin" /> 加载 Skill…</p>}
+                      {!skillLoading && !skillData && <p className="character-dialog__skill-hint">暂无 Skill 描述</p>}
+                      {skillData && (
+                        <>
+                          <b className="character-dialog__skill-name">{skillData.name || '未命名 Skill'}</b>
+                          {skillData.description && <p className="character-dialog__skill-desc">{skillData.description}</p>}
+                          {skillData.persona && (
+                            <div className="skill-section"><h4>Persona</h4><p>{skillData.persona}</p></div>
+                          )}
+                          {skillData.knowledge && (
+                            <div className="skill-section"><h4>Knowledge</h4><p>{skillData.knowledge}</p></div>
+                          )}
+                          {skillData.behavior && (
+                            <div className="skill-section"><h4>Behavior</h4><p>{skillData.behavior}</p></div>
+                          )}
+                          {isOwner && !skillEditing && (
+                            <button
+                              type="button"
+                              className="character-dialog__skill-editbtn"
+                              onClick={() => { setSkillMarkdown(skillData.raw ?? ''); setSkillEditing(true) }}
+                            >
+                              <Pencil size={12} /> 编辑 Skill
+                            </button>
+                          )}
+                          {isOwner && skillEditing && (
+                            <div className="character-dialog__skill-edit">
+                              <textarea
+                                rows={6}
+                                value={skillMarkdown}
+                                onChange={(e) => setSkillMarkdown(e.target.value)}
+                                placeholder="粘贴 Skill Markdown…"
+                              />
+                              <div className="character-dialog__skill-actions">
+                                <button type="button" onClick={() => void saveSkill()} disabled={skillSaving}>
+                                  {skillSaving ? <Loader2 size={12} className="spin" /> : <Save size={12} />} 保存
+                                </button>
+                                <button type="button" onClick={() => setSkillEditing(false)}>取消</button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 右栏（25%）：聊天区 + 三种输入模式（电话模式接管整栏） */}
+              <div className="character-dialog__chatcol">
+                {callActive ? (
+                  <div className="character-call">
+                    <Portrait character={selected} className="character-call__avatar" />
+                    <b className="character-call__name">{selected.name}</b>
+                    <span className="character-call__status">通话中… {formatCallTime(callSeconds)}</span>
+                    <div className="character-call__wave" aria-hidden="true">
+                      {Array.from({ length: 22 }).map((_, i) => (
+                        <i key={i} style={{ animationDelay: `${(i % 11) * 90}ms`, animationDuration: `${0.7 + (i % 5) * 0.12}s` }} />
+                      ))}
+                    </div>
+                    {asrListening && interimText && <p className="character-call__interim">{interimText}</p>}
+                    {sending && <p className="character-call__interim">{selected.name} 正在思考…</p>}
+                    <div className="character-call__controls">
+                      <button
+                        type="button"
+                        className={`character-call__mic ${asrListening ? 'is-listening' : ''}`}
+                        onPointerDown={(e) => { e.preventDefault(); startAsr() }}
+                        onPointerUp={() => stopAsr()}
+                        onPointerLeave={() => { if (asrListening) stopAsr() }}
+                        onContextMenu={(e) => e.preventDefault()}
+                        aria-label="按住说话"
+                      >
+                        <Mic size={24} aria-hidden="true" />
+                      </button>
+                      <button type="button" className="character-call__hangup" onClick={exitPhoneMode} aria-label="挂断">
+                        <PhoneOff size={20} aria-hidden="true" />
+                      </button>
+                    </div>
+                    <p className="character-call__hint">按住麦克风说话，松开发送</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="character-dialog__chat" aria-live="polite">
+                      {currentMessages.map((m, i) => (
+                        <div className={`character-chat ${m.from}`} key={`${m.from}-${i}`}>
+                          <span>{m.from === 'me' ? '你' : selected.name}</span>
+                          <p>{m.text}</p>
+                          {m.from === 'character' && <TtsPlayButton text={m.text} voice={resolveCharacterVoice(selected.id, selected.voice)} label="朗读" className="character-chat__tts" />}
+                        </div>
+                      ))}
+                      {sending && (
+                        <div className="character-chat character">
+                          <span>{selected.name}</span>
+                          <p className="character-typing"><Loader2 size={13} className="spin" /> 正在思考…</p>
+                        </div>
+                      )}
+                      {error && <p className="character-chat-error">{error}</p>}
+                      <div ref={chatEndRef} />
+                    </div>
+
+                    {/* 输入模式切换 */}
+                    <div className="character-dialog__modes" role="tablist" aria-label="输入模式">
+                      <button
+                        type="button" role="tab" aria-selected={inputMode === 'text'}
+                        className={inputMode === 'text' ? 'is-active' : ''}
+                        onClick={() => setInputMode('text')}
+                      >
+                        <Type size={13} aria-hidden="true" /> 文字
+                      </button>
+                      <button
+                        type="button" role="tab" aria-selected={inputMode === 'voice'}
+                        className={inputMode === 'voice' ? 'is-active' : ''}
+                        onClick={() => setInputMode('voice')}
+                      >
+                        <Mic size={13} aria-hidden="true" /> 语音
+                      </button>
+                      <button
+                        type="button" role="tab" aria-selected={inputMode === 'phone'}
+                        className={inputMode === 'phone' ? 'is-active' : ''}
+                        onClick={enterPhoneMode}
+                      >
+                        <Phone size={13} aria-hidden="true" /> 电话
+                      </button>
+                    </div>
+
+                    {inputMode === 'voice' && (
+                      speechSupported ? (
+                        <div className="character-dialog__voice">
+                          <button
+                            type="button"
+                            className={`voice-mic ${asrListening ? 'is-listening' : ''}`}
+                            onClick={() => (asrListening ? stopAsr() : startAsr())}
+                            aria-pressed={asrListening}
+                            title={asrListening ? '停止录音' : '开始语音输入'}
+                          >
+                            <Mic size={22} aria-hidden="true" />
+                          </button>
+                          <p className="character-dialog__voice-hint">
+                            {asrListening ? (interimText || '正在聆听…') : '点击麦克风说话，识别文字会填入输入框'}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="character-dialog__asr-error">当前浏览器不支持语音输入</p>
+                      )
+                    )}
+
+                    <div className="character-dialog__composer">
+                      <input
+                        aria-label="发送消息"
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') void send() }}
+                        placeholder={`和${selected.name}说点什么…`}
+                      />
+                      <button type="button" onClick={() => void send()} disabled={sending || !draft.trim()}>
+                        {sending ? <Loader2 size={15} className="spin" /> : <MessageCircle size={15} aria-hidden="true" />} 发送
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

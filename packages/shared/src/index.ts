@@ -567,3 +567,4 @@ export type CourtTrialEvent =
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";
 export * from "./character-voices.js";
+export * from "./skill.js";

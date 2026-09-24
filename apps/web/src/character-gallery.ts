@@ -28,6 +28,37 @@ export const BOOTH_SPACING = 2.25
 export const ARC_CURVE = 0.55
 
 /**
+ * 3D 全屏环形布局半径（世界单位）。
+ * 20 人时相邻弧长 = 2π*5.5/20 ≈ 1.73，人物互不重叠。
+ */
+export const RING_RADIUS = 5.5
+
+/**
+ * 把 count 个角色均匀排成一个水平圆环（3D 全屏环形选人界面）。
+ *
+ * 角度约定（与 CharacterGallery3D 的 group 旋转严格自洽）：
+ * - 第 i 个角色的圆周角 angle = (i / count) * 2π；
+ * - 局部位置 x = -radius*sin(angle)，z = -radius*cos(angle)；
+ *   （相机在 +Z，angle=0 的角色在正前方 z=-radius。x 取 -sin 是为了让
+ *    group 绕 Y 轴转到 rotation.y = -(activeIndex/count)*2π 时，
+ *    恰好把 activeIndex 号角色精确转到世界 (0, -radius)，即屏幕投影中心。）
+ * - rotationY = angle：角色面朝圆心；group 旋转后居中者正对相机（总转角 = angle + rotation.y = 0）。
+ */
+export function ringLayout(count: number, radius: number = RING_RADIUS): BoothPosition[] {
+  const n = Math.max(0, Math.floor(count))
+  const out: BoothPosition[] = []
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * Math.PI * 2
+    out.push({
+      x: -radius * Math.sin(angle),
+      z: -radius * Math.cos(angle),
+      rotationY: angle,
+    })
+  }
+  return out
+}
+
+/**
  * 把 count 个角色沿横向等距、略带弧度地排成一列。
  * 默认以列表中点为世界原点（x=0 居中）；传入 centerIndex 时把该索引放在
  * 视觉正中央（x=0,z=0），用于「自定义角色 C 位」。
@@ -154,9 +185,15 @@ export function buildGallerySequence(args: {
 }): { entries: GalleryEntry[]; centerIndex: number } {
   const { tab, celebs, mine, plaza } = args
 
+  /** 覆盖为环形 booth（保留条目顺序与 isCreateEntry 标记不变）。 */
+  const ringify = (entries: GalleryEntry[]): GalleryEntry[] => {
+    const ring = ringLayout(entries.length)
+    return entries.map((e, i) => ({ ...e, booth: ring[i] }))
+  }
+
   // plaza：公开人物，中点居中，不掺创建入口。
   if (tab === 'plaza') {
-    const entries = buildGalleryEntries(plaza)
+    const entries = ringify(buildGalleryEntries(plaza))
     return { entries, centerIndex: clampGalleryIndex((plaza.length - 1) / 2, plaza.length) }
   }
 
@@ -164,11 +201,11 @@ export function buildGallerySequence(args: {
   if (tab === 'mine') {
     if (mine.length === 0) {
       const seq = [makeCreateEntryCharacter()]
-      const entries = buildGalleryEntries(seq, 0)
+      const entries = ringify(buildGalleryEntries(seq, 0))
       entries[0] = { ...entries[0], isCreateEntry: true }
       return { entries, centerIndex: 0 }
     }
-    const entries = buildGalleryEntries(mine, 0)
+    const entries = ringify(buildGalleryEntries(mine, 0))
     return { entries, centerIndex: 0 }
   }
 
@@ -195,7 +232,7 @@ export function buildGallerySequence(args: {
 
   const seq = [...left, centerChar, ...right]
   const centerIndex = left.length
-  const entries = buildGalleryEntries(seq, centerIndex)
+  const entries = ringify(buildGalleryEntries(seq, centerIndex))
   if (isCreateCenter) {
     entries[centerIndex] = { ...entries[centerIndex], isCreateEntry: true }
   }
