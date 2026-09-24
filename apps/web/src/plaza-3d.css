@@ -46,7 +46,7 @@
   margin-left: auto;
   width: 30px; height: 30px;
   border-radius: 8px;
-  object-fit: cover;
+  object-fit: contain;
 }
 .plaza-3d-hint {
   position: absolute;

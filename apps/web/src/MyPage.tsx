@@ -119,7 +119,7 @@ const mapMsg = (m: ApiMsgRecord): MsgRecord => ({
 
 /* ---------- certificate SVG（趣味纪念证书，保留金色印章视觉） ---------- */
 function CertificateSvg({ cert }: { cert: CertRecord }) {
-  const logo = '/brand/balabala-mark-clean.jpg'
+  const logo = '/brand/balabala-logo.jpg?v=2'
   return (
     <svg className="cert-svg" viewBox="0 0 900 1200" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -661,7 +661,7 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, 
             </div>
 
             <div className="profile-about">
-              <img src="/brand/balabala-mark.jpg" alt="叽里呱啦" />
+              <img src="/brand/balabala-logo.jpg?v=2" alt="叽里呱啦" />
               <div>
                 <b>叽里呱啦 · BalaBala</b>
                 <small>版本 0.4.0 · SOCIAL COURT</small>

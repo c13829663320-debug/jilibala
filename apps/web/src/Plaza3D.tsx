@@ -387,7 +387,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           <ArrowLeft size={18} />
         </button>
         <div className="plaza-3d-title">广场</div>
-        <img className="plaza-3d-logo" src="/brand/balabala-mark.jpg" alt="BalaBala" />
+        <img className="plaza-3d-logo" src="/brand/balabala-mark.jpg?v=2" alt="叽里呱啦" />
       </div>
       <div className="plaza-3d-online" style={{
         position: 'absolute', top: 56, left: 16, zIndex: 10,

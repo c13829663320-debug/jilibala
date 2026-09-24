@@ -197,7 +197,7 @@ button { cursor: pointer; }
 .topnav{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 30px;border-bottom:1px solid rgba(255,255,255,.13);background:rgba(8,8,8,.82);backdrop-filter:blur(15px);user-select:none;font-family:'Manrope','Noto Sans SC',sans-serif;font-size:15px;line-height:1.5}
 .topnav__brand{display:flex;align-items:center;gap:10px;cursor:pointer;border:0;background:transparent;padding:0;font:inherit;color:inherit;text-align:left}
 .topnav__brand-text{display:flex;flex-direction:column;align-items:flex-start}
-.topnav__mark{width:32px;height:32px;border-radius:9px;object-fit:cover;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.topnav__mark{width:34px;height:34px;border-radius:9px;object-fit:contain;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .topnav__brand-name{font-size:14px;font-weight:800;letter-spacing:.02em;color:#f5f5f5;line-height:1.1}
 .topnav__brand-sub{font:500 8px 'DM Mono',monospace;color:#888;letter-spacing:.13em;margin-top:3px}
 .topnav__links{display:flex;align-items:center;gap:4px}

@@ -11,8 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: [
-        'balabala-logo.jpg',
-        'balabala-mark-clean.jpg',
+        'brand/balabala-logo.jpg',
         'icons/icon-192.jpg',
         'icons/icon-512.jpg',
         'icons/maskable-192.jpg',
@@ -66,6 +65,16 @@ export default defineConfig({
             urlPattern: ({ request, url }) =>
               url.pathname.endsWith('.glb') || url.pathname.startsWith('/models/'),
             handler: 'NetworkOnly',
+          },
+          {
+            // 品牌 logo：网络优先，改版后立即生效
+            urlPattern: ({ url }) => url.pathname.startsWith('/brand/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'brand-assets',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 7 },
+            },
           },
           {
             // 图片（名人头像、logo）：StaleWhileRevalidate

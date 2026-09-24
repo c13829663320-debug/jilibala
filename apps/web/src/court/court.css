@@ -385,7 +385,7 @@
   .archive-screen__grid { grid-template-columns: 1fr; }
 }
 
-.court-brand-mark { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; display: block; }
+.court-brand-mark { width: 30px; height: 30px; border-radius: 8px; object-fit: contain; display: block; }
 
 /* ===== 专家辅助人选择器 ===== */
 .defender-picker {

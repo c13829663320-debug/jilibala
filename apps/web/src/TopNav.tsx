@@ -31,7 +31,7 @@ export default function TopNav({ currentView, onNavigate }: TopNavProps) {
   return (
     <header className="topnav">
       <button type="button" className="topnav__brand" onClick={() => onNavigate('home')} title="回到场景首页">
-        <img className="topnav__mark" src="/brand/balabala-mark.jpg" alt="BalaBala" />
+        <img className="topnav__mark" src="/brand/balabala-mark.jpg?v=2" alt="叽里呱啦" />
         <span className="topnav__brand-text">
           <span className="topnav__brand-name">叽里呱啦</span>
           <span className="topnav__brand-sub">BALA BALA</span>
