@@ -394,11 +394,45 @@ export type PlazaLiveEvent =
   | { kind: "reaction"; id: string; reaction: "like" | "dislike"; userId: string; likes: number; dislikes: number }
   | { kind: "comment_created"; id: string; comment: ContentComment };
 
+// ===== 社交临场感 (social-presence): 表情/手势/口型同步 =====
+export type EmoteType = 'wave' | 'nod' | 'shake' | 'point' | 'clap' | 'laugh' | 'surprised'
+export type AvatarExpression = 'neutral' | 'happy' | 'surprised' | 'angry'
+export type AvatarAnimation = 'idle' | 'talking' | EmoteType
+
+/** WebRTC SDP 结构化描述（shared 包无 DOM lib，不用 RTCSessionDescriptionInit） */
+export interface RtcSdpJson {
+  type: 'offer' | 'answer' | 'pranswer' | 'rollback'
+  sdp: string
+}
+
+/** WebRTC ICE candidate 结构化描述 */
+export interface RtcIceJson {
+  candidate: string
+  sdpMid: string | null
+  sdpMLineIndex: number | null
+}
+
+/** presence 中单个玩家的扩展字段（全部可选，向后兼容） */
+export interface PresenceUser {
+  userId: string
+  x: number
+  z: number
+  rotation: number
+  /** 说话强度 0~1，用于远端口型驱动 */
+  talkingIntensity?: number
+  /** 当前动画状态 idle/talking/wave/... */
+  animation?: string
+  /** 表情 neutral/happy/surprised/angry */
+  expression?: string
+  /** 头部注视目标世界坐标 */
+  headTarget?: { x: number; z: number } | null
+}
+
 export type WSMessage =
   | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState; sceneState?: SceneRoomState }
   | { type: 'user_joined'; user: WSUser }
   | { type: 'user_left'; userId: string }
-  | { type: 'presence'; users: Array<{ userId: string; x: number; z: number; rotation: number }> }
+  | { type: 'presence'; users: PresenceUser[] }
   | { type: 'chat'; userId: string; nickname: string; text: string }
   | { type: 'user_speech'; userId: string; nickname: string; text: string }
   | { type: 'user_vote'; userId: string; vote: 'plaintiff' | 'defendant' }
@@ -419,6 +453,13 @@ export type WSMessage =
   | { type: 'gym_cheer'; userId: string; nickname: string; text: string }
   | { type: 'gym_checkin_broadcast'; userId: string; nickname: string; exerciseName: string; createdAt: string }
   | { type: 'plaza_event'; event: PlazaLiveEvent }
+  // —— 社交临场感：WebRTC 语音信令（服务端只转发，不处理内容） ——
+  | { type: 'rtc_sdp'; from: string; to: string; sdp: RtcSdpJson }
+  | { type: 'rtc_ice'; from: string; to: string; candidate: RtcIceJson }
+  | { type: 'rtc_bye'; from: string; to: string }
+  // —— 社交临场感：表情/手势/说话强度 ——
+  | { type: 'emote'; userId: string; emote: EmoteType; durationMs?: number }
+  | { type: 'talking'; userId: string; intensity: number }
   | { type: 'pong' }
   | { type: 'error'; message: string };
 

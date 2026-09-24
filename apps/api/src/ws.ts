@@ -12,6 +12,7 @@ import {
   type Verdict,
   type SceneId,
   type Perspective,
+  type EmoteType,
 } from "@balabala/shared";
 import { getCourtCase } from "./db.js";
 import { filterCaseForPerspective } from "./court-state.js";
@@ -29,6 +30,13 @@ export type RoomUser = {
   rotation: number;
   lastMove: number;
   socket: WebSocket;
+  // —— 社交临场感扩展（全部可选，向后兼容） ——
+  talkingIntensity?: number;
+  animation?: string;
+  expression?: string;
+  headTarget?: { x: number; z: number } | null;
+  lastEmote?: number;
+  lastTalkingBroadcast?: number;
 };
 
 export type Room = {
@@ -48,6 +56,12 @@ const rooms = new Map<string, Room>();
 /** gym:lobby 最近打卡广播缓冲（最多保留 5 条）。 */
 const gymRecentCheckins: Array<{ userId: string; nickname: string; exerciseName: string; createdAt: string }> = [];
 const GYM_CHECKIN_BUFFER_MAX = 5;
+
+/** 社交临场感：emote 最小间隔（ms），防止刷屏 */
+const EMOTE_THROTTLE_MS = 300;
+const VALID_EMOTES: ReadonlySet<string> = new Set(["wave", "nod", "shake", "point", "clap", "laugh", "surprised"]);
+/** talking 消息最小广播间隔（ms），说话强度变化频繁时节流 */
+const TALKING_BROADCAST_MS = 120;
 
 function pushGymRecentCheckin(entry: { userId: string; nickname: string; exerciseName: string; createdAt: string }): void {
   gymRecentCheckins.push(entry);
@@ -323,10 +337,19 @@ export function registerWebSocket(app: FastifyInstance): void {
               .map((u) => ({ userId: u.userId, x: u.x, z: u.z, rotation: u.rotation }));
             broadcastToRoom(roomId, { type: "gym_presence", users: gymUsers } satisfies WSMessage);
           } else {
-            // 广播给房间内其他人
+            // 广播给房间内其他人（携带社交临场感扩展字段）
             const others = [...room.users.values()]
               .filter((u) => u.userId !== userId)
-              .map((u) => ({ userId: u.userId, x: u.x, z: u.z, rotation: u.rotation }));
+              .map((u) => ({
+                userId: u.userId,
+                x: u.x,
+                z: u.z,
+                rotation: u.rotation,
+                ...(u.talkingIntensity !== undefined ? { talkingIntensity: u.talkingIntensity } : {}),
+                ...(u.animation !== undefined ? { animation: u.animation } : {}),
+                ...(u.expression !== undefined ? { expression: u.expression } : {}),
+                ...(u.headTarget !== undefined ? { headTarget: u.headTarget } : {}),
+              }));
             broadcastToRoom(roomId, { type: "presence", users: others } satisfies WSMessage);
           }
           break;
@@ -428,6 +451,73 @@ export function registerWebSocket(app: FastifyInstance): void {
           if (full) {
             const filtered = filterCaseForPerspective(full, perspective);
             safeSend(socket, { type: "court_snapshot_v2", case: filtered } satisfies WSMessage);
+          }
+          break;
+        }
+        case "rtc_sdp": {
+          // 社交临场感：WebRTC SDP 信令转发（offer/answer），服务端不解析内容
+          const to = String(data.to ?? "");
+          const target = room.users.get(to);
+          if (!target) return;
+          safeSend(target.socket, {
+            type: "rtc_sdp",
+            from: userId,
+            to,
+            sdp: data.sdp as { type: "offer" | "answer" | "pranswer" | "rollback"; sdp: string },
+          } satisfies WSMessage);
+          break;
+        }
+        case "rtc_ice": {
+          // 社交临场感：WebRTC ICE candidate 转发
+          const to = String(data.to ?? "");
+          const target = room.users.get(to);
+          if (!target) return;
+          safeSend(target.socket, {
+            type: "rtc_ice",
+            from: userId,
+            to,
+            candidate: data.candidate as { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null },
+          } satisfies WSMessage);
+          break;
+        }
+        case "rtc_bye": {
+          // 社交临场感：通知对方关闭 PeerConnection
+          const to = String(data.to ?? "");
+          const target = room.users.get(to);
+          if (!target) return;
+          safeSend(target.socket, { type: "rtc_bye", from: userId, to } satisfies WSMessage);
+          break;
+        }
+        case "emote": {
+          // 社交临场感：表情/手势动作，节流后广播给房间其他人
+          const emote = String(data.emote ?? "");
+          if (!VALID_EMOTES.has(emote)) return;
+          if (roomUser.lastEmote && now - roomUser.lastEmote < EMOTE_THROTTLE_MS) return;
+          roomUser.lastEmote = now;
+          roomUser.animation = emote;
+          if (emote === "laugh") roomUser.expression = "happy";
+          else if (emote === "surprised") roomUser.expression = "surprised";
+          const durationMs = typeof data.durationMs === "number" ? Math.min(Math.max(data.durationMs, 300), 5000) : 1500;
+          // 广播给其他人（不含自己）
+          for (const u of room.users.values()) {
+            if (u.userId === userId) continue;
+            safeSend(u.socket, { type: "emote", userId, emote: emote as EmoteType, durationMs } satisfies WSMessage);
+          }
+          break;
+        }
+        case "talking": {
+          // 社交临场感：说话强度更新，节流后广播给房间其他人
+          const intensity = Math.min(Math.max(Number(data.intensity ?? 0), 0), 1);
+          roomUser.talkingIntensity = intensity;
+          if (intensity > 0.05) roomUser.animation = "talking";
+          else if (roomUser.animation === "talking") roomUser.animation = "idle";
+          // 节流广播，避免高频刷屏
+          if (!roomUser.lastTalkingBroadcast || now - roomUser.lastTalkingBroadcast >= TALKING_BROADCAST_MS) {
+            roomUser.lastTalkingBroadcast = now;
+            for (const u of room.users.values()) {
+              if (u.userId === userId) continue;
+              safeSend(u.socket, { type: "talking", userId, intensity } satisfies WSMessage);
+            }
           }
           break;
         }
