@@ -5,7 +5,7 @@
  *   judge / plaintiff / plaintiff-counsel / defendant / defendant-counsel
  *
  * 坐标基准：
- *   法官桌后 [0,0.25,-3.9]（面向 +z 法庭，facing=0）；
+ *   法官桌后 [0,0.55,-3.1]（抬高，头高出法槌；面向 +z，facing=0）；
  *   原告/被告同排 z=-1.7（x=∓1.6），双方律师在外侧 z=-1.4（x=∓2.7），
  *   均面向法官（facing=π）。
  *
@@ -74,7 +74,7 @@ export function buildFixedSeats(): FixedSeatSpec[] {
     {
       id: 'seat-judge', name: '法官', kind: 'judge',
       model: seatModelUrl('judge'),
-      position: [0, 0.25, -3.9],
+      position: [0, 0.55, -3.1],
       facing: 0,
       npc: false,
     },

@@ -127,8 +127,8 @@ describe('verticalScreenRatio 屏幕占比纯函数', () => {
 
 describe('主全景人物占比不贴脸（≤0.35，fov60 中景全景）', () => {
   const CAM = TRIAL_CAMERA.position
-  it('judge at [0,0.25,-3.9] occupies ≤35% of frame height', () => {
-    const d = cameraDistance(CAM, [0, 0.25, -3.9])
+  it('judge at [0,0.55,-3.1] occupies ≤35% of frame height', () => {
+    const d = cameraDistance(CAM, [0, 0.55, -3.1])
     const ratio = verticalScreenRatio(d, TRIAL_CAMERA.fov, 1.8)
     expect(ratio).toBeLessThanOrEqual(0.35)
   })
