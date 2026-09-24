@@ -7,7 +7,6 @@ import type { Celebrity } from '@balabala/shared'
 import { useSceneCleanup } from './useSceneCleanup'
 import NeutralMannequin from './NeutralMannequin'
 import type { CourtSeatKind } from './courtroom-seats'
-import { buildFixedSeats } from './courtroom-seats'
 import {
   TRIAL_CAMERA,
   WIZARD_CAMERA,
@@ -532,89 +531,3 @@ export default function CourtroomView({
   )
 }
 
-/* ============================ DEBUG 隔离渲染（临时） ============================
- * URL: /?debug=court&scene=env&cam=x,y,z&look=x,y,z[&fov=50]
- *      /?debug=court&scene=seat&kind=judge&cam=...&look=...
- *  - scene=env  : 只渲染环境 GLB + 坐标网格标尺，不渲染任何席位
- *  - scene=seat : 环境 GLB + 网格 + 仅 kind 指定的那一个固定席位（按 seats.ts 当前坐标落位）
- * 相机由 cam/look 查询参数固定，无 OrbitControls。
- * 调试结束后整块删除，并删 main.tsx 里的短路。
- * ========================================================================== */
-function CameraLookAt({ look }: { look: [number, number, number] }) {
-  const camera = useThree((s) => s.camera)
-  useLayoutEffect(() => {
-    camera.lookAt(look[0], look[1], look[2])
-  }, [camera, look])
-  return null
-}
-
-export function DebugCourtScene() {
-  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
-  const scene = params.get('scene') ?? 'env'
-  const kind = params.get('kind') ?? 'judge'
-  const camParam = params.get('cam') ?? '0,8,0'
-  const lookParam = params.get('look') ?? '0,0,0'
-  const fov = parseFloat(params.get('fov') ?? '50')
-  const [cx, cy, cz] = camParam.split(',').map((v) => parseFloat(v.trim())) as [number, number, number]
-  const [lx, ly, lz] = lookParam.split(',').map((v) => parseFloat(v.trim())) as [number, number, number]
-
-  const seats = useMemo<CourtSeat[]>(() => {
-    const toSeat = (found: ReturnType<typeof buildFixedSeats>[number]): CourtSeat => {
-      const role: CourtSeat['role'] =
-        found.kind === 'judge' ? 'judge'
-        : found.kind === 'plaintiff' ? 'plaintiff'
-        : found.kind === 'defendant' ? 'defender'
-        : 'defender'
-      const side: CourtSeat['side'] =
-        found.kind === 'plaintiff' ? 'plaintiff'
-        : found.kind === 'defendant' ? 'defendant'
-        : found.kind === 'plaintiff-counsel' ? 'plaintiff'
-        : found.kind === 'defendant-counsel' ? 'defendant'
-        : null
-      return {
-        id: found.id, name: found.name, role, side,
-        kind: found.kind, model: found.model,
-        position: found.position, facing: found.facing, npc: found.npc, active: false,
-      }
-    }
-    if (scene === 'all') return buildFixedSeats().map(toSeat)
-    if (scene !== 'seat') return []
-    const found = buildFixedSeats().find((s) => s.kind === kind)
-    if (!found) return []
-    return [toSeat(found)]
-  }, [scene, kind])
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh' }}>
-    <SafeCanvas shadows camera={{ position: [cx, cy, cz], fov, near: 0.05, far: 120 }} dpr={[1, 1]}>
-      <color attach="background" args={['#160d08']} />
-      <ambientLight intensity={0.55} color="#ffe2b4" />
-      <directionalLight position={[5, 9, 6]} intensity={2.0} color="#fff1d2" castShadow shadow-mapSize={[1024, 1024]} />
-      <pointLight position={[0, 4.0, 0]} intensity={12} distance={12} decay={2} color="#ffe3b8" />
-      <Environment resolution={128}>
-        <Lightformer intensity={1.2} color="#ffdcb0" position={[0, 5, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[10, 10, 1]} />
-        <Lightformer intensity={0.8} color="#ffe8c8" position={[0, 2, 6]} scale={[10, 4, 1]} />
-      </Environment>
-      <Suspense fallback={null}>
-        <CourtroomEnvironmentModel />
-      </Suspense>
-      {/* 坐标网格：1m 一格，中心线红色(x轴)/绿色(z轴) */}
-      <gridHelper args={[12, 12, '#ff5555', '#3a3a3a']} position={[0, 0.01, 0]} />
-      <axesHelper args={[1.2]} position={[0, 0.02, 0]} />
-      {/* 轴向与刻度标签 */}
-      <Text position={[6.2, 0.06, 0]} fontSize={0.28} color="#ff7777" anchorX="center" anchorY="middle">+x</Text>
-      <Text position={[-6.2, 0.06, 0]} fontSize={0.28} color="#ff7777" anchorX="center" anchorY="middle">-x</Text>
-      <Text position={[0, 0.06, 6.2]} fontSize={0.28} color="#77ff77" anchorX="center" anchorY="middle">+z(后/观众)</Text>
-      <Text position={[0, 0.06, -6.2]} fontSize={0.28} color="#77ff77" anchorX="center" anchorY="middle">-z(法官)</Text>
-      {[-4, -3, -2, -1, 1, 2, 3, 4].map((x) => (
-        <Text key={'gx' + x} position={[x, 0.06, 0.35]} fontSize={0.16} color="#ffcc66" anchorX="center" anchorY="middle">{x}</Text>
-      ))}
-      {[-4, -3, -2, -1, 1, 2, 3, 4].map((z) => (
-        <Text key={'gz' + z} position={[0.35, 0.06, z]} fontSize={0.16} color="#66ccff" anchorX="center" anchorY="middle">{z}</Text>
-      ))}
-      <CameraLookAt look={[lx, ly, lz]} />
-      {seats.map((s) => <GenericSeat key={s.id} seat={s} />)}
-    </SafeCanvas>
-    </div>
-  )
-}
