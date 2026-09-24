@@ -1,5 +1,11 @@
 // ===== M7: SQLite 持久化层 (node:sqlite, Node 22 内置) =====
-import { DatabaseSync } from "node:sqlite";
+// node:sqlite 是实验内置模块，不在 vite/vitest 打包时的静态内置清单
+// （builtinModules 不含 sqlite），静态 import 会被剥掉 node: 前缀、按第三方
+// 包解析而失败；改用 createRequire 在运行时原生加载，对 vite/vitest/tsx 都稳。
+import { createRequire } from "node:module";
+
+const nodeRequire = createRequire(import.meta.url);
+const { DatabaseSync } = nodeRequire("node:sqlite") as typeof import("node:sqlite");
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -534,10 +540,15 @@ export function getContentsByUser(userId: string): StoredContent[] {
   return rows.map(rowToContent);
 }
 
-/** 清空 contents + comments + reactions（用于 saveContents 全量覆盖）。 */
+/**
+ * 全量覆盖 contents 表（saveContents 用）。
+ * 只清空 contents 本身：comments / reactions 是独立增量维护的表，
+ * 尤其 reactions 是按用户去重台账、无法从 StoredContent 重建，绝不能在此
+ * 清空，否则每次保存 / 重启后点赞计数与去重都会丢失。
+ */
 export function clearContents(): void {
   initDb();
-  db.exec("DELETE FROM contents; DELETE FROM comments; DELETE FROM reactions;");
+  db.exec("DELETE FROM contents;");
 }
 
 // ===== 评论 DAO =====
@@ -563,17 +574,23 @@ export function addReaction(
   reaction: "like" | "dislike",
 ): { likes: number; dislikes: number } {
   initDb();
-  // 去重：同一用户对同一内容同一反应只计一次
-  db.prepare(
-    "INSERT OR IGNORE INTO reactions (id, content_id, user_id, reaction, created_at) VALUES (?, ?, ?, ?, ?)",
-  ).run(randomUUID(), contentId, userId || "anonymous", reaction, new Date().toISOString());
-
-  const likesRow = db.prepare("SELECT COUNT(*) AS cnt FROM reactions WHERE content_id = ? AND reaction = 'like'").get(contentId) as { cnt: number };
-  const dislikesRow = db.prepare("SELECT COUNT(*) AS cnt FROM reactions WHERE content_id = ? AND reaction = 'dislike'").get(contentId) as { cnt: number };
-
-  // 同步 contents 表计数
-  db.prepare("UPDATE contents SET likes = ?, dislikes = ? WHERE id = ?").run(likesRow.cnt, dislikesRow.cnt, contentId);
-  return { likes: likesRow.cnt, dislikes: dislikesRow.cnt };
+  const uid = userId || "anonymous";
+  // 去重：该用户对该内容的同一反应仅首次生效，插入并在 contents 计数上 +1。
+  const already = db
+    .prepare("SELECT 1 AS hit FROM reactions WHERE content_id = ? AND user_id = ? AND reaction = ? LIMIT 1")
+    .get(contentId, uid, reaction) as { hit: number } | undefined;
+  if (!already) {
+    db.prepare(
+      "INSERT INTO reactions (id, content_id, user_id, reaction, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run(randomUUID(), contentId, uid, reaction, new Date().toISOString());
+    // contents.likes / dislikes 是计数权威（保留种子预置值），按反应类型增量 +1。
+    const column = reaction === "like" ? "likes" : "dislikes";
+    db.prepare(`UPDATE contents SET ${column} = ${column} + 1 WHERE id = ?`).run(contentId);
+  }
+  const row = db.prepare("SELECT likes, dislikes FROM contents WHERE id = ?").get(contentId) as
+    | { likes: number; dislikes: number }
+    | undefined;
+  return { likes: row?.likes ?? 0, dislikes: row?.dislikes ?? 0 };
 }
 
 // ===== 用户 DAO =====

@@ -175,6 +175,32 @@ describe("db DAO", () => {
     expect(r.dislikes).toBe(1);
   });
 
+  it("反应：保留种子预置点赞数，新用户点赞在预置值上 +1（不被覆盖）", () => {
+    const cid = randomUUID();
+    ctx.mod.upsertContent({
+      id: cid, type: "text", scene: "all", author: "a",
+      createdAt: "2026-01-01T00:00:00.000Z", topics: [], title: "t", likes: 48, dislikes: 7, views: 0, comments: [],
+    });
+    const r = ctx.mod.addReaction(cid, "new-user", "like");
+    expect(r.likes).toBe(49);
+    expect(r.dislikes).toBe(7);
+  });
+
+  it("反应：saveContents 全量覆盖后 reactions 保留，仍可累加且去重生效", async () => {
+    const cid = randomUUID();
+    ctx.mod.upsertContent({
+      id: cid, type: "text", scene: "all", author: "a",
+      createdAt: "2026-01-01T00:00:00.000Z", topics: [], title: "t", likes: 0, dislikes: 0, views: 0, comments: [],
+    });
+    ctx.mod.addReaction(cid, "u1", "like");
+    // 模拟 server 写流程末尾的全量覆盖（旧实现会 DELETE reactions）。
+    const { saveContents } = await import("./content-storage.js");
+    await saveContents(ctx.mod.getAllContents());
+    // 覆盖后：u1 重复点赞被去重（台账还在），u2 点赞后总数为 2。
+    expect(ctx.mod.addReaction(cid, "u1", "like").likes).toBe(1);
+    expect(ctx.mod.addReaction(cid, "u2", "like").likes).toBe(2);
+  });
+
   it("用户：upsertUser -> getUser 回读", () => {
     const u: User = {
       userId: "u-1", nickname: "阿瓜", avatarType: "capsule",
