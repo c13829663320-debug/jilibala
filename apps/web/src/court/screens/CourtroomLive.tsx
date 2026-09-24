@@ -168,6 +168,7 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
   const advance = () => {
     if (phase === 'judging' || phase === 'idle' || phase === 'error' || busyRef.current) return
     if (phase === 'waiting') {
+      if (busyRef.current) return
       busyRef.current = true
       const next = canContinueNext ? startRound(currentRound + 1) : startJudging()
       void next.finally(() => { busyRef.current = false })
@@ -177,6 +178,20 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
     if (turnIdx < roundTurns.length - 1) setTurnIdx((i) => i + 1)
     else setPhase('waiting')
   }
+  // Auto-advance at end of a round: if the player does not click while in
+  // 'waiting', move to the next round (or judging) after a short pause so the
+  // trial never appears frozen. Click still works; inputs can be sent anytime.
+  useEffect(() => {
+    if (phase !== 'waiting') return
+    const timer = window.setTimeout(() => {
+      if (busyRef.current) return
+      busyRef.current = true
+      const next = canContinueNext ? startRound(currentRound + 1) : startJudging()
+      void next.finally(() => { busyRef.current = false })
+    }, 1600)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, canContinueNext, currentRound])
 
   // ---- 补充观点/证据:真实 POST player-input ----
   const submitInput = () => {
