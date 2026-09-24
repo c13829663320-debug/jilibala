@@ -82,43 +82,48 @@ export function buildFixedSeats(): FixedSeatSpec[] {
     {
       id: 'seat-judge', name: '法官', kind: 'judge',
       model: seatModelUrl('judge'),
-      position: [0, 0.25, -3.45],
-      facing: 0, // 面向法庭(+z)
+      // 后移到高背审判椅（环境 GLB 椅上有个装饰假发，会被法官身体挡住）；
+      // 原 -3.45 太靠前，法官胸像悬在法官桌前讲台上，没坐进席位。
+      position: [0, 0.25, -3.9],
+      facing: 0, // judge.glb 默认正面朝 +z（观众席），真机实测 facing=0 露正脸、π 露后脑勺
       npc: false,
     },
     {
       id: 'seat-plaintiff', name: '原告', kind: 'plaintiff',
       model: seatModelUrl('plaintiff'),
-      position: [-2.2, 0, 0.0],
+      position: [-1.6, 0, -1.7],
       facing: PI, // 面向法官(-z)
       npc: false,
     },
     {
       id: 'seat-plaintiff-counsel', name: '原告律师', kind: 'plaintiff-counsel',
       model: seatModelUrl('plaintiff-counsel'),
-      position: [-3.15, 0, -0.3],
+      position: [-2.7, 0, -1.4],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-defendant', name: '被告', kind: 'defendant',
       model: seatModelUrl('defendant'),
-      position: [2.2, 0, 0.0],
+      position: [1.6, 0, -1.7],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-defendant-counsel', name: '被告律师', kind: 'defendant-counsel',
       model: seatModelUrl('defendant-counsel'),
-      position: [3.15, 0, -0.3],
+      position: [2.7, 0, -1.4],
       facing: PI,
       npc: false,
     },
     {
       id: 'seat-witness', name: '证人', kind: 'witness',
       model: seatModelUrl('witness'),
-      position: [0, 0, -1.55],
-      facing: 0, // 面向法庭(+z)
+      // 移出中轴：原 [0,0,-1.55] 正对观众机位视轴，code-npc 胶囊挡住法官。
+      // 右前侧 [2.3,-0.4,-2.4] 完全不占中轴、不挡看法官视轴；y=-0.4 把站立胶囊
+      // （NpcFigure 胶囊底在 local≈0.4）压到地面，避免悬浮半空。
+      position: [2.3, -0.4, -2.4],
+      facing: -1.9, // 右侧侧身斜向法官（不面向相机）
       npc: true,
     },
     // 旁听者：仅后排台阶左右两侧（中轴与前排清空，不挡观众全景视轴）。
@@ -141,9 +146,9 @@ export function buildFixedSeats(): FixedSeatSpec[] {
 
 /** 房间活动范围（与 courtroom-camera ROOM_CLAMP 对齐，旁听/陪审不得穿墙）。 */
 export const SEAT_BOUNDS = {
-  xMin: -3.4, xMax: 3.4,
-  yMin: 0.0, yMax: 1.2,
-  zMin: -3.6, zMax: 1.2,
+  xMin: -4.3, xMax: 4.3,
+  yMin: -0.5, yMax: 1.2,
+  zMin: -3.9, zMax: 4.6,
 }
 
 /** 两点水平距离（用于测试旁听者不重叠）。 */

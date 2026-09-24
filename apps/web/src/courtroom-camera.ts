@@ -39,9 +39,9 @@ export interface CameraConfig {
  *   关键：运行时相机就位后不再每帧拉回；发言者只靠 SeatRing/聚光/名牌高亮。
  */
 export const TRIAL_CAMERA = {
-  position: [0, 2.9, 1.0] as Vec3,
-  target: [0, 1.0, -2.9] as Vec3,
-  fov: 50,
+  position: [0, 2.6, 2.2] as Vec3,
+  target: [0, 1.0, -2.0] as Vec3,
+  fov: 60,
   minDistance: 1.2,
   maxDistance: 9.0,
   maxPolarAngle: Math.PI / 2.05,
@@ -61,9 +61,9 @@ export interface ViewCamera {
 }
 
 export const VIEW_CAMERAS: Record<CourtPerspective, ViewCamera> = {
-  audience: { position: [0, 2.9, 1.0], target: [0, 1.0, -2.9], fov: 60 },
-  plaintiff: { position: [-3.05, 1.55, 0.95], target: [0.6, 1.1, -2.7], fov: 55 },
-  defendant: { position: [3.05, 1.55, 0.95], target: [-0.6, 1.1, -2.7], fov: 55 },
+  audience: { position: [0, 2.6, 2.2], target: [0, 1.0, -2.0], fov: 62 },
+  plaintiff: { position: [-2.7, 1.7, 1.3], target: [0.3, 1.1, -2.5], fov: 58 },
+  defendant: { position: [2.7, 1.7, 1.3], target: [-0.3, 1.1, -2.5], fov: 58 },
 }
 
 export function getViewCamera(perspective: CourtPerspective): ViewCamera {
@@ -80,12 +80,12 @@ export const WIZARD_CAMERA = {
 /** 相机活动范围 clamp（第六轮）：防穿墙/穿地/穿顶，杜绝滚轮穿地满屏木纹。
  *  x ±4.3；y [0.5, 4.5]（天花板 4.8 防穿顶）；z [-5.0, 4.7]（zMax 4.3→4.7 因 pos z=4.5）。 */
 export const ROOM_CLAMP = {
-  xMin: -3.4,
-  xMax: 3.4,
+  xMin: -4.3,
+  xMax: 4.3,
   yMin: 0.5,
-  yMax: 3.2,
-  zMin: -3.8,
-  zMax: 1.2,
+  yMax: 4.6,
+  zMin: -3.9,
+  zMax: 4.6,
 }
 
 /** 把相机位置约束在 ROOM_CLAMP 范围内（返回新元组）。 */

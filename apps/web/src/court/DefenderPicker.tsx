@@ -1,7 +1,7 @@
 // 专家辅助人（额外辩护人）选择器：新 CourtFlow 与旧 bench 共用。
 // 固定律师位之外，把名人 / 我的人物 / 广场人物指派为「原告方」或「被告方」辅助人。
 // 可选、可为 0；输出 DefenderAssignments，随 /start 的 defenderAssignments 传给后端。
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Users, X } from 'lucide-react'
 import { useIdentity } from '../identity'
 import {
@@ -19,11 +19,24 @@ type Props = {
 
 type Side = 'plaintiff' | 'defendant'
 
+const sideOfIn = (a: DefenderAssignments, id: string): Side | null =>
+  a.plaintiff.includes(id)
+    ? 'plaintiff'
+    : a.defendant.includes(id) ? 'defendant' : null
+
 export default function DefenderPicker({ assignments, onChange, maxPerSide = 3 }: Props) {
   const { user } = useIdentity()
   const [open, setOpen] = useState(false)
   const [mine, setMine] = useState<UiCharacter[]>([])
   const [pub, setPub] = useState<UiCharacter[]>([])
+
+  // 防快速双击 / 重入：assign 期间忽略后续点击，直到本次同步计算落定。
+  // assign 本身同步，但 rapid double-click 在 React 提交间隙可能读到旧闭包 props，
+  // 造成「点了帮原告又点帮被告」时前一次提交被覆盖（状态错乱）。
+  const lockRef = useRef(false)
+  // 始终镜像最新 assignments，assign 内部读 ref 而非闭包 prop，杜绝 stale closure。
+  const assignmentsRef = useRef(assignments)
+  assignmentsRef.current = assignments
 
   useEffect(() => {
     let alive = true
@@ -35,27 +48,38 @@ export default function DefenderPicker({ assignments, onChange, maxPerSide = 3 }
     return () => { alive = false }
   }, [user?.userId])
 
-  const sideOf = (id: string): Side | null =>
-    assignments.plaintiff.includes(id)
-      ? 'plaintiff'
-      : assignments.defendant.includes(id) ? 'defendant' : null
+  const sideOf = (id: string): Side | null => sideOfIn(assignments, id)
 
   const assign = (id: string, side: Side) => {
-    const cur = sideOf(id)
-    const next: DefenderAssignments = {
-      plaintiff: [...assignments.plaintiff],
-      defendant: [...assignments.defendant],
+    if (lockRef.current) return
+    lockRef.current = true
+    try {
+      const cur = sideOfIn(assignmentsRef.current, id)
+      const curA = assignmentsRef.current
+      const next: DefenderAssignments = {
+        plaintiff: [...curA.plaintiff],
+        defendant: [...curA.defendant],
+      }
+      if (cur === side) {
+        next[side] = next[side].filter((x) => x !== id) // 再点同侧 → 取消
+        onChange(next)
+        assignmentsRef.current = next
+        return
+      }
+      if (cur) next[cur] = next[cur].filter((x) => x !== id) // 从对侧移走
+      if (next[side].length >= maxPerSide) {
+        const blocked: DefenderAssignments = { plaintiff: next.plaintiff, defendant: next.defendant }
+        onChange(blocked)
+        assignmentsRef.current = blocked
+        return
+      }
+      next[side] = [...next[side], id]
+      onChange(next)
+      assignmentsRef.current = next
+    } finally {
+      // 同步计算已完成；下一宏任务再放开锁，吞掉同 tick 的第二次点击（双击防护）。
+      window.setTimeout(() => { lockRef.current = false }, 0)
     }
-    if (cur === side) {
-      next[side] = next[side].filter((x) => x !== id) // 再点同侧 → 取消
-      onChange(next); return
-    }
-    if (cur) next[cur] = next[cur].filter((x) => x !== id) // 从对侧移走
-    if (next[side].length >= maxPerSide) {
-      onChange({ plaintiff: next.plaintiff, defendant: next.defendant }); return
-    }
-    next[side] = [...next[side], id]
-    onChange(next)
   }
 
   const total = assignments.plaintiff.length + assignments.defendant.length

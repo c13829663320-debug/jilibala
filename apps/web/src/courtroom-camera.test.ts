@@ -58,25 +58,28 @@ describe('getCameraForMode', () => {
   })
 })
 
-describe('主全景机位（第六轮 fov60 高机位）', () => {
-  it('trial / wizard 都使用 fov=60', () => {
+describe('主全景机位（中景全景 fov60）', () => {
+  it('trial/bench fov=60，wizard fov=60', () => {
     expect(TRIAL_CAMERA.fov).toBe(60)
     expect(WIZARD_CAMERA.fov).toBe(60)
     expect(getCameraForMode('trial').fov).toBe(60)
     expect(getCameraForMode('bench').fov).toBe(60)
     expect(getCameraForMode('wizard').fov).toBe(60)
   })
-  it('maxDistance 9.0，minDistance 保持 1.5', () => {
+  it('maxDistance 9.0，minDistance 1.2', () => {
     expect(TRIAL_CAMERA.maxDistance).toBe(9.0)
-    expect(TRIAL_CAMERA.minDistance).toBe(1.5)
+    expect(TRIAL_CAMERA.minDistance).toBe(1.2)
   })
-  // 第六轮：相机退到旁听席后方过道 z=4.5（旁听在 z=1.77/2.54，相机在其后俯视入画）。
-  it('trial camera sits behind the back spectator bench (z=4.5 > back bench z=2.54)', () => {
-    expect(TRIAL_CAMERA.position[2]).toBeGreaterThan(2.54)
+  // 主机位 [0,2.6,2.2] 中景俯视：高于目标、位于主角区后方，把法官+原被告+律师同框。
+  it('trial camera is elevated and behind the action zone', () => {
+    const [, cy, cz] = TRIAL_CAMERA.position
+    const [, ty, tz] = TRIAL_CAMERA.target
+    expect(cy).toBeGreaterThan(ty) // 略俯视
+    expect(cz).toBeGreaterThan(tz) // 相机位于主角区后方
   })
-  it('main panorama uses the locked position [0,4.3,4.5] / target [0,0.9,-1.3]', () => {
-    expect(TRIAL_CAMERA.position).toEqual([0, 4.3, 4.5])
-    expect(TRIAL_CAMERA.target).toEqual([0, 0.9, -1.3])
+  it('main framing uses the locked position [0,2.6,2.2] / target [0,1.0,-2.0]', () => {
+    expect(TRIAL_CAMERA.position).toEqual([0, 2.6, 2.2])
+    expect(TRIAL_CAMERA.target).toEqual([0, 1.0, -2.0])
   })
   it('main panorama position is inside ROOM_CLAMP', () => {
     const [x, y, z] = TRIAL_CAMERA.position
@@ -96,10 +99,13 @@ describe('主全景机位（第六轮 fov60 高机位）', () => {
     expect(z).toBeGreaterThanOrEqual(ROOM_CLAMP.zMin)
     expect(z).toBeLessThanOrEqual(ROOM_CLAMP.zMax)
   })
-  it('ROOM_CLAMP ceiling is 4.5 (ceiling 4.8) and rear wall z=4.7 (pos z=4.5)', () => {
-    expect(ROOM_CLAMP.yMax).toBe(4.5)
-    expect(ROOM_CLAMP.zMax).toBe(4.7)
-    expect(ROOM_CLAMP.zMin).toBe(-5.0)
+  it('ROOM_CLAMP bounds match the recalibrated orbit extent', () => {
+    expect(ROOM_CLAMP.xMin).toBe(-4.3)
+    expect(ROOM_CLAMP.xMax).toBe(4.3)
+    expect(ROOM_CLAMP.yMin).toBe(0.5)
+    expect(ROOM_CLAMP.yMax).toBe(4.6)
+    expect(ROOM_CLAMP.zMin).toBe(-3.9)
+    expect(ROOM_CLAMP.zMax).toBe(4.6)
   })
 })
 
@@ -119,20 +125,20 @@ describe('verticalScreenRatio 屏幕占比纯函数', () => {
   })
 })
 
-describe('主全景机位人物占比不贴脸（≤0.35，fov60）', () => {
+describe('主全景人物占比不贴脸（≤0.35，fov60 中景全景）', () => {
   const CAM = TRIAL_CAMERA.position
-  it('judge at [0,0.98,-3.1] occupies ≤35% of frame height', () => {
-    const d = cameraDistance(CAM, [0, 0.98, -3.1])
+  it('judge at [0,0.25,-3.9] occupies ≤35% of frame height', () => {
+    const d = cameraDistance(CAM, [0, 0.25, -3.9])
     const ratio = verticalScreenRatio(d, TRIAL_CAMERA.fov, 1.8)
     expect(ratio).toBeLessThanOrEqual(0.35)
   })
-  it('plaintiff at [-1.5,0.6,-1.3] occupies ≤35% of frame height', () => {
-    const d = cameraDistance(CAM, [-1.5, 0.6, -1.3])
+  it('plaintiff at [-1.6,0,-1.7] occupies ≤35% of frame height', () => {
+    const d = cameraDistance(CAM, [-1.6, 0, -1.7])
     const ratio = verticalScreenRatio(d, TRIAL_CAMERA.fov, 1.7)
     expect(ratio).toBeLessThanOrEqual(0.35)
   })
-  it('defendant at [1.5,0.6,-1.3] occupies ≤35% of frame height', () => {
-    const d = cameraDistance(CAM, [1.5, 0.6, -1.3])
+  it('defendant at [1.6,0,-1.7] occupies ≤35% of frame height', () => {
+    const d = cameraDistance(CAM, [1.6, 0, -1.7])
     const ratio = verticalScreenRatio(d, TRIAL_CAMERA.fov, 1.7)
     expect(ratio).toBeLessThanOrEqual(0.35)
   })
@@ -156,8 +162,8 @@ describe('SPEAKER_CAMERAS 发言者机位（相机不贴脸）', () => {
     }
   })
 
-  it('idle camera equals the locked main panorama (z=4.5 behind the benches)', () => {
-    expect(SPEAKER_CAM_IDLE.position[2]).toBe(4.5)
+  it('idle camera equals the locked main panorama (z=2.2 mid-range)', () => {
+    expect(SPEAKER_CAM_IDLE.position[2]).toBe(2.2)
     expect(SPEAKER_CAM_IDLE.position).toEqual(TRIAL_CAMERA.position)
     expect(SPEAKER_CAM_IDLE.target).toEqual(TRIAL_CAMERA.target)
   })

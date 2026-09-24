@@ -45,13 +45,13 @@ describe('seatModelUrl 席位→GLB 映射', () => {
 describe('buildFixedSeats 固定席位布局', () => {
   const seats = buildFixedSeats()
 
-  it('builds 13 seats: 7 core + 6 audience', () => {
-    expect(seats).toHaveLength(13)
+  it('builds 8 seats: 6 core speakers + 2 audience', () => {
+    expect(seats).toHaveLength(8)
     const kinds = seats.map((s) => s.kind)
-    for (const k of ['judge', 'plaintiff', 'plaintiff-counsel', 'defendant', 'defendant-counsel', 'witness', 'juror']) {
+    for (const k of ['judge', 'plaintiff', 'plaintiff-counsel', 'defendant', 'defendant-counsel', 'witness']) {
       expect(kinds).toContain(k)
     }
-    expect(kinds.filter((k) => k === 'audience')).toHaveLength(6)
+    expect(kinds.filter((k) => k === 'audience')).toHaveLength(2)
   })
 
   it('every seat position stays inside the room bounds', () => {
@@ -75,35 +75,27 @@ describe('buildFixedSeats 固定席位布局', () => {
     }
   })
 
-  it('witness sits off to the right at [2.3,0.6,-2.4] angled toward the judge (facing≈-1.9, NOT on the central axis)', () => {
+  it('witness sits off to the right at [2.3,-0.4,-2.4] angled toward the judge (facing≈-1.9, NOT on the central axis)', () => {
     const w = seats.find((s) => s.kind === 'witness')!
-    expect(w.position).toEqual([2.3, 0.6, -2.4])
-    expect(w.position[0]).toBeGreaterThanOrEqual(1.6) // 第七轮：不占中轴、不挡看法官视轴
+    expect(w.position).toEqual([2.3, -0.4, -2.4])
+    expect(w.position[0]).toBeGreaterThanOrEqual(1.6) // 不占中轴、不挡看法官视轴
     expect(w.facing).not.toBe(0) // 必须转向法官，不再面向相机
     expect(Math.abs(w.facing - (-1.9))).toBeLessThan(0.1)
   })
 
-  it('audience NPCs occupy three stepped gallery rows (front z=1.77 / mid z=2.54 / back z=3.31, 2 each)', () => {
+  it('audience NPCs flank the rear side aisles (2 NPCs, off the central axis)', () => {
     const audience = seats.filter((s) => s.kind === 'audience')
-    expect(audience).toHaveLength(6)
+    expect(audience).toHaveLength(2)
     for (const a of audience) {
-      expect(a.position[2]).toBeGreaterThanOrEqual(1.77) // 全部后排 gallery
+      expect(a.position[2]).toBeCloseTo(0.7) // 后排两侧过道
+      expect(Math.abs(a.position[0])).toBeGreaterThan(1.6) // 不占中轴
     }
-    const rows = [1.77, 2.54, 3.31].map((z) => audience.filter((a) => Math.abs(a.position[2] - z) < 1e-6))
-    expect(rows[0]).toHaveLength(2)
-    expect(rows[1]).toHaveLength(2)
-    expect(rows[2]).toHaveLength(2)
-    // 阶梯抬高：后排 y 逐排升高
-    expect(rows[0][0].position[1]).toBeCloseTo(0.71)
-    expect(rows[1][0].position[1]).toBeCloseTo(0.87)
-    expect(rows[2][0].position[1]).toBeCloseTo(1.04)
+    // 左右对称
+    expect(audience[0].position[0]).toBeCloseTo(-audience[1].position[0])
+    expect(audience[0].position[2]).toBeCloseTo(audience[1].position[2])
+    expect(audience[0].position[1]).toBeCloseTo(audience[1].position[1])
     // 旁听者之间不重叠
-    for (let i = 0; i < audience.length; i++) {
-      for (let j = i + 1; j < audience.length; j++) {
-        const d = horizontalDistance(audience[i].position, audience[j].position)
-        expect(d).toBeGreaterThanOrEqual(0.8)
-      }
-    }
+    expect(horizontalDistance(audience[0].position, audience[1].position)).toBeGreaterThanOrEqual(0.8)
   })
 
   it('witness / juror / audience are flagged NPC; core speakers are not', () => {
@@ -113,17 +105,15 @@ describe('buildFixedSeats 固定席位布局', () => {
     }
   })
 
-  it('plaintiff/defendant and counsel share row z=-1.3, spread horizontally (±1.8 / ±2.8) to avoid clipping', () => {
+  it('plaintiff/defendant sit at x=±1.6 z=-1.7, counsel flanks outside at x=±2.7 z=-1.4', () => {
     const p = seats.find((s) => s.kind === 'plaintiff')!
     const pc = seats.find((s) => s.kind === 'plaintiff-counsel')!
     const d = seats.find((s) => s.kind === 'defendant')!
     const dc = seats.find((s) => s.kind === 'defendant-counsel')!
-    expect(pc.position[2]).toBeCloseTo(-1.3)
-    expect(dc.position[2]).toBeCloseTo(-1.3)
-    expect(p.position).toEqual([-1.8, 0.6, -1.3])
-    expect(pc.position).toEqual([-2.8, 0.6, -1.3])
-    expect(d.position).toEqual([1.8, 0.6, -1.3])
-    expect(dc.position).toEqual([2.8, 0.6, -1.3])
+    expect(p.position).toEqual([-1.6, 0, -1.7])
+    expect(pc.position).toEqual([-2.7, 0, -1.4])
+    expect(d.position).toEqual([1.6, 0, -1.7])
+    expect(dc.position).toEqual([2.7, 0, -1.4])
     expect(p.position[0]).toBeLessThan(0)
     expect(d.position[0]).toBeGreaterThan(0)
   })
@@ -145,21 +135,17 @@ describe('buildFixedSeats 固定席位布局', () => {
     for (const p of parties) expect(Math.abs(p.position[0])).toBeGreaterThan(1.5)
   })
 
-  it('exact seventh-round seat positions', () => {
-    expect(seats.find((s) => s.kind === 'judge')!.position).toEqual([0, 0.98, -3.1])
-    expect(seats.find((s) => s.kind === 'plaintiff')!.position).toEqual([-1.8, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'plaintiff-counsel')!.position).toEqual([-2.8, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'defendant')!.position).toEqual([1.8, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'defendant-counsel')!.position).toEqual([2.8, 0.6, -1.3])
-    expect(seats.find((s) => s.kind === 'witness')!.position).toEqual([2.3, 0.6, -2.4])
-    expect(seats.find((s) => s.kind === 'juror')!.position).toEqual([0, 0.71, 1.77])
+  it('exact recalibrated seat positions', () => {
+    expect(seats.find((s) => s.kind === 'judge')!.position).toEqual([0, 0.25, -3.9])
+    expect(seats.find((s) => s.kind === 'plaintiff')!.position).toEqual([-1.6, 0, -1.7])
+    expect(seats.find((s) => s.kind === 'plaintiff-counsel')!.position).toEqual([-2.7, 0, -1.4])
+    expect(seats.find((s) => s.kind === 'defendant')!.position).toEqual([1.6, 0, -1.7])
+    expect(seats.find((s) => s.kind === 'defendant-counsel')!.position).toEqual([2.7, 0, -1.4])
+    expect(seats.find((s) => s.kind === 'witness')!.position).toEqual([2.3, -0.4, -2.4])
     const aud = seats.filter((s) => s.kind === 'audience')
-    expect(aud[0].position).toEqual([-1.5, 0.71, 1.77])
-    expect(aud[1].position).toEqual([1.5, 0.71, 1.77])
-    expect(aud[2].position).toEqual([-2.3, 0.87, 2.54])
-    expect(aud[3].position).toEqual([2.3, 0.87, 2.54])
-    expect(aud[4].position).toEqual([-0.9, 1.04, 3.31])
-    expect(aud[5].position).toEqual([0.9, 1.04, 3.31])
+    expect(aud).toHaveLength(2)
+    expect(aud[0].position).toEqual([-3.0, 0, 0.7])
+    expect(aud[1].position).toEqual([3.0, 0, 0.7])
   })
 })
 
