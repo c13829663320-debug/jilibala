@@ -43,3 +43,7 @@ apps/web/measure-*.mjs
 
 # 建模/品牌参考素材（本地工作用，最终资产在 apps/web/public）
 reference/
+
+# Open world asset library (over-size variants)
+apps/web/public/models/world/_library/
+.tmp-world-gen/

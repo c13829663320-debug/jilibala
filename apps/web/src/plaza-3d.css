@@ -13,6 +13,8 @@
   height: 100% !important;
   touch-action: none;
 }
+
+/* ===== 顶部栏 ===== */
 .plaza-3d-topbar {
   position: absolute;
   top: 0; left: 0; right: 0;
@@ -48,6 +50,48 @@
   border-radius: 8px;
   object-fit: contain;
 }
+
+/* ===== 在线人数 ===== */
+.plaza-3d-online {
+  position: absolute;
+  top: 56px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(20,18,10,0.8);
+  border: 1px solid #4fb3a5;
+  border-radius: 20px;
+  padding: 4px 12px;
+  color: #4fb3a5;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ===== 交互提示（屏幕下方居中） ===== */
+.plaza-3d-prompt {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 22px;
+  border-radius: 12px;
+  border: 1px solid #FFD600;
+  background: rgba(0,0,0,0.85);
+  color: #FFD600;
+  font-size: 14px;
+  font-weight: 700;
+  z-index: 12;
+  white-space: nowrap;
+  animation: plaza-prompt-in .2s ease;
+}
+@keyframes plaza-prompt-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ===== 桌面操作提示 ===== */
 .plaza-3d-hint {
   position: absolute;
   bottom: 24px;
@@ -60,6 +104,8 @@
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* ===== 讨论区按钮 ===== */
 .plaza-3d-discuss {
   position: absolute;
   bottom: 24px;
@@ -80,6 +126,8 @@
   transition: background .15s;
 }
 .plaza-3d-discuss:hover { background: #ffe14d; }
+
+/* ===== toast ===== */
 .plaza-3d-toast {
   position: absolute;
   top: 80px;
@@ -95,9 +143,177 @@
   z-index: 20;
   white-space: nowrap;
 }
+
 .plaza-3d-discuss-overlay {
   position: fixed;
   inset: 0;
   z-index: 50;
   background: #0a0a0a;
+}
+
+/* ===== 小地图 ===== */
+.plaza-minimap {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.plaza-minimap-toggle {
+  width: 34px; height: 24px;
+  border-radius: 8px;
+  border: 1px solid #4fb3a5;
+  background: rgba(0,0,0,0.7);
+  color: #4fb3a5;
+  font-size: 12px;
+  cursor: pointer;
+}
+.plaza-minimap-circle {
+  position: relative;
+  border-radius: 50%;
+  border: 2px solid rgba(79,179,165,0.6);
+  background: radial-gradient(circle, rgba(20,24,28,0.9), rgba(10,10,10,0.95));
+  overflow: hidden;
+}
+.plaza-minimap-center {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #FFD600;
+  transform: translate(-50%, -50%);
+}
+.plaza-minimap-dot {
+  position: absolute;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(20,20,20,0.9);
+  font-size: 10px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transform: translate(0, 0);
+}
+.plaza-minimap-dot:hover { background: #FFD600; }
+.plaza-minimap-player {
+  position: absolute;
+  left: 0; top: 0;
+  width: 12px; height: 12px;
+  color: #FFD600;
+  font-size: 12px;
+  line-height: 12px;
+  transform-origin: center;
+  text-shadow: 0 0 4px #000;
+}
+
+/* ===== 场景选择 ===== */
+.plaza-scene-btn {
+  position: absolute;
+  top: 220px;
+  right: 16px;
+  z-index: 11;
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1px solid #FFD600;
+  background: rgba(0,0,0,0.8);
+  color: #FFD600;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.plaza-scene-panel {
+  position: absolute;
+  top: 260px;
+  right: 16px;
+  z-index: 11;
+  width: 160px;
+  background: rgba(15,15,15,0.95);
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.plaza-scene-title {
+  font-size: 12px;
+  color: #666;
+  padding: 4px 6px;
+  letter-spacing: 0.1em;
+}
+.plaza-scene-item {
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #f5f5f5;
+  font-size: 14px;
+  cursor: pointer;
+}
+.plaza-scene-item:hover { background: rgba(255,214,0,0.12); color: #FFD600; }
+
+/* ===== 移动端控件 ===== */
+.plaza-look-layer {
+  position: absolute;
+  top: 60px;
+  right: 0;
+  bottom: 0;
+  width: 55%;
+  z-index: 5;
+  touch-action: none;
+}
+.plaza-joystick {
+  position: absolute;
+  left: 24px;
+  bottom: 36px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  z-index: 12;
+  touch-action: none;
+}
+.plaza-joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  background: rgba(255,214,0,0.7);
+  box-shadow: 0 0 12px rgba(255,214,0,0.4);
+}
+.plaza-m-buttons {
+  position: absolute;
+  right: 20px;
+  bottom: 36px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+.plaza-m-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(20,20,20,0.8);
+  color: #f5f5f5;
+  font-size: 13px;
+  font-weight: 700;
+  touch-action: none;
+}
+.plaza-m-jump {
+  width: 68px;
+  height: 68px;
+  background: rgba(79,179,165,0.85);
+  color: #000;
 }
