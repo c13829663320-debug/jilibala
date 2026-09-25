@@ -8,6 +8,7 @@ import type {
   GymPlan,
   GymAchievementId,
 } from "@balabala/shared";
+import type { ChatFn } from "./bench-orchestrator.js";
 
 // ===== 连续打卡天数计算 =====
 
@@ -230,4 +231,203 @@ export function checkAchievements(
   if (flexCount >= 5) result.push("flexibility_guru");
 
   return result;
+}
+
+// ===== P0：AI 教练 + 节奏点击带练（最小可用版）=====
+// reps 不再自动增长，由玩家按节奏点击/空格驱动；教练用 LLM 实时语音鼓励/纠错。
+
+export interface GymCoach {
+  id: string;
+  name: string;
+  emoji: string;
+  style: string;   // 一句话风格标签
+  persona: string; // 注入 LLM 的人格
+}
+
+export interface GymWorkoutPreset {
+  id: string;
+  name: string;
+  emoji: string;
+  targetReps: number;
+  equipment: string;
+}
+
+export type CoachEventType = "start" | "rep_good" | "rep_miss" | "halfway" | "finish";
+
+export interface GymWorkoutSession {
+  sessionId: string;
+  userId: string;
+  plan: GymWorkoutPreset;
+  coach: GymCoach;
+  startTime: string;
+  reps: number;
+  rhythmHits: number;
+  rhythmMisses: number;
+  status: "active" | "finished";
+}
+
+export interface GymWorkoutResult {
+  score: number;
+  grade: "S" | "A" | "B" | "C";
+  rhythmHitRate: number;
+  reps: number;
+  targetReps: number;
+  coachComment: string;
+}
+
+/** 三位可选中的 AI 教练（名人风格 persona）。 */
+export const GYM_COACHES: GymCoach[] = [
+  {
+    id: "rock",
+    name: "巨石教练",
+    emoji: "🪨",
+    style: "硬核激励派",
+    persona: "你是巨石·强森风格的硬核健身教练，说话简短有力、充满力量感，喜欢用硬汉金句激励人，绝不拖泥带水。",
+  },
+  {
+    id: "yogi",
+    name: "瑜伽大师",
+    emoji: "🧘",
+    style: "呼吸引导派",
+    persona: "你是一位东方瑜伽大师，语气温和、舒缓，强调呼吸与节奏，像冥想引导一样带练。",
+  },
+  {
+    id: "pal",
+    name: "邻家教练",
+    emoji: "🙋",
+    style: "轻松陪伴派",
+    persona: "你是一位亲切的邻家健身伙伴，语气轻松像朋友聊天，会开玩笑、会鼓励，不压迫。",
+  },
+];
+
+/** 三组入门节奏训练（俯卧撑 / 深蹲 / 平板支撑）。 */
+export const GYM_WORKOUT_PRESETS: GymWorkoutPreset[] = [
+  { id: "pushup", name: "俯卧撑", emoji: "💪", targetReps: 20, equipment: "dumbbell" },
+  { id: "squat", name: "深蹲", emoji: "🦵", targetReps: 20, equipment: "dumbbell" },
+  { id: "plank", name: "平板支撑", emoji: "🧎", targetReps: 30, equipment: "yoga_mat" },
+];
+
+const workoutSessions = new Map<string, GymWorkoutSession>();
+let gymChat: ChatFn | null = null;
+
+/** 注入 LLM chat 函数（由 server.ts 在启动时设置）。 */
+export function setGymChat(chat: ChatFn): void {
+  gymChat = chat;
+}
+
+export function getCoaches(): GymCoach[] {
+  return GYM_COACHES;
+}
+
+export function getWorkoutPresets(): GymWorkoutPreset[] {
+  return GYM_WORKOUT_PRESETS;
+}
+
+/** 开启一节节奏训练会话。 */
+export function startWorkout(
+  userId: string,
+  planId: string,
+  coachId: string,
+): GymWorkoutSession | { error: string } {
+  const plan = GYM_WORKOUT_PRESETS.find((p) => p.id === planId);
+  const coach = GYM_COACHES.find((c) => c.id === coachId);
+  if (!plan) return { error: "训练计划不存在" };
+  if (!coach) return { error: "教练不存在" };
+  const session: GymWorkoutSession = {
+    sessionId: randomUUID(),
+    userId,
+    plan,
+    coach,
+    startTime: new Date().toISOString(),
+    reps: 0,
+    rhythmHits: 0,
+    rhythmMisses: 0,
+    status: "active",
+  };
+  workoutSessions.set(session.sessionId, session);
+  return session;
+}
+
+export function getWorkoutSession(sessionId: string): GymWorkoutSession | undefined {
+  return workoutSessions.get(sessionId);
+}
+
+/** 记录一次节奏点击：hit=落在绿区。reps 仅在命中时 +1。 */
+export function recordRhythm(sessionId: string, hit: boolean): GymWorkoutSession | { error: string } {
+  const s = workoutSessions.get(sessionId);
+  if (!s) return { error: "会话不存在" };
+  if (s.status !== "active") return { error: "会话已结束" };
+  if (hit) {
+    s.reps += 1;
+    s.rhythmHits += 1;
+  } else {
+    s.rhythmMisses += 1;
+  }
+  return s;
+}
+
+/** 教练开场白 / 实时鼓励文本（LLM 生成，失败回退 canned 文案）。 */
+export async function coachSpeak(
+  sessionId: string,
+  eventType: CoachEventType,
+): Promise<{ text: string }> {
+  const s = workoutSessions.get(sessionId);
+  if (!s) return { text: "教练：准备好了吗？" };
+  const c = s.coach;
+  const targets: Record<CoachEventType, string> = {
+    start: `对学员说开场鼓励：今天要挑战 ${s.plan.name} ${s.plan.targetReps} 个，简短有力地动员。`,
+    rep_good: "学员刚刚节奏完美地完成了一次，给一句简短的即时鼓励（不超过20字）。",
+    rep_miss: "学员刚刚节奏慢了/抢拍了，给一句简短的纠错提醒（不超过20字）。",
+    halfway: `已经完成一半（${Math.floor(s.plan.targetReps / 2)}个），给一句不要停下的打气。`,
+    finish: `学员完成了全部 ${s.plan.targetReps} 个${s.plan.name}，给一句收尾的祝贺点评。`,
+  };
+  const fallback: Record<CoachEventType, string> = {
+    start: `${c.emoji} 准备好了吗？今天我们要干 ${s.plan.targetReps} 个${s.plan.name}！`,
+    rep_good: "漂亮！保持这个节奏！",
+    rep_miss: "别急，跟上节拍！",
+    halfway: "已经一半了，不要停！",
+    finish: `太棒了！你完成了 ${s.plan.targetReps} 个${s.plan.name}！`,
+  };
+  if (!gymChat) return { text: fallback[eventType] };
+  try {
+    const raw = await gymChat(
+      [
+        { role: "system", content: `${c.persona}\n你是健身房里的 AI 教练，正在陪学员做${s.plan.name}。说话口语化、简短、有感染力，不超过 40 字，不要解释、不要 markdown。` },
+        { role: "user", content: targets[eventType] },
+      ],
+      120,
+    );
+    const text = raw.trim().replace(/^[""「『]|[""」』.]$/g, "");
+    return { text: text || fallback[eventType] };
+  } catch {
+    return { text: fallback[eventType] };
+  }
+}
+
+/** 结束训练并计算评分：节奏命中率×100 + 完成度×50。 */
+export function finishWorkout(sessionId: string): GymWorkoutResult | { error: string } {
+  const s = workoutSessions.get(sessionId);
+  if (!s) return { error: "会话不存在" };
+  s.status = "finished";
+
+  const attempts = s.rhythmHits + s.rhythmMisses;
+  const hitRate = attempts > 0 ? s.rhythmHits / attempts : 0;
+  const completion = Math.min(1, s.reps / s.plan.targetReps);
+  const score = Math.round(hitRate * 100 + completion * 50);
+  const grade: GymWorkoutResult["grade"] = score >= 90 ? "S" : score >= 75 ? "A" : score >= 60 ? "B" : "C";
+
+  const comment =
+    grade === "S" ? `完美的节奏！${s.coach.emoji} 你就是行走的计时器！`
+    : grade === "A" ? `非常不错，继续保持！${s.coach.emoji}`
+    : grade === "B" ? `还可以，下次再稳一点节奏。`
+    : `别灰心，跟着节拍再来一组！`;
+
+  return {
+    score,
+    grade,
+    rhythmHitRate: Math.round(hitRate * 100) / 100,
+    reps: s.reps,
+    targetReps: s.plan.targetReps,
+    coachComment: comment,
+  };
 }

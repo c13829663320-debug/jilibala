@@ -39,6 +39,12 @@ const VOTE_TIMEOUT = 20000;
 const HUNTER_TIMEOUT = 15000;
 const AI_CALL_GAP = 150; // AI LLM 调用之间的礼让间隔，避免 StepFun 限流
 
+// 快速模式：前端点「加速」后大幅缩短 AI 发言间隔（P0 压缩等待）。
+let fastModeGlobal = false;
+export function setFastMode(on: boolean): void {
+  fastModeGlobal = on;
+}
+
 // ===== 工具函数 =====
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -74,6 +80,24 @@ const shuffle = <T,>(arr: T[]): T[] => {
   return a;
 };
 
+// ===== 对外新增类型（P0 玩法重构；按约束不污染 @balabala/shared，定义在本模块内）=====
+/** 玩家发言阶段的快捷动作牌。 */
+export type PlayerQuickAction = "claim_seer" | "accuse" | "rally" | "defend";
+/** 夜晚好人微操作。 */
+export type NightGoodAction = "eavesdrop" | "observe";
+
+/** 本局表现评分（游戏结束时返回给前端展示）。 */
+export interface WerewolfPerformance {
+  score: number;
+  survivedDays: number;
+  voteAccuracy: number; // 0..1，无投票记 0
+  correctVotes: number;
+  totalVotes: number;
+  won: boolean;
+  side: "wolf" | "good";
+  keyActions: string[];
+}
+
 // ===== 内部状态结构（不导出，服务端唯一权威）=====
 interface InternalPlayer {
   seat: number;
@@ -89,6 +113,13 @@ interface InternalPlayer {
   /** 女巫私有：剩余解药 / 毒药 */
   witchHeal: boolean;
   witchPoison: boolean;
+  // —— P0 新增：用于表现评分与快捷动作回顾 ——
+  deathDay?: number;       // 出局当天（存活到结束则不设）
+  correctVotes: number;    // 投中狼的次数
+  totalVotes: number;      // 有效投票次数
+  claimedSeer: boolean;    // 是否跳了预言家
+  quickActions: string[];   // 关键操作回顾文案
+  nightMicroUsed: boolean; // 本夜是否已用微操作
 }
 
 type NightStage = "idle" | "wolf" | "seer" | "witch" | "done";
@@ -119,6 +150,13 @@ interface WerewolfGame {
   log: WerewolfLogEntry[];
   winner: WerewolfWinner;
   timers: Set<ReturnType<typeof setTimeout>>;
+  // —— P0 新增 ——
+  /** 每玩家私密便签（夜晚偷听 / 观察线索），由 notes 接口 drain。 */
+  privateNotes: Map<string, string[]>;
+  /** 夜晚发起的观察，天亮后生成行为线索。 */
+  pendingObservations: Array<{ observerSeat: number; targetSeat: number; day: number }>;
+  /** 快速模式：缩短 AI 发言等待间隔（前端可开启 2x）。 */
+  fastMode: boolean;
   /** 等待真人行动的回调句柄 */
   awaiters: {
     wolf?: { onVote: (seat: number) => void };
@@ -236,6 +274,9 @@ export function createGame(hostUserId: string): string {
     winner: null,
     timers: new Set(),
     awaiters: {},
+    privateNotes: new Map(),
+    pendingObservations: [],
+    fastMode: false,
     createdAt: new Date().toISOString(),
   });
   return gameId;
@@ -267,6 +308,11 @@ export function joinGame(
     hasSpoken: false,
     witchHeal: false,
     witchPoison: false,
+    correctVotes: 0,
+    totalVotes: 0,
+    claimedSeer: false,
+    quickActions: [],
+    nightMicroUsed: false,
   };
   game.players.push(player);
   broadcastFn(gameId, { type: "player_joined", player: toPublic(player) });
@@ -311,6 +357,11 @@ export function startGame(gameId: string, hostUserId: string): void {
         hasSpoken: false,
         witchHeal: false,
         witchPoison: false,
+        correctVotes: 0,
+        totalVotes: 0,
+        claimedSeer: false,
+        quickActions: [],
+        nightMicroUsed: false,
       };
     }
   }
@@ -323,6 +374,12 @@ export function startGame(gameId: string, hostUserId: string): void {
     p.witchHeal = p.role === "witch";
     p.witchPoison = p.role === "witch";
     p.hasSpoken = false;
+    p.deathDay = undefined;
+    p.correctVotes = 0;
+    p.totalVotes = 0;
+    p.claimedSeer = false;
+    p.quickActions = [];
+    p.nightMicroUsed = false;
   });
 
   game.phase = "night";
@@ -333,6 +390,8 @@ export function startGame(gameId: string, hostUserId: string): void {
   game.seerResults = [];
   game.hunterPending = null;
   game.lastNightDeaths = [];
+  game.privateNotes = new Map();
+  game.pendingObservations = [];
 
   broadcastFn(gameId, { type: "phase_change", phase: "night", day: game.day });
   addLog(game, `游戏开始，共 ${SEAT_COUNT} 名玩家入座。`);
@@ -453,7 +512,7 @@ async function aiDecision(
     ],
     maxTokens,
   ));
-  await sleep(AI_CALL_GAP);
+  await sleep(fastModeGlobal ? 40 : AI_CALL_GAP);
   if (!raw) return null;
   try {
     return extractJson(raw) as Record<string, unknown>;
@@ -550,13 +609,14 @@ async function aiSpeech(speaker: InternalPlayer, game: WerewolfGame): Promise<st
         : "你是好人阵营，认真分析局势、找出狼人。";
   const system =
     `${celeb?.persona ?? "你是一个参与狼人杀的玩家。"}\n` +
-    `现在你在玩狼人杀的白天发言环节。${roleHint}发言 1-2 句话，简短、有观点、像真人。` +
+    `现在你在玩狼人杀的白天发言环节。${roleHint}\n` +
+    `【硬性要求】请用 1-2 句话简洁发言，不超过 50 字，像真人随口说的，不要长篇大论。` +
     `只返回 JSON：{"text": "你的发言"}，不要解释。`;
   const user = `第 ${game.day} 天，存活玩家：${describePlayers(game)}。\n之前发生：${publicLog || "无"}。\n请发言。`;
-  const parsed = await aiDecision(system, user, 500);
+  const parsed = await aiDecision(system, user, 120);
   if (parsed && typeof parsed.text === "string" && parsed.text.trim()) {
     let text = parsed.text.trim().replace(/^[""「『]|[""」』]$/g, "");
-    if (text.length > 120) text = `${text.slice(0, 120)}…`;
+    if (text.length > 50) text = `${text.slice(0, 50)}…`;
     return text;
   }
   return fallbackSpeechText(speaker, game);
@@ -752,6 +812,7 @@ async function runNight(game: WerewolfGame): Promise<void> {
   game.phase = "night";
   game.nightStage = "wolf";
   game.nightState = { wolfVotes: new Map(), killTarget: null, seerCheck: null, witchHeal: false, witchPoisonTarget: null };
+  for (const p of game.players) p.nightMicroUsed = false;
   broadcastFn(game.gameId, { type: "phase_change", phase: "night", day: game.day });
   addLog(game, `第 ${game.day} 天夜晚降临，狼人请睁眼。`);
   pushSnapshotsAll(game);
@@ -854,6 +915,7 @@ async function killAndResolveHunter(
     if (!p || !p.alive) continue;
     p.alive = false;
     p.hasSpoken = false;
+    p.deathDay = game.day;
     names.push(p.nickname);
   }
   if (names.length) {
@@ -893,6 +955,9 @@ async function runDayAnnounce(game: WerewolfGame): Promise<void> {
   game.phase = "day_announce";
   broadcastFn(game.gameId, { type: "phase_change", phase: "day_announce", day: game.day });
   addLog(game, `天亮了，公布昨夜结果。`);
+
+  // —— P0：把昨夜「观察」的行为线索投递为观察者的私密便签 ——
+  flushObservations(game);
 
   if (game.lastNightDeaths.length) {
     await killAndResolveHunter(game, game.lastNightDeaths, "night");
@@ -975,6 +1040,19 @@ async function runVote(game: WerewolfGame): Promise<void> {
   }
   game.lastVoteResult = { lynchedSeat: lynched, votes: votesRecord };
   broadcastFn(game.gameId, { type: "vote_result", lynchedSeat: lynched, votes: votesRecord });
+
+  // —— P0：统计每位真人玩家的投票正确率（投中真狼记为正确）——
+  const lynchedWasWolf = lynched != null && playerAt(game, lynched)?.role === "werewolf";
+  for (const [voterSeat, target] of game.dayState.votes) {
+    if (target == null) continue;
+    const voter = playerAt(game, voterSeat);
+    if (!voter || voter.isAI) continue;
+    voter.totalVotes += 1;
+    if (lynched != null && target === lynched && lynchedWasWolf) {
+      voter.correctVotes += 1;
+      voter.quickActions.push(`第${game.day}天投票放逐狼人（${playerAt(game, lynched)?.nickname ?? "?"}）`);
+    }
+  }
 
   if (lynched != null) {
     const lp = playerAt(game, lynched);
@@ -1104,6 +1182,162 @@ export function handleAction(gameId: string, userId: string, action: WerewolfCli
     default:
       return;
   }
+}
+
+// ===== P0：快捷动作 / 夜晚好人微操作 / 表现评分 =====
+
+/** 把一条私密便签塞进某玩家的私人口袋（notes 接口按需 drain）。 */
+function pushPrivateNote(game: WerewolfGame, userId: string, text: string): void {
+  const arr = game.privateNotes.get(userId) ?? [];
+  arr.push(text);
+  game.privateNotes.set(userId, arr);
+}
+
+/** 天亮时把昨夜的「观察」转成行为线索，发给观察者本人。 */
+function flushObservations(game: WerewolfGame): void {
+  if (game.pendingObservations.length === 0) return;
+  const CLUES = [
+    "看起来有些紧张，眼神躲躲闪闪。",
+    "夜里似乎和人交换过眼神，动作鬼鬼祟祟。",
+    "表现得很镇定，但你觉得他在刻意掩饰。",
+    "深夜还没睡，好像在盘算着什么。",
+  ];
+  for (const obs of game.pendingObservations) {
+    const observer = playerAt(game, obs.observerSeat);
+    const target = playerAt(game, obs.targetSeat);
+    if (!observer || !target) continue;
+    const clue = CLUES[Math.floor(Math.random() * CLUES.length)];
+    pushPrivateNote(game, observer.userId, `你观察到 ${target.nickname}：${clue}`);
+  }
+  game.pendingObservations = [];
+}
+
+/**
+ * 玩家发言阶段的快捷动作牌。记录到公开日志（影响 AI 上下文），
+ * 同时返回一段话术模板给前端填入输入框，玩家可编辑后再发送。
+ */
+export function playerAction(
+  gameId: string,
+  userId: string,
+  actionType: PlayerQuickAction,
+  targetSeat?: number,
+): { ok: boolean; text?: string; message?: string } {
+  const game = games.get(gameId);
+  if (!game || game.phase === "ended") return { ok: false, message: "对局不存在或已结束" };
+  const me = playerByUserId(game, userId);
+  if (!me || !me.alive) return { ok: false, message: "你已出局或不在本局" };
+  if (game.phase !== "speech") return { ok: false, message: "只能在白天发言阶段使用快捷动作" };
+
+  const target = targetSeat == null ? undefined : playerAt(game, targetSeat);
+
+  switch (actionType) {
+    case "claim_seer": {
+      me.claimedSeer = true;
+      me.quickActions.push("跳预言家");
+      addLog(game, `${me.nickname} 跳预言家身份。`);
+      // 模板：若真有验人结果则带上，否则给通用模板。
+      const lastSeer = game.seerResults[game.seerResults.length - 1];
+      const tmpl = lastSeer
+        ? `我是预言家！昨晚验了 ${playerAt(game, lastSeer.seat)?.nickname ?? "某人"}，是${lastSeer.isWolf ? "狼人" : "好人"}。请大家跟我走。`
+        : "我是预言家，请大家相信我，接下来我会逐晚验人，带好人走向胜利。";
+      return { ok: true, text: tmpl };
+    }
+    case "accuse": {
+      if (!target || !target.alive) return { ok: false, message: "请选择一名存活玩家进行查杀" };
+      addLog(game, `${me.nickname} 公开查杀 ${target.nickname}，认为他是狼人。`);
+      me.quickActions.push(`查杀 ${target.nickname}`);
+      return { ok: true, text: `我查杀 ${target.nickname}！他的发言一直在划水、带节奏，我强烈怀疑他是狼，请大家仔细听他后面怎么辩。` };
+    }
+    case "rally": {
+      if (!target || !target.alive) return { ok: false, message: "请选择一名要带票的目标" };
+      addLog(game, `${me.nickname} 号召大家把票投给 ${target.nickname}。`);
+      me.quickActions.push(`带人上票 ${target.nickname}`);
+      return { ok: true, text: `我号召大家今天一起投 ${target.nickname}！理由很充分，跟着我投票的好人不会错。` };
+    }
+    case "defend": {
+      addLog(game, `${me.nickname} 为自己辩解。`);
+      me.quickActions.push("为自己辩解");
+      return { ok: true, text: `我是铁好人！刚才怀疑我的人其实是在打抗推位，我从头到尾都在认真分析，我的票型大家可以盯着。` };
+    }
+    default:
+      return { ok: false, message: "未知动作" };
+  }
+}
+
+/** 夜晚好人微操作：偷听（小概率模糊信息）或观察某人（天亮后给线索）。 */
+export function nightGoodAction(
+  gameId: string,
+  userId: string,
+  action: NightGoodAction,
+  targetSeat?: number,
+): { ok: boolean; result?: string; message?: string } {
+  const game = games.get(gameId);
+  if (!game || game.phase === "ended") return { ok: false, message: "对局不存在或已结束" };
+  const me = playerByUserId(game, userId);
+  if (!me || !me.alive) return { ok: false, message: "你已出局或不在本局" };
+  if (game.phase !== "night") return { ok: false, message: "只能在夜晚进行微操作" };
+  if (me.role === "werewolf") return { ok: false, message: "狼人无需夜晚微操作" };
+  if (me.nightMicroUsed) return { ok: false, message: "今晚你已经行动过了" };
+
+  if (action === "eavesdrop") {
+    me.nightMicroUsed = true;
+    me.quickActions.push("夜晚偷听");
+    const success = Math.random() < 0.3;
+    const note = success
+      ? "你凑到窗边偷听：隐约听到角落里有人压低声音商量，似乎在给谁记仇……（模糊情报，未必准）"
+      : "你屏息听了半天，夜深人静，什么也没听到。";
+    pushPrivateNote(game, me.userId, note);
+    return { ok: true, result: note };
+  }
+
+  if (action === "observe") {
+    const target = targetSeat == null ? undefined : playerAt(game, targetSeat);
+    if (!target || !target.alive || target.seat === me.seat) {
+      return { ok: false, message: "请选择一名其他存活玩家进行观察" };
+    }
+    me.nightMicroUsed = true;
+    me.quickActions.push(`暗中观察 ${target.nickname}`);
+    game.pendingObservations.push({ observerSeat: me.seat, targetSeat: target.seat, day: game.day });
+    return { ok: true, result: `你开始悄悄留意 ${target.nickname} 的举动……明天天亮会得到一条线索。` };
+  }
+
+  return { ok: false, message: "未知微操作" };
+}
+
+/** 取走并清空某玩家的私密便签（偷听结果 / 观察线索）。 */
+export function drainPrivateNotes(gameId: string, userId: string): string[] {
+  const game = games.get(gameId);
+  if (!game) return [];
+  const arr = game.privateNotes.get(userId) ?? [];
+  game.privateNotes.set(userId, []);
+  return arr;
+}
+
+/** 本局表现评分：生存天数×10 + 投中狼×15 + 胜负阵营加成。 */
+export function calculatePerformance(gameId: string, userId: string): WerewolfPerformance | null {
+  const game = games.get(gameId);
+  if (!game) return null;
+  const me = playerByUserId(game, userId);
+  if (!me) return null;
+
+  const survivedDays = me.alive ? game.day : (me.deathDay ?? 1);
+  const voteAccuracy = me.totalVotes > 0 ? me.correctVotes / me.totalVotes : 0;
+  const mySide: "wolf" | "good" = me.role === "werewolf" ? "wolf" : "good";
+  const won = game.winner != null && game.winner === mySide;
+
+  let score = survivedDays * 10 + me.correctVotes * 15;
+  if (won) score += mySide === "wolf" ? 20 : 15;
+
+  return {
+    score,
+    survivedDays,
+    voteAccuracy: Math.round(voteAccuracy * 100) / 100,
+    correctVotes: me.correctVotes,
+    totalVotes: me.totalVotes,
+    won,
+    side: mySide,
+    keyActions: me.quickActions.slice(-6),
+  };
 }
 
 // ===== 战报 =====

@@ -11,6 +11,11 @@ import {
   startGame,
   getSnapshotForPlayer,
   generateReport,
+  playerAction,
+  nightGoodAction,
+  drainPrivateNotes,
+  calculatePerformance,
+  setFastMode,
 } from "./werewolf-orchestrator.js";
 
 export function registerWerewolfRoutes(
@@ -69,6 +74,65 @@ export function registerWerewolfRoutes(
     const snap = getSnapshotForPlayer(gameId, userId);
     if (snap.players.length === 0) return reply.code(404).send({ message: "房间不存在。" });
     return snap;
+  });
+
+  // ===== P0：白天发言快捷动作牌 =====
+  app.post("/api/werewolf/:gameId/quick-action", async (req, reply) => {
+    const { gameId } = req.params as { gameId: string };
+    const body = (req.body ?? {}) as { userId?: string; actionType?: string; targetSeat?: number };
+    const userId = (body.userId ?? "").trim();
+    if (!userId) return reply.code(400).send({ message: "缺少 userId。" });
+    const result = playerAction(
+      gameId,
+      userId,
+      (body.actionType ?? "") as "claim_seer" | "accuse" | "rally" | "defend",
+      body.targetSeat == null ? undefined : Number(body.targetSeat),
+    );
+    if (!result.ok) return reply.code(400).send(result);
+    return result;
+  });
+
+  // ===== P0：夜晚好人微操作（偷听 / 观察）=====
+  app.post("/api/werewolf/:gameId/night-micro", async (req, reply) => {
+    const { gameId } = req.params as { gameId: string };
+    const body = (req.body ?? {}) as { userId?: string; action?: string; targetSeat?: number };
+    const userId = (body.userId ?? "").trim();
+    if (!userId) return reply.code(400).send({ message: "缺少 userId。" });
+    const result = nightGoodAction(
+      gameId,
+      userId,
+      (body.action ?? "") as "eavesdrop" | "observe",
+      body.targetSeat == null ? undefined : Number(body.targetSeat),
+    );
+    if (!result.ok) return reply.code(400).send(result);
+    return result;
+  });
+
+  // ===== P0：拉取私密便签（偷听结果 / 观察线索）=====
+  app.get("/api/werewolf/:gameId/notes", async (req, reply) => {
+    const { gameId } = req.params as { gameId: string };
+    const query = req.query as { userId?: string };
+    const userId = (query.userId ?? "").trim();
+    if (!userId) return reply.code(400).send({ message: "缺少 userId。" });
+    return { notes: drainPrivateNotes(gameId, userId) };
+  });
+
+  // ===== P0：本局表现评分 =====
+  app.get("/api/werewolf/:gameId/performance", async (req, reply) => {
+    const { gameId } = req.params as { gameId: string };
+    const query = req.query as { userId?: string };
+    const userId = (query.userId ?? "").trim();
+    if (!userId) return reply.code(400).send({ message: "缺少 userId。" });
+    const perf = calculatePerformance(gameId, userId);
+    if (!perf) return reply.code(404).send({ message: "对局不存在。" });
+    return perf;
+  });
+
+  // ===== P0：加速模式（2x AI 发言）=====
+  app.post("/api/werewolf/:gameId/fast-mode", async (req) => {
+    const body = (req.body ?? {}) as { on?: boolean };
+    setFastMode(body.on === true);
+    return { ok: true, fast: body.on === true };
   });
 
   // ===== 游戏结束后发布战报到广场 =====

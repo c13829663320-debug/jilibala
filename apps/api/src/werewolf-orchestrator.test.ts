@@ -357,3 +357,132 @@ describe("werewolf 行动与胜负", () => {
     expect(report.players.length).toBe(9);
   });
 });
+
+describe("werewolf P0：快捷动作 / 夜晚微操作 / 表现评分", () => {
+  let ctx: { mod: WerewolfModule; dbmod: DbModule; dir: string; broadcast: ReturnType<typeof vi.fn>; sendToUser: ReturnType<typeof vi.fn> };
+
+  beforeEach(async () => {
+    ctx = await loadWerewolf();
+  });
+
+  afterAll(() => {
+    try { ctx.dbmod.db.close(); } catch { /* ignore */ }
+    delete process.env.DB_PATH;
+    try { rmSync(ctx.dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  function forceSpeech(gameId: string) {
+    const g = getInternal(ctx.mod, gameId) as unknown as { phase: string };
+    g.phase = "speech";
+  }
+
+  it("playerAction claim_seer：记录跳身份并返回话术模板", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    forceSpeech(gameId);
+    const res = ctx.mod.playerAction(gameId, "host-1", "claim_seer");
+    expect(res.ok).toBe(true);
+    expect(res.text).toContain("预言家");
+    // 公开日志应记录跳身份。
+    const sawLog = ctx.broadcast.mock.calls.some(
+      ([, ev]) => ev.type === "log" && (ev as { entry: { text: string } }).entry.text.includes("跳预言家"),
+    );
+    expect(sawLog).toBe(true);
+  });
+
+  it("playerAction accuse / rally：需要存活目标，否则被拒", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    forceSpeech(gameId);
+    // 无目标 -> 拒绝
+    expect(ctx.mod.playerAction(gameId, "host-1", "accuse").ok).toBe(false);
+    expect(ctx.mod.playerAction(gameId, "host-1", "rally").ok).toBe(false);
+    // 带一个存活目标 -> 成功
+    const g = getInternal(ctx.mod, gameId);
+    const other = g.players.find((p) => p.userId !== "host-1")!;
+    const res = ctx.mod.playerAction(gameId, "host-1", "accuse", other.seat);
+    expect(res.ok).toBe(true);
+    expect(res.text).toContain(other.nickname);
+  });
+
+  it("playerAction：非发言阶段调用被拒", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    // 此时 phase=night
+    expect(ctx.mod.playerAction(gameId, "host-1", "defend").ok).toBe(false);
+  });
+
+  it("nightGoodAction eavesdrop：好人夜晚可偷听一次，结果进私密便签", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    const g = getInternal(ctx.mod, gameId);
+    const host = g.players.find((p) => p.userId === "host-1")!;
+    host.role = "villager";
+    const res = ctx.mod.nightGoodAction(gameId, "host-1", "eavesdrop");
+    expect(res.ok).toBe(true);
+    expect(res.result).toBeTruthy();
+    // 结果可被 drainPrivateNotes 取走
+    const notes = ctx.mod.drainPrivateNotes(gameId, "host-1");
+    expect(notes.length).toBe(1);
+    expect(notes[0]).toBe(res.result);
+    // 同夜第二次被拒
+    expect(ctx.mod.nightGoodAction(gameId, "host-1", "eavesdrop").ok).toBe(false);
+  });
+
+  it("nightGoodAction observe：记录待观察对象，天亮后生成线索", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    const g = getInternal(ctx.mod, gameId);
+    const host = g.players.find((p) => p.userId === "host-1")!;
+    host.role = "villager";
+    const target = g.players.find((p) => p.userId !== "host-1")!;
+    const res = ctx.mod.nightGoodAction(gameId, "host-1", "observe", target.seat);
+    expect(res.ok).toBe(true);
+    expect(res.result).toContain(target.nickname);
+    // 狼人不能用微操作
+    host.role = "werewolf";
+    host.nightMicroUsed = false;
+    expect(ctx.mod.nightGoodAction(gameId, "host-1", "observe", target.seat).ok).toBe(false);
+  });
+
+  it("calculatePerformance：生存天数×10 + 投中狼×15 + 阵营加成", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    const g = getInternal(ctx.mod, gameId) as unknown as {
+      winner: "wolf" | "good" | null;
+      players: Array<{
+        userId: string; role: string; alive: boolean;
+        deathDay?: number; correctVotes: number; totalVotes: number;
+      }>;
+    };
+    const host = g.players.find((p) => p.userId === "host-1")!;
+    host.role = "seer";      // 好人阵营
+    host.alive = false;
+    host.deathDay = 3;       // 存活 3 天
+    host.correctVotes = 2;   // 投中 2 狼
+    host.totalVotes = 4;
+    g.winner = "good";       // 好人赢 -> +15
+    const perf = ctx.mod.calculatePerformance(gameId, "host-1")!;
+    // 3*10 + 2*15 + 15 = 75
+    expect(perf.score).toBe(3 * 10 + 2 * 15 + 15);
+    expect(perf.survivedDays).toBe(3);
+    expect(perf.correctVotes).toBe(2);
+    expect(perf.voteAccuracy).toBe(0.5);
+    expect(perf.won).toBe(true);
+    expect(perf.side).toBe("good");
+  });
+
+  it("calculatePerformance：狼人胜阵营加成 +20，无投票记正确率 0", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    const g = getInternal(ctx.mod, gameId) as unknown as {
+      winner: "wolf" | "good" | null;
+      players: Array<{ userId: string; role: string; alive: boolean; correctVotes: number; totalVotes: number }>;
+    };
+    const host = g.players.find((p) => p.userId === "host-1")!;
+    host.role = "werewolf";
+    host.alive = true;
+    host.correctVotes = 0;
+    host.totalVotes = 0;
+    g.winner = "wolf";
+    const perf = ctx.mod.calculatePerformance(gameId, "host-1")!;
+    // day=1, alive => survivedDays=1 -> 10 + 0 + 20 = 30
+    expect(perf.score).toBe(10 + 20);
+    expect(perf.won).toBe(true);
+    expect(perf.side).toBe("wolf");
+    expect(perf.voteAccuracy).toBe(0);
+  });
+});
