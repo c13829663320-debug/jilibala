@@ -192,3 +192,70 @@ describe("court-state buildSpeakerContext", () => {
     expect(ctx).not.toContain("秘密");
   });
 });
+
+// ===== 天平 / 预制牌纯函数（Round2 重构）=====
+import {
+  applyBalance,
+  decideWinnerFromBalance,
+  resolveCard,
+  HAND_CARDS,
+  PLAYER_AMMO_PER_ROUND,
+  CARD_AMMO_COST,
+} from "./court-state.js";
+
+describe("court-state 天平 applyBalance（互补 0-100）", () => {
+  it("初值 50:50，向原告 +8 → 58:42", () => {
+    expect(applyBalance({ plaintiff: 50, defendant: 50 }, "plaintiff", 8)).toEqual({ plaintiff: 58, defendant: 42 });
+  });
+  it("向被告 +3 → 47:53", () => {
+    expect(applyBalance({ plaintiff: 50, defendant: 50 }, "defendant", 3)).toEqual({ plaintiff: 47, defendant: 53 });
+  });
+  it("clamp 到 0-100，且永远互补", () => {
+    const r = applyBalance({ plaintiff: 99, defendant: 1 }, "plaintiff", 5);
+    expect(r).toEqual({ plaintiff: 100, defendant: 0 });
+    expect(r.plaintiff + r.defendant).toBe(100);
+  });
+});
+
+describe("decideWinnerFromBalance", () => {
+  it("原告 > 被告 → plaintiff", () => expect(decideWinnerFromBalance({ plaintiff: 62, defendant: 38 })).toBe("plaintiff"));
+  it("被告 > 原告 → defendant", () => expect(decideWinnerFromBalance({ plaintiff: 44, defendant: 56 })).toBe("defendant"));
+  it("50:50 平 → mixed", () => expect(decideWinnerFromBalance({ plaintiff: 50, defendant: 50 })).toBe("mixed"));
+});
+
+describe("resolveCard 预制牌结算", () => {
+  const unresolved = ["是否构成扰民", "损失如何赔偿"];
+  const pool = [
+    { id: "ev-1", name: "凌晨录音", content: "凌晨施工扰民录音" },
+    { id: "ev-2", name: "购物小票", content: "买伞花了30元" },
+  ];
+  it("attack 命中 unresolved → +6 且 hit", () => {
+    const r = resolveCard("attack", { unresolved, evidencePool: pool, freeText: "凌晨施工是否构成扰民" });
+    expect(r.delta).toBe(6); expect(r.hit).toBe(true);
+  });
+  it("attack 未命中 → +1", () => {
+    const r = resolveCard("attack", { unresolved, evidencePool: pool, freeText: "今天天气不错" });
+    expect(r.delta).toBe(1); expect(r.hit).toBe(false);
+  });
+  it("evidence 命中 unresolved → +8 且标记 resolved", () => {
+    const r = resolveCard("evidence", { unresolved, evidencePool: pool, targetEvidenceId: "ev-1" });
+    expect(r.delta).toBe(8); expect(r.hit).toBe(true); expect(r.resolvedPoint).toBe("是否构成扰民");
+  });
+  it("evidence 未命中 → +2", () => {
+    const r = resolveCard("evidence", { unresolved, evidencePool: pool, targetEvidenceId: "ev-2" });
+    expect(r.delta).toBe(2); expect(r.hit).toBe(false);
+  });
+  it("mock 正常 → +3；越界 → -3", () => {
+    expect(resolveCard("mock", { unresolved, evidencePool: pool, freeText: "对方真是个喜剧演员" }).delta).toBe(3);
+    expect(resolveCard("mock", { unresolved, evidencePool: pool, freeText: "对方是个蠢货", mockOutrageous: true }).delta).toBe(-3);
+  });
+  it("request_record 不影响天平，把文本写为 addedFact", () => {
+    const r = resolveCard("request_record", { unresolved, evidencePool: pool, freeText: "要求记录双方都承认凌晨施工" });
+    expect(r.delta).toBe(0); expect(r.addedFact).toContain("凌晨施工");
+  });
+  it("手牌与弹药常量", () => {
+    expect(HAND_CARDS).toHaveLength(4);
+    expect(PLAYER_AMMO_PER_ROUND).toBe(2);
+    expect(CARD_AMMO_COST.request_record).toBe(0);
+  });
+});

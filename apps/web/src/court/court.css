@@ -513,3 +513,39 @@
   50% { transform: translateX(-50%) scale(1.04); }
 }
 .live-input-panel--urgent { border-color: #FFD60A; box-shadow: 0 0 0 2px rgba(255, 214, 10, 0.5); }
+
+/* ===== Round2: 天平 / 手牌 / 证据选择 ===== */
+.balance-scale { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); width: min(680px, 92vw); z-index: 30; }
+.balance-scale__row { display: flex; align-items: center; gap: 10px; }
+.balance-scale__side { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.balance-scale__track { position: relative; flex: 1; height: 10px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.balance-scale__fill { height: 100%; transition: width 0.7s cubic-bezier(.22,.9,.3,1); }
+.balance-scale__pivot { position: absolute; top: -2px; width: 2px; height: 14px; background: #fff; opacity: .8; transition: left 0.7s cubic-bezier(.22,.9,.3,1); }
+.balance-scale__float { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; animation: balFloat 1.4s ease forwards; }
+.balance-scale__float.is-up { background: rgba(255,214,0,0.18); color: #FFD600; }
+.balance-scale__float.is-down { background: rgba(79,179,165,0.18); color: #4fb3a5; }
+@keyframes balFloat { 0% { opacity: 0; transform: translate(-50%, 6px); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -8px); } }
+
+.hand-cards { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); width: min(760px, 94vw); z-index: 30; }
+.hand-cards__ammo { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #FFD600; font-weight: 700; margin-bottom: 6px; }
+.hand-cards__ammo .is-off { color: rgba(255,255,255,0.2); }
+.hand-cards__row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.hand-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px; border-radius: 12px; background: rgba(20,20,20,0.92); border: 1px solid rgba(255,214,0,0.35); color: #f4f2ec; text-align: left; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.hand-card:hover:not(.is-disabled) { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(255,214,0,0.25); }
+.hand-card.is-disabled { opacity: 0.35; cursor: not-allowed; border-color: rgba(255,255,255,0.12); }
+.hand-card__icon { color: #FFD600; }
+.hand-card__title { font-size: 13px; font-weight: 700; }
+.hand-card__desc { font-size: 11px; color: #9a9c92; line-height: 1.3; }
+.hand-card__cost { font-size: 11px; color: #4fb3a5; font-weight: 700; }
+.hand-cards__textbox { margin-top: 8px; display: flex; gap: 8px; align-items: center; background: rgba(20,20,20,0.95); padding: 8px; border-radius: 12px; border: 1px solid rgba(79,179,165,0.4); }
+.hand-cards__textbox input { flex: 1; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 8px; padding: 8px 10px; }
+
+.ev-picker__backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 40; display: flex; align-items: center; justify-content: center; }
+.ev-picker { width: min(420px, 90vw); background: #141414; border: 1px solid #FFD600; border-radius: 14px; padding: 16px; }
+.ev-picker__head { display: flex; justify-content: space-between; font-weight: 700; color: #FFD600; margin-bottom: 10px; }
+.ev-picker__close { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+.ev-picker__empty { color: #9a9c92; font-size: 13px; }
+.ev-picker__list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow: auto; }
+.ev-picker__item { display: flex; flex-direction: column; gap: 4px; text-align: left; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 10px; padding: 10px; cursor: pointer; }
+.ev-picker__item:hover { border-color: #FFD600; }
+.ev-picker__content { font-size: 12px; color: #9a9c92; }

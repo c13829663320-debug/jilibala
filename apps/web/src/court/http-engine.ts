@@ -516,6 +516,16 @@ export class HttpCourtEngine implements CourtEngineClient {
     }).catch(() => { /* fire-and-forget */ })
   }
 
+  /** 预制牌出牌（Round2）：attack/evidence/mock/request_record。 */
+  async submitCard(card: 'attack' | 'evidence' | 'mock' | 'request_record', opts?: { targetEvidenceId?: string; freeText?: string }): Promise<void> {
+    if (!this.caseId) return
+    await fetch(`/api/court/cases/${encodeURIComponent(this.caseId)}/play-card`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: this.cfg.userId, card, ...(opts ?? {}) }),
+    }).catch(() => { /* fire-and-forget */ })
+  }
+
   dispose(): void {
     this.aborted = true
     this.dead = true

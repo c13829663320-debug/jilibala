@@ -18,6 +18,9 @@ import type {
   CourtCase, CourtTurn, CourtVerdict, EvidenceItem, Perspective,
 } from '../types'
 import { backendVerdictToUi, type HttpCourtEngine } from '../http-engine'
+import BalanceScale, { type Balance } from '../BalanceScale'
+import PlayerHandCards from '../PlayerHandCards'
+import EvidencePicker from '../EvidencePicker'
 
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `id-${Math.random().toString(36).slice(2)}`)
 
@@ -51,7 +54,12 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
   const [onlineCount, setOnlineCount] = useState(1)
   // 玩家驱动庭审：轮到玩家发言 / 局势优势条
   const [waitingForPlayer, setWaitingForPlayer] = useState(false)
-  const [momentum, setMomentum] = useState<{ plaintiff: number; defendant: number }>({ plaintiff: 50, defendant: 50 })
+  const [momentum, setMomentum] = useState<Balance>({ plaintiff: 50, defendant: 50 })
+  const [lastDelta, setLastDelta] = useState(0)
+  const [balanceReason, setBalanceReason] = useState('')
+  const [cardTurn, setCardTurn] = useState<{ round: number; ammo: number } | null>(null)
+  const [evPickerOpen, setEvPickerOpen] = useState(false)
+  const [cardFlash, setCardFlash] = useState('')
 
   // 被指派辅助人 → 3D 模型字典（名人 + 我的人物 + 广场人物）
   const { user } = useIdentity()
@@ -115,6 +123,19 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
       switch (ev.type) {
         case 'momentum_update':
           setMomentum({ ...ev.momentum })
+          break
+        case 'court_balance_update':
+          setMomentum({ ...ev.balance }); setLastDelta(ev.lastDelta); setBalanceReason(ev.reason)
+          break
+        case 'court_player_turn':
+          setCardTurn({ round: ev.round, ammo: ev.ammo }); setWaitingForPlayer(true)
+          break
+        case 'court_card_resolved':
+          setCardFlash(`${ev.hit ? '命中' : '未命中'} · ${ev.judgeComment}`)
+          window.setTimeout(() => setCardFlash(''), 1800)
+          break
+        case 'court_round_recap':
+          setCardTurn(null); setWaitingForPlayer(false)
           break
         case 'court_status':
           if (ev.status === 'JUDGING') setPhase('judging')
@@ -234,6 +255,15 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
     e.target.value = ''
   }
 
+  // ---- 玩家出预制牌（Round2）----
+  const playCard = (card: 'attack' | 'evidence' | 'mock' | 'request_record', freeText?: string) => {
+    void engine.submitCard(card, { freeText })
+  }
+  const pickEvidence = (ev: EvidenceItem) => {
+    setEvPickerOpen(false)
+    void engine.submitCard('evidence', { targetEvidenceId: ev.id, freeText: ev.name })
+  }
+
   // ---- 当前发言（实时 = 最新一条），驱动 3D 角色 ----
   const currentTurn = allTurns[allTurns.length - 1]
   const currentSpeaker: ActiveSpeaker | null = currentTurn
@@ -280,23 +310,15 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
         </button>
       </div>
 
-      {/* 局势优势条：左=原告(明黄) 右=被告(青绿)，宽度随 momentum 平滑动画 */}
+      {/* 天平：左=原告(明黄) 右=被告(青绿)，滑动动画 + delta 飘字 */}
       {phase === 'live' && (
-        <div className="momentum-bar" aria-label="局势优势条">
-          <span className="momentum-bar__side momentum-bar__side--plaintiff">原告 {momentum.plaintiff}</span>
-          <div className="momentum-bar__track">
-            <div
-              className="momentum-bar__fill"
-              style={{ width: `${momentum.plaintiff}%`, background: '#FFD60A', transition: 'width 0.6s ease' }}
-            />
-          </div>
-          <span className="momentum-bar__side momentum-bar__side--defendant">{momentum.defendant} 被告</span>
-        </div>
+        <BalanceScale balance={momentum} lastDelta={lastDelta} reason={balanceReason} playerSide={courtCase.player_side} />
       )}
 
-      {/* 轮到你发言：高亮提示条 */}
-      {waitingForPlayer && phase === 'live' && (
-        <div className="your-turn-banner">🔔 轮到你发言了！在下方输入框陈述你的主张</div>
+      {/* 轮到你出牌 */}
+      {cardFlash && <div className="your-turn-banner">🃏 {cardFlash}</div>}
+      {waitingForPlayer && !cardFlash && phase === 'live' && (
+        <div className="your-turn-banner">🔔 轮到你出牌！选一张牌把天平推向你方</div>
       )}
 
       {/* 判决过场遮罩 */}
@@ -368,55 +390,21 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
         </div>
       )}
 
-      {/* 玩家发言输入面板：玩家始终可发言（不再因观众席隐藏） */}
-      {phase === 'live' && !inputOpen && (
-        <button className="live-input-fab" onClick={() => setInputOpen(true)} aria-label="当庭发言">
-          <Plus size={22} />
-        </button>
+      {/* 预制牌手牌坞：轮到玩家出牌时展示，弹药不足的牌置灰 */}
+      {phase === 'live' && courtCase.player_side && (
+        <PlayerHandCards
+          visible={Boolean(cardTurn)}
+          ammo={cardTurn?.ammo ?? 0}
+          onPlay={playCard}
+          onPickEvidence={() => setEvPickerOpen(true)}
+        />
       )}
-      {phase === 'live' && inputOpen && (
-        <div className={`live-input-panel${waitingForPlayer ? ' live-input-panel--urgent' : ''}`}>
-          <div className="live-input-panel__head">
-            <span className="live-input-panel__label">{waitingForPlayer ? '🔔 轮到你发言' : '当庭发言 / 证据'}</span>
-            <button className="live-input-panel__close" onClick={() => setInputOpen(false)} aria-label="收起">×</button>
-          </div>
-          <textarea
-            ref={inputTextareaRef}
-            className="live-input-panel__textarea"
-            placeholder={perspective === 'defendant' ? '以你（被告）的口吻陈述辩护观点或证据…' : '以你（原告）的口吻陈述主张或证据…'}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-          />
-          {trialEvidence.length > 0 && (
-            <div className="live-input-panel__chips">
-              {trialEvidence.map((ev) => (
-                <span key={ev.id} className="court-chip">
-                  <span>{ev.name}</span>
-                  <button onClick={() => setTrialEvidence((prev) => prev.filter((e) => e.id !== ev.id))}>×</button>
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="live-input-panel__actions">
-            <button className="court-btn court-btn--ghost court-btn--sm" onClick={() => fileInputRef.current?.click()}>
-              <Paperclip size={14} /> 证据
-            </button>
-            <button className="court-btn court-btn--ghost court-btn--sm" onClick={toggleListening}>
-              <Mic size={14} /> {listening ? '停止' : '语音'}
-            </button>
-            <span style={{ flex: 1 }} />
-            <button
-              className="court-btn court-btn--primary court-btn--sm"
-              onClick={submitInput}
-              disabled={!draft.trim() && trialEvidence.length === 0}
-            >
-              <Send size={14} /> 提交
-            </button>
-          </div>
-          {submitFlash && <div className="live-hint" style={{ marginTop: 8 }}>已提交 ✓</div>}
-        </div>
-      )}
+      <EvidencePicker
+        open={evPickerOpen}
+        evidence={courtCase.evidence}
+        onSelect={pickEvidence}
+        onClose={() => setEvPickerOpen(false)}
+      />
 
     </div>
   )

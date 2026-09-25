@@ -3,6 +3,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { randomUUID } from "node:crypto";
 import type {
+  CourtCardPlay,
+  CourtCardType,
   CourtCase,
   CourtTrialEvent,
   EvidenceType,
@@ -36,7 +38,7 @@ function parsePerspective(p: unknown): Perspective {
 }
 
 /** 进行中的庭审会话（用于 player-input 入队）。 */
-const courtSessions = new Map<string, { inputs: import("@balabala/shared").CourtPlayerInput[] }>();
+const courtSessions = new Map<string, { inputs: import("@balabala/shared").CourtPlayerInput[]; cardPlays: CourtCardPlay[] }>();
 
 export function registerCourtRoutes(
   app: FastifyInstance,
@@ -189,7 +191,7 @@ export function registerCourtRoutes(
 
     // 初始化会话
     courtSessions.delete(id);
-    courtSessions.set(id, { inputs: [] });
+    courtSessions.set(id, { inputs: [], cardPlays: [] });
 
     // 客户端断连即 abort：终止庭审，避免僵尸会话占满 LLM 并发。
     const ac = new AbortController();
@@ -231,6 +233,11 @@ export function registerCourtRoutes(
         markPlayerInputHandled: (inputId) => {
           const session = courtSessions.get(id);
           if (session) session.inputs = session.inputs.filter((i) => i.id !== inputId);
+        },
+        getPendingCardPlays: () => courtSessions.get(id)?.cardPlays ?? [],
+        markCardPlayHandled: (playId) => {
+          const session = courtSessions.get(id);
+          if (session) session.cardPlays = session.cardPlays.filter((p) => p.id !== playId);
         },
       });
     } catch (err) {
@@ -277,6 +284,31 @@ export function registerCourtRoutes(
     if (session) session.inputs.push(input);
 
     return { ok: true, inputId: input.id };
+  });
+
+  // ---- 玩家出牌（预制牌 + 弹药，阻塞由编排器等待）----
+  app.post("/api/court/cases/:id/play-card", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as {
+      userId?: string;
+      card?: CourtCardType;
+      targetEvidenceId?: string;
+      freeText?: string;
+    };
+    const c = db.getCourtCase(id);
+    if (!c) return reply.code(404).send({ message: "案件不存在" });
+    if (!body.userId || !body.card) return reply.code(400).send({ message: "userId, card 为必填" });
+    const valid: CourtCardType[] = ["attack", "evidence", "mock", "request_record"];
+    if (!valid.includes(body.card)) return reply.code(400).send({ message: "非法的牌型" });
+    const play: CourtCardPlay = {
+      id: `ccp-${randomUUID()}`,
+      card: body.card,
+      targetEvidenceId: body.targetEvidenceId,
+      freeText: (body.freeText ?? "").slice(0, 500),
+    };
+    const session = courtSessions.get(id);
+    if (session) session.cardPlays.push(play);
+    return { ok: true, playId: play.id };
   });
 
   // ---- 查询案件（视角过滤）----

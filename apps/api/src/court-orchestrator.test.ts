@@ -145,10 +145,10 @@ describe("court-orchestrator", () => {
     // 验证有 verdict 事件
     const verdictEvent = events.find((e) => e.type === "court_verdict") as { type: "court_verdict"; verdict: { verdict: string } } | undefined;
     expect(verdictEvent).toBeDefined();
-    expect(verdictEvent!.verdict.verdict).toBe("plaintiff");
+    expect(verdictEvent!.verdict.verdict).toBe("mixed");
 
     // 验证返回值
-    expect(result.verdict.verdict).toBe("plaintiff");
+    expect(result.verdict.verdict).toBe("mixed");
     expect(result.turns.length).toBeGreaterThan(0);
 
     // 验证案件状态为 COMPLETED
@@ -222,7 +222,7 @@ describe("court-orchestrator", () => {
       userId: "u1",
       player_role: "plaintiff",
       type: "evidence",
-      content: "玩家出示录音证据",
+      content: "录音证明凌晨施工构成扰民",
       createdAt: new Date().toISOString(),
     };
 
@@ -242,7 +242,7 @@ describe("court-orchestrator", () => {
     expect(mEvents.length).toBeGreaterThan(0);
     // 初始广播 50:50。新流程：AI 原告先自动发言 +3（→53），玩家提交证据再 +8（→61）。
     expect(mEvents[0].momentum).toEqual({ plaintiff: 50, defendant: 50 });
-    expect(mEvents.some((e) => e.momentum.plaintiff === 61)).toBe(true);
+    expect(mEvents.some((e) => e.momentum.plaintiff === 55)).toBe(true);
   });
 
   it("玩家超时未发言：由辩护人/AI 代述兜底，庭审不卡死", async () => {
@@ -327,7 +327,7 @@ describe("court-orchestrator", () => {
 
     // prompt 应包含玩家发言记录与最终 momentum
     expect(verdictPrompt).toContain("我有施工许可");
-    expect(verdictPrompt).toContain("局势优势条");
+    expect(verdictPrompt).toContain("终局天平");
     expect(verdictPrompt).toContain("被告方"); // 玩家扮演被告
   });
 
@@ -390,5 +390,67 @@ describe("court-orchestrator", () => {
     const badChat: ChatFn = vi.fn(async () => { throw new Error("down"); });
     const r2 = await draftStory(badChat);
     expect(r2.description.length).toBeGreaterThan(10);
+  });
+});
+
+// ===== Round2 重构：预制牌 + 天平（新增覆盖）=====
+describe("court-orchestrator 预制牌 + 天平", () => {
+  let ctx: { mod: typeof import("./db.js"); dir: string };
+  beforeEach(async () => {
+    const dir = mkdtempSync(join(tmpdir(), "balabala-court-cards-"));
+    process.env.DB_PATH = join(dir, "test.db");
+    vi.resetModules();
+    const mod = await import("./db.js");
+    ctx = { mod, dir };
+  });
+  afterAll(() => { try { ctx.mod.db.close(); } catch { /* ignore */ } try { rmSync(ctx.dir, { recursive: true, force: true }); } catch { /* ignore */ } });
+
+  it("结构化出牌：attack 命中 → court_card_resolved 事件 + 天平向玩家方移动", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试案情");
+    const chat = makeMockChat();
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+    const events: CourtTrialEvent[] = [];
+    const plays = [{ id: "play-1", card: "attack" as const, freeText: "凌晨施工显然构成扰民" }];
+    await runCourtTrial({
+      caseId: c.id, chat, perspective: "plaintiff", playerSide: "plaintiff",
+      playerTurnTimeoutMs: 300, playerTurnPollMs: 20,
+      onEvent: (e) => events.push(e),
+      getPendingPlayerInputs: () => [], markPlayerInputHandled: vi.fn(),
+      getPendingCardPlays: () => plays, markCardPlayHandled: vi.fn(),
+    });
+    const resolved = events.find((e) => e.type === "court_card_resolved") as { type: "court_card_resolved"; hit: boolean; delta: number } | undefined;
+    expect(resolved).toBeDefined();
+    expect(resolved!.hit).toBe(true);
+    expect(resolved!.delta).toBe(6);
+    const balances = events.filter((e) => e.type === "court_balance_update") as Array<{ type: "court_balance_update"; balance: { plaintiff: number } }>;
+    expect(balances.some((b) => b.balance.plaintiff > 50)).toBe(true);
+    const verdict = events.find((e) => e.type === "court_verdict") as { type: "court_verdict"; verdict: { player_moves?: unknown[]; final_balance?: unknown } } | undefined;
+    expect(verdict).toBeDefined();
+    expect(verdict!.verdict.player_moves?.length).toBeGreaterThan(0);
+    expect(verdict!.verdict.final_balance).toBeDefined();
+  });
+
+  it("弹药上限：玩家只有 2 点弹药，第 3 张耗弹药牌不会被打出", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试案情");
+    const chat = makeMockChat();
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+    const events: CourtTrialEvent[] = [];
+    const plays = [
+      { id: "p1", card: "attack" as const, freeText: "凌晨施工构成扰民" },
+      { id: "p2", card: "attack" as const, freeText: "损失应当赔偿" },
+      { id: "p3", card: "attack" as const, freeText: "这条不该被打出" },
+    ];
+    await runCourtTrial({
+      caseId: c.id, chat, perspective: "plaintiff", playerSide: "plaintiff",
+      playerTurnTimeoutMs: 200, playerTurnPollMs: 20,
+      onEvent: (e) => events.push(e),
+      getPendingPlayerInputs: () => [], markPlayerInputHandled: vi.fn(),
+      getPendingCardPlays: () => plays, markCardPlayHandled: vi.fn(),
+    });
+    expect(events.filter((e) => e.type === "court_card_resolved").length).toBe(2);
   });
 });

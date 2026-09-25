@@ -1,10 +1,94 @@
 // ===== M13: 趣味法庭纯逻辑模块（可独立测试，无网络/无 IO）=====
 import type {
+  CourtCardType,
   CourtCase,
   CourtCaseStatus,
   CourtTurn,
   Perspective,
 } from "@balabala/shared";
+
+// ===== 天平 / 预制牌（纯函数）=====
+export type CourtSide = "plaintiff" | "defendant";
+
+export interface BalanceState { plaintiff: number; defendant: number; }
+export const MAX_ROUNDS = 3;
+export const PLAYER_AMMO_PER_ROUND = 2;
+export const HAND_CARDS: CourtCardType[] = ["attack", "evidence", "mock", "request_record"];
+export const CARD_AMMO_COST: Record<CourtCardType, number> = { attack: 1, evidence: 1, mock: 1, request_record: 0 };
+
+export function applyBalance(balance: BalanceState, side: CourtSide, delta: number): BalanceState {
+  const nextSide = Math.max(0, Math.min(100, Math.round(balance[side] + delta)));
+  return side === "plaintiff"
+    ? { plaintiff: nextSide, defendant: 100 - nextSide }
+    : { plaintiff: 100 - nextSide, defendant: nextSide };
+}
+
+export function decideWinnerFromBalance(balance: BalanceState): "plaintiff" | "defendant" | "mixed" {
+  if (balance.plaintiff > balance.defendant) return "plaintiff";
+  if (balance.defendant > balance.plaintiff) return "defendant";
+  return "mixed";
+}
+
+function bigrams(s: string): Set<string> {
+  const t = s.replace(/[\s，。、；：？！「」『』"'（）()【】《》·,.!?;:]/g, "");
+  const grams = new Set<string>();
+  for (let i = 0; i < t.length - 1; i += 1) grams.add(t.slice(i, i + 2));
+  return grams;
+}
+
+export function matchUnresolved(text: string, unresolved: string[]): string | null {
+  if (!text.trim() || unresolved.length === 0) return null;
+  const grams = bigrams(text);
+  for (const point of unresolved) {
+    for (const g of bigrams(point)) if (grams.has(g)) return point;
+  }
+  return null;
+}
+
+export interface CardResolutionInput {
+  unresolved: string[];
+  evidencePool: Array<{ id: string; name: string; content: string }>;
+  targetEvidenceId?: string;
+  freeText?: string;
+  mockOutrageous?: boolean;
+}
+export interface CardResolution {
+  delta: number;
+  hit: boolean;
+  judgeComment: string;
+  resolvedPoint?: string;
+  addedFact?: string;
+}
+
+export function resolveCard(card: CourtCardType, input: CardResolutionInput): CardResolution {
+  switch (card) {
+    case "attack": {
+      const point = matchUnresolved((input.freeText ?? "").trim(), input.unresolved);
+      return point
+        ? { delta: 6, hit: true, judgeComment: `此论点直击争议焦点「${point}」，天平向你方倾斜。` }
+        : { delta: 1, hit: false, judgeComment: "论点与本案争议关联不强，仅略微占上风。" };
+    }
+    case "evidence": {
+      const ev = input.evidencePool.find((e) => e.id === input.targetEvidenceId);
+      if (!ev) return { delta: 0, hit: false, judgeComment: "本席没有可出示的对应证据。" };
+      const point = matchUnresolved(`${ev.name} ${ev.content}`, input.unresolved);
+      return point
+        ? { delta: 8, hit: true, resolvedPoint: point, judgeComment: `证据「${ev.name}」与「${point}」直接相关，此点已查明。` }
+        : { delta: 2, hit: false, judgeComment: `证据「${ev.name}」与本案争议关联不强。` };
+    }
+    case "mock": {
+      return input.mockOutrageous
+        ? { delta: -3, hit: false, judgeComment: "嘲讽越界、有失法庭体面，法官警告：天平反向。" }
+        : { delta: 3, hit: true, judgeComment: "幽默得当，法庭气氛向你方倾斜。" };
+    }
+    case "request_record": {
+      const fact = (input.freeText ?? "").trim();
+      return { delta: 0, hit: false, addedFact: fact || "（玩家请求记录在案）", judgeComment: "已将此节记入庭审记录，双方均可援引。" };
+    }
+    default:
+      return { delta: 0, hit: false, judgeComment: "无效的出牌。" };
+  }
+}
 
 // ===== 状态机 =====
 export type CourtTransitionEvent =
