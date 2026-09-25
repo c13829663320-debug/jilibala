@@ -224,6 +224,31 @@ export interface WerewolfPublicPlayer {
   isAI: boolean;
 }
 
+// ===== Round2：白天自由发言窗口的结构化动作牌 =====
+export type WerewolfDayAction =
+  | { kind: "claim_role"; role: "seer" | "witch" | "hunter" | "villager" }
+  | { kind: "report_check"; seat: number; isWolf: boolean }   // 仅预言家可用
+  | { kind: "suspect"; seat: number; reason?: string }
+  | { kind: "defend"; seat: number }
+  | { kind: "pass" };
+
+export interface WerewolfDayActionRecord {
+  day: number;
+  seat: number;        // 发起者
+  nickname: string;
+  action: WerewolfDayAction;
+}
+
+/** 对局结束后按玩家视角生成的复盘（私下发给本人）。 */
+export interface WerewolfPersonalReport {
+  winner: WerewolfWinner;
+  myRole: WerewolfRole;
+  myKeyActions: Array<{ day: number; action: string; outcome: string }>;
+  reasoningScore: number;   // 0-100
+  mvpSeat: number;
+  highlights: string[];
+}
+
 /** 狼人杀公开日志条目。 */
 export interface WerewolfLogEntry {
   id: string;
@@ -270,6 +295,13 @@ export interface WerewolfPlayerSnapshot {
   /** 当前阶段该玩家需要执行的行动提示，如 "kill" | "check" | "heal_poison" | "speak" | "vote" | null */
   pendingAction?: string | null;
   actionDeadlineMs?: number;
+  // —— Round2：白天自由发言窗口 ——
+  /** 当前白天已发生的结构化动作牌（断线重连恢复标签）。 */
+  dayActions?: WerewolfDayActionRecord[];
+  /** 本玩家是否已是幽灵观众（出局但留在局内观战）。 */
+  spectator?: boolean;
+  /** 自由发言窗口关闭的时间戳（ms），前端倒计时用。 */
+  speechWindowEndsAt?: number;
 }
 
 /** 狼人杀广播事件（公开信息，全员含旁观可见）。 */
@@ -282,6 +314,8 @@ export type WerewolfBroadcastEvent =
   | { type: "game_end"; winner: WerewolfWinner; report?: WerewolfReportData }
   | { type: "player_joined"; player: WerewolfPublicPlayer }
   | { type: "player_left"; seat: number }
+  | { type: "day_action"; record: WerewolfDayActionRecord }
+  | { type: "spectator_notify"; seat: number; day: number }
   | { type: "log"; entry: WerewolfLogEntry };
 
 /** 客户端 → 服务端 狼人杀行动。 */
@@ -291,6 +325,7 @@ export type WerewolfClientAction =
   | { type: "night_check"; targetSeat: number }
   | { type: "night_witch"; heal: boolean; poisonTargetSeat: number | null }
   | { type: "day_speech"; text: string }
+  | { type: "day_action"; action: WerewolfDayAction }
   | { type: "day_vote"; targetSeat: number | null }
   | { type: "hunter_shot"; targetSeat: number | null }
   | { type: "request_snapshot" };
@@ -446,6 +481,7 @@ export type WSMessage =
   | { type: 'werewolf_snapshot'; snapshot: WerewolfPlayerSnapshot }
   | { type: 'werewolf_event'; event: WerewolfBroadcastEvent }
   | { type: 'werewolf_action'; action: WerewolfClientAction }
+  | { type: 'werewolf_report'; report: WerewolfPersonalReport }
   | { type: 'court_event'; event: CourtTrialEvent }
   | { type: 'court_perspective'; perspective: Perspective }
   | { type: 'court_snapshot_v2'; case: CourtCase }

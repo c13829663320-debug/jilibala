@@ -15,6 +15,7 @@ import {
   nightGoodAction,
   drainPrivateNotes,
   calculatePerformance,
+  generatePersonalReport,
   setFastMode,
 } from "./werewolf-orchestrator.js";
 
@@ -126,6 +127,17 @@ export function registerWerewolfRoutes(
     const perf = calculatePerformance(gameId, userId);
     if (!perf) return reply.code(404).send({ message: "对局不存在。" });
     return perf;
+  });
+
+  // ===== Round2：私人复盘（断线重连兜底；正常流程走 werewolf_report WS 推送）=====
+  app.get("/api/werewolf/:gameId/report", async (req, reply) => {
+    const { gameId } = req.params as { gameId: string };
+    const query = req.query as { userId?: string };
+    const userId = (query.userId ?? "").trim();
+    if (!userId) return reply.code(400).send({ message: "缺少 userId。" });
+    const report = generatePersonalReport(gameId, userId);
+    if (!report) return reply.code(404).send({ message: "对局不存在。" });
+    return report;
   });
 
   // ===== P0：加速模式（2x AI 发言）=====

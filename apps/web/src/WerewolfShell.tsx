@@ -5,13 +5,18 @@ import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSoc
 import type {
   WerewolfPlayerSnapshot, WerewolfBroadcastEvent, WerewolfClientAction,
   WerewolfPublicPlayer, WerewolfReportData, WerewolfRole, WSMessage,
+  WerewolfDayAction, WerewolfDayActionRecord, WerewolfPersonalReport,
 } from '@balabala/shared'
+import DayActionBar from './werewolf/DayActionBar'
+import PlayerTagOverlay from './werewolf/PlayerTagOverlay'
+import SpectatorMode from './werewolf/SpectatorMode'
+import WerewolfRecap from './werewolf/WerewolfRecap'
 
 const WerewolfView = lazy(() => import('./WerewolfView'))
 
 const WOLF_RED = '#ff2a3a'
 const GOOD_GOLD = '#4fb3a5'
-const BRAND_YELLOW = '#FFD60A'
+const BRAND_YELLOW = '#FFD600'
 
 /** 本局表现评分（与后端 werewolf-orchestrator 对齐，本地定义避免改 shared）。 */
 interface WerewolfPerformance {
@@ -95,6 +100,11 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
   const [qaPickTarget, setQaPickTarget] = useState<'accuse' | 'rally' | null>(null)
   const [microDone, setMicroDone] = useState(false)
 
+  // ===== Round2：白天动作标签 / 私人复盘 / 幽灵观战 =====
+  const [dayActions, setDayActions] = useState<WerewolfDayActionRecord[]>([])
+  const [personalReport, setPersonalReport] = useState<WerewolfPersonalReport | null>(null)
+  const [nowTs, setNowTs] = useState(Date.now())
+
   // ===== 本地 UI 状态 =====
   const [speechText, setSpeechText] = useState('')
   const [selKillTarget, setSelKillTarget] = useState<number | null>(null)
@@ -131,9 +141,13 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
           break
         case 'werewolf_snapshot':
           setSnapshot(msg.snapshot)
+          if (msg.snapshot.dayActions) setDayActions(msg.snapshot.dayActions)
           break
         case 'werewolf_event':
           handleEvent(msg.event)
+          break
+        case 'werewolf_report':
+          setPersonalReport(msg.report)
           break
       }
     },
@@ -228,7 +242,11 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
         if (event.report) setReport(event.report)
         if (gameId && user?.userId) void fetchPerformance(gameId, user.userId)
         break
+      case 'day_action':
+        setDayActions((prev) => [...prev, event.record])
+        break
       case 'phase_change':
+        if (event.phase === 'speech') setDayActions([])
         if (gameId && user?.userId && event.phase === 'day_announce') void fetchNotes(gameId, user.userId)
         break
       default:
@@ -236,6 +254,17 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
         break
     }
   }, [gameId, user?.userId, fetchPerformance, fetchNotes])
+
+  // Round2：1s 滴答，驱动发言窗口倒计时。
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTs(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  // Round2：把结构化动作牌发给服务端。
+  const sendDayAction = useCallback((action: WerewolfDayAction) => {
+    sendAction({ type: 'day_action', action })
+  }, [sendAction])
 
   // ===== 开始游戏（房主） =====
   const startGame = async () => {
@@ -418,81 +447,21 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
     )
   }
 
-  // ===== 游戏结束 =====
+  // ===== 游戏结束：Round2 复盘页 =====
   if (phase === 'ended') {
-    const winner = snapshot?.winner
     return (
-      <div style={{ position: 'fixed', inset: 0, background: '#0A0A0A', color: '#EDEDF0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>
-        <div style={{ width: 520, maxHeight: '90vh', overflowY: 'auto', ...panel }}>
-          <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 52 }}>{winner === 'wolf' ? '🐺' : '☀️'}</div>
-            <h2 style={{ margin: '8px 0', fontSize: 26, color: winner === 'wolf' ? WOLF_RED : GOOD_GOLD }}>
-              {winner === 'wolf' ? '狼人胜利' : '好人胜利'}
-            </h2>
-            <p style={{ color: 'rgba(237,237,240,0.48)', fontSize: 13 }}>共进行了 {report?.totalDays ?? day} 天</p>
-          </div>
-
-          {/* P0：本局表现 */}
-          {perf && (
-            <div style={{ marginBottom: 14, padding: 12, background: 'rgba(255,214,10,0.08)', borderRadius: 10, border: '1px solid rgba(255,214,10,0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: BRAND_YELLOW }}>🏅 本局表现</span>
-                <span style={{ fontSize: 24, fontWeight: 800, color: BRAND_YELLOW }}>{perf.score}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'rgba(237,237,240,0.7)' }}>
-                <span>生存 {perf.survivedDays} 天</span>
-                <span>投票正确率 {Math.round(perf.voteAccuracy * 100)}%（{perf.correctVotes}/{perf.totalVotes}）</span>
-                <span style={{ color: perf.won ? GOOD_GOLD : WOLF_RED }}>{perf.won ? '阵营胜利' : '阵营惜败'}</span>
-              </div>
-              {perf.keyActions.length > 0 && (
-                <div style={{ marginTop: 8, fontSize: 11.5, color: 'rgba(237,237,240,0.5)' }}>
-                  关键操作：{perf.keyActions.join('、')}
-                </div>
-              )}
-            </div>
-          )}
-          {isPreview && (
-            <div style={{ marginBottom: 14, padding: 12, background: 'rgba(255,214,10,0.08)', borderRadius: 10, border: '1px solid rgba(255,214,10,0.3)' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: BRAND_YELLOW }}>🏅 本局表现</div>
-              <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.7)', marginTop: 4 }}>生存 3 天 · 投票正确率 50% · 阵营胜利</div>
-            </div>
-          )}
-
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
-
-          <h3 style={{ fontSize: 14, color: WOLF_RED, margin: '0 0 8px' }}>全员身份揭示</h3>
-          <div>
-            {report?.players ? report.players.map((rp) => {
-              const info = ROLE_INFO[rp.role]
-              return (
-                <div key={rp.seat} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', background: '#0F0F0F', borderRadius: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, width: 24, color: 'rgba(237,237,240,0.48)' }}>{rp.seat + 1}号</span>
-                  <span style={{ fontSize: 14, flex: 1 }}>{rp.nickname}</span>
-                  {info && <span style={{ fontSize: 13 }}>{info.emoji} {info.label}</span>}
-                  {!rp.survived && <Skull size={14} color="rgba(237,237,240,0.3)" />}
-                </div>
-              )
-            }) : players.map((p) => (
-              <div key={p.seat} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', background: '#0F0F0F', borderRadius: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 13, width: 24, color: 'rgba(237,237,240,0.48)' }}>{p.seat + 1}号</span>
-                <span style={{ fontSize: 14, flex: 1 }}>{p.nickname}</span>
-                {!p.alive && <Skull size={14} color="rgba(237,237,240,0.3)" />}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
-          <button onClick={() => void publishToPlaza()} disabled={publishing} style={{ ...btn, width: '100%', justifyContent: 'center', background: '#EDEDF0', color: '#0A0A0A', fontWeight: 700 }}>
-            <Upload size={15} /> {publishMsg || '发布战报到广场'}
-          </button>
-          <button onClick={restart} style={{ ...btn, width: '100%', justifyContent: 'center', marginTop: 8, background: '#1A1A1A' }}>
-            再来一局
-          </button>
-          {onPlaza && <button onClick={onPlaza} style={{ ...btn, width: '100%', justifyContent: 'center', marginTop: 8, background: 'transparent', border: '1px solid rgba(255,255,255,0.14)' }}>
-            去广场
-          </button>}
-        </div>
-      </div>
+      <WerewolfRecap
+        winner={snapshot?.winner ?? null}
+        personal={personalReport}
+        perf={perf}
+        publicReport={report}
+        players={players}
+        publishing={publishing}
+        publishMsg={publishMsg}
+        onPublish={() => void publishToPlaza()}
+        onRestart={restart}
+        onPlaza={onPlaza}
+      />
     )
   }
 
@@ -529,6 +498,11 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
           {onPlaza && <button onClick={onPlaza} style={{ ...btn, background: '#EDEDF0', color: '#0A0A0A', fontWeight: 700 }}>去广场</button>}
         </div>
       </div>
+
+      {/* Round2：出局幽灵观战顶栏 */}
+      {snapshot?.spectator && phase !== 'lobby' && (
+        <SpectatorMode day={day} />
+      )}
 
       {/* 大厅等待面板 */}
       {phase === 'lobby' && (
@@ -676,45 +650,38 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
             </ActionBlock>
           )}
 
-          {/* 白天发言 */}
-          {phase === 'speech' && (
-            isMyTurnSpeak ? (
-              <ActionBlock title="🗣️ 你的发言" hint="点快捷动作可自动套话术，再编辑发送">
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
-                  <QuickBtn label="🔮 跳预言家" color={BRAND_YELLOW} onClick={() => onQuickButton('claim_seer')} />
-                  <QuickBtn label="🔪 查杀" color={WOLF_RED} onClick={() => onQuickButton('accuse')} />
-                  <QuickBtn label="📢 带人上票" color={GOOD_GOLD} onClick={() => onQuickButton('rally')} />
-                  <QuickBtn label="🛡️ 辩解" color="#8a90a6" onClick={() => onQuickButton('defend')} />
-                </div>
-                {qaPickTarget && (
-                  <div style={{ marginBottom: 8, padding: 8, background: '#1a1a1a', borderRadius: 8 }}>
-                    <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.6)', marginBottom: 6 }}>
-                      {qaPickTarget === 'accuse' ? '选择要查杀的玩家：' : '选择要带票的玩家：'}
-                    </div>
-                    {alivePlayers.filter((p) => p.seat !== mySeat).map((p) => (
-                      <TargetButton key={p.seat} seat={p.seat} nickname={p.nickname} selected={false} onClick={() => onPickQaTarget(p.seat)} />
-                    ))}
-                  </div>
-                )}
+          {/* Round2：白天 90s 自由发言窗口 */}
+          {phase === 'speech' && myPlayer?.alive && (
+            <>
+              <DayActionBar
+                players={players}
+                mySeat={mySeat ?? 0}
+                myRole={myRole}
+                seerResults={snapshot?.seerResults}
+                secondsLeft={Math.max(0, Math.round(((snapshot?.speechWindowEndsAt ?? 0) - nowTs) / 1000))}
+                onAction={sendDayAction}
+              />
+              <ActionBlock title="✍️ 自由发言" hint="窗口内随时发送，不阻塞别人">
                 <textarea
                   value={speechText}
                   onChange={(e) => setSpeechText(e.target.value)}
                   placeholder="说说你的判断…"
-                  maxLength={500}
-                  rows={4}
+                  maxLength={200}
+                  rows={3}
                   style={textarea}
                 />
-                <button onClick={doSpeech} disabled={!speechText.trim()} style={{ ...btn, marginTop: 6, width: '100%', justifyContent: 'center', background: '#EDEDF0', color: '#0A0A0A', fontWeight: 700 }}>
-                  <Send size={14} /> 提交发言
+                <button onClick={doSpeech} disabled={!speechText.trim()} style={{ ...btn, marginTop: 6, width: '100%', justifyContent: 'center', background: BRAND_YELLOW, color: '#000', fontWeight: 700 }}>
+                  <Send size={14} /> 发送发言
                 </button>
               </ActionBlock>
-            ) : (
-              <ActionBlock title="🗣️ 正在发言" hint="">
-                <p style={{ fontSize: 13, color: 'rgba(237,237,240,0.48)', margin: 0 }}>
-                  {snapshot?.currentSpeakerSeat != null ? `${snapshot.currentSpeakerSeat + 1}号 正在发言…` : '等待发言…'}
-                </p>
-              </ActionBlock>
-            )
+            </>
+          )}
+          {phase === 'speech' && myPlayer && !myPlayer.alive && (
+            <ActionBlock title="👻 幽灵观战" hint="你已出局，看大家自由辩论">
+              <p style={{ fontSize: 12, color: 'rgba(237,237,240,0.45)', margin: 0 }}>
+                不能发言 / 打动作牌，但可以看全场标签和日志。
+              </p>
+            </ActionBlock>
           )}
 
           {/* 投票 */}
@@ -766,6 +733,7 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
           </div>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(237,237,240,0.48)', marginBottom: 6 }}>玩家状态</div>
+            <PlayerTagOverlay records={dayActions} />
             {players.map((p) => (
               <div key={p.seat} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', fontSize: 12 }}>
                 <span style={{ width: 24, color: p.alive ? '#9a9c92' : '#555' }}>{p.seat + 1}号</span>

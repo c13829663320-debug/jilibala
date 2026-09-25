@@ -486,3 +486,142 @@ describe("werewolf P0：快捷动作 / 夜晚微操作 / 表现评分", () => {
     expect(perf.voteAccuracy).toBe(0);
   });
 });
+
+describe("werewolf Round2：自由窗口动作牌 / 幽灵观战 / 复盘", () => {
+  let ctx: { mod: WerewolfModule; dbmod: DbModule; dir: string; broadcast: ReturnType<typeof vi.fn>; sendToUser: ReturnType<typeof vi.fn> };
+
+  beforeEach(async () => {
+    ctx = await loadWerewolf();
+  });
+
+  afterAll(() => {
+    try { ctx.dbmod.db.close(); } catch { /* ignore */ }
+    delete process.env.DB_PATH;
+    try { rmSync(ctx.dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  function forceSpeech(gameId: string) {
+    const g = getInternal(ctx.mod, gameId) as unknown as { phase: string };
+    g.phase = "speech";
+  }
+
+  it("submitDayAction suspect：广播 day_action 并写回动作日志", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    forceSpeech(gameId);
+    const g = getInternal(ctx.mod, gameId);
+    const target = g.players.find((p) => p.userId !== "host-1")!;
+
+    const res = ctx.mod.submitDayAction(gameId, "host-1", { kind: "suspect", seat: target.seat });
+    expect(res.ok).toBe(true);
+
+    const ev = ctx.broadcast.mock.calls.find(
+      ([, e]) => e.type === "day_action",
+    ) as unknown as [string, { record: { seat: number; action: { kind: string; seat: number } } }] | undefined;
+    expect(ev).toBeTruthy();
+    expect(ev![1].record.seat).toBe(0);
+    expect(ev![1].record.action.kind).toBe("suspect");
+    expect(ev![1].record.action.seat).toBe(target.seat);
+  });
+
+  it("submitDayAction：claim_role 记录跳身份；非预言家 report_check 被拒", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    forceSpeech(gameId);
+    const g = getInternal(ctx.mod, gameId) as unknown as { players: Array<{ userId: string; role: string }> };
+    g.players.find((p) => p.userId === "host-1")!.role = "villager";
+
+    expect(ctx.mod.submitDayAction(gameId, "host-1", { kind: "claim_role", role: "seer" }).ok).toBe(true);
+    // 村民不能报查验
+    expect(ctx.mod.submitDayAction(gameId, "host-1", { kind: "report_check", seat: 1, isWolf: true }).ok).toBe(false);
+
+    // 改成真预言家后可报查验
+    g.players.find((p) => p.userId === "host-1")!.role = "seer";
+    const ok = ctx.mod.submitDayAction(gameId, "host-1", { kind: "report_check", seat: 2, isWolf: false });
+    expect(ok.ok).toBe(true);
+  });
+
+  it("submitDayAction：死人 / 非发言阶段被拒", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    // phase=night，不在发言窗口
+    expect(ctx.mod.submitDayAction(gameId, "host-1", { kind: "pass" }).ok).toBe(false);
+    forceSpeech(gameId);
+    // 把 host 弄死
+    const g = getInternal(ctx.mod, gameId) as unknown as { players: Array<{ userId: string; alive: boolean }> };
+    g.players.find((p) => p.userId === "host-1")!.alive = false;
+    expect(ctx.mod.submitDayAction(gameId, "host-1", { kind: "pass" }).ok).toBe(false);
+  });
+
+  it("day_speech：自由窗口内任意存活玩家都能发言，不再等待 currentSpeaker", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    forceSpeech(gameId);
+    ctx.mod.handleAction(gameId, "host-1", { type: "day_speech", text: "我是铁好人，过。" });
+    const saw = ctx.broadcast.mock.calls.some(
+      ([, e]) => e.type === "speech" && e.seat === 0 && e.text.includes("铁好人"),
+    );
+    expect(saw).toBe(true);
+  });
+
+  it("computeDeadlineWinner：狼>=好人狼胜，否则好人胜（MAX_DAYS 兜底）", () => {
+    const wolf = { players: [
+      { alive: true, role: "werewolf" },
+      { alive: true, role: "werewolf" },
+      { alive: true, role: "villager" },
+    ] };
+    expect(ctx.mod.computeDeadlineWinner(wolf as never)).toBe("wolf");
+
+    const good = { players: [
+      { alive: true, role: "werewolf" },
+      { alive: true, role: "villager" },
+      { alive: true, role: "seer" },
+      { alive: false, role: "werewolf" },
+    ] };
+    expect(ctx.mod.computeDeadlineWinner(good as never)).toBe("good");
+  });
+
+  it("幽灵观战：出局后 snapshot.spectator=true，仍可见全场 9 人", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    const g = getInternal(ctx.mod, gameId) as unknown as {
+      players: Array<{ userId: string; alive: boolean }>;
+      spectators: Set<number>;
+    };
+    const host = g.players.find((p) => p.userId === "host-1")!;
+    host.alive = false;
+    g.spectators.add(0);
+
+    const snap = ctx.mod.getSnapshotForPlayer(gameId, "host-1");
+    expect(snap.spectator).toBe(true);
+    expect(snap.players.length).toBe(9);
+    // 幽灵仍能看到公开玩家列表，但不能再发言（alive=false 服务端已拦）
+    expect(ctx.mod.submitDayAction(gameId, "host-1", { kind: "pass" }).ok).toBe(false);
+  });
+
+  it("generatePersonalReport：推理分 0-100、MVP 座位合法、含高光", () => {
+    const gameId = startOneHumanGame(ctx.mod);
+    const g = getInternal(ctx.mod, gameId) as unknown as {
+      winner: "wolf" | "good";
+      day: number;
+      players: Array<{
+        userId: string; role: string; alive: boolean;
+        deathDay?: number; correctVotes: number; totalVotes: number; quickActions: string[];
+      }>;
+    };
+    const host = g.players.find((p) => p.userId === "host-1")!;
+    host.role = "seer";
+    host.alive = false;
+    host.deathDay = 3;
+    host.correctVotes = 2;
+    host.totalVotes = 4;
+    host.quickActions = ["起跳预言家", "怀疑 3号"];
+    g.winner = "good";
+    g.day = 4;
+
+    const report = ctx.mod.generatePersonalReport(gameId, "host-1")!;
+    expect(report.myRole).toBe("seer");
+    expect(report.winner).toBe("good");
+    expect(report.reasoningScore).toBeGreaterThanOrEqual(0);
+    expect(report.reasoningScore).toBeLessThanOrEqual(100);
+    expect(report.mvpSeat).toBeGreaterThanOrEqual(0);
+    expect(report.mvpSeat).toBeLessThan(9);
+    expect(Array.isArray(report.highlights)).toBe(true);
+    expect(report.myKeyActions.length).toBeGreaterThan(0);
+  });
+});

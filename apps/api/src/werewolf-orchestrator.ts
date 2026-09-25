@@ -16,6 +16,9 @@ import {
   type WerewolfBroadcastEvent,
   type WerewolfClientAction,
   type WerewolfWinner,
+  type WerewolfDayAction,
+  type WerewolfDayActionRecord,
+  type WerewolfPersonalReport,
   type WSMessage,
 } from "@balabala/shared";
 import { resolveCharacter } from "./character-resolver.js";
@@ -34,15 +37,24 @@ const ROLE_DISTRIBUTION: WerewolfRole[] = [
 const WOLF_TIMEOUT = 15000;
 const SEER_TIMEOUT = 8000;
 const WITCH_TIMEOUT = 12000;
-const SPEECH_TIMEOUT = 20000;
+/** Round2：白天不再"每人依次 20s"，而是全体 90s 自由发言窗口。 */
+const SPEECH_WINDOW = 90000;
 const VOTE_TIMEOUT = 20000;
 const HUNTER_TIMEOUT = 15000;
+/** Round2：最多进行 4 个昼夜，第 4 天结束强制终局。 */
+const MAX_DAYS = 4;
 const AI_CALL_GAP = 150; // AI LLM 调用之间的礼让间隔，避免 StepFun 限流
 
 // 快速模式：前端点「加速」后大幅缩短 AI 发言间隔（P0 压缩等待）。
 let fastModeGlobal = false;
 export function setFastMode(on: boolean): void {
   fastModeGlobal = on;
+}
+
+/** 测试缝：可缩短白天自由发言窗口，避免单例 90s 等待。 */
+let speechWindowMs = SPEECH_WINDOW;
+export function setSpeechWindowMs(ms: number): void {
+  speechWindowMs = ms;
 }
 
 // ===== 工具函数 =====
@@ -142,6 +154,8 @@ interface WerewolfGame {
     speeches: Map<number, string>;
     votes: Map<number, number | null>;
     currentSpeakerSeat?: number;
+    /** Round2：本白天窗口内的结构化动作牌。 */
+    dayActions: WerewolfDayActionRecord[];
   };
   seerResults: Array<{ seat: number; isWolf: boolean; day: number }>;
   hunterPending: number | null;
@@ -157,6 +171,15 @@ interface WerewolfGame {
   pendingObservations: Array<{ observerSeat: number; targetSeat: number; day: number }>;
   /** 快速模式：缩短 AI 发言等待间隔（前端可开启 2x）。 */
   fastMode: boolean;
+  // —— Round2 新增 ——
+  /** 出局玩家座位集合：alive=false 但留在局内当幽灵观众。 */
+  spectators: Set<number>;
+  /** 跨天累积的动作牌记录（复盘 / AI 上下文用）。 */
+  dayActionsLog: WerewolfDayActionRecord[];
+  /** 自由发言窗口关闭时间戳（ms）。 */
+  speechWindowEndsAt?: number;
+  /** 本局 MVP 座位（结束时计算）。 */
+  mvpSeat: number | null;
   /** 等待真人行动的回调句柄 */
   awaiters: {
     wolf?: { onVote: (seat: number) => void };
@@ -266,7 +289,7 @@ export function createGame(hostUserId: string): string {
     hostUserId,
     nightStage: "idle",
     nightState: { wolfVotes: new Map(), killTarget: null, seerCheck: null, witchHeal: false, witchPoisonTarget: null },
-    dayState: { speeches: new Map(), votes: new Map() },
+    dayState: { speeches: new Map(), votes: new Map(), dayActions: [] },
     seerResults: [],
     hunterPending: null,
     lastNightDeaths: [],
@@ -277,6 +300,9 @@ export function createGame(hostUserId: string): string {
     privateNotes: new Map(),
     pendingObservations: [],
     fastMode: false,
+    spectators: new Set(),
+    dayActionsLog: [],
+    mvpSeat: null,
     createdAt: new Date().toISOString(),
   });
   return gameId;
@@ -386,12 +412,16 @@ export function startGame(gameId: string, hostUserId: string): void {
   game.nightStage = "wolf";
   game.day = 1;
   game.nightState = { wolfVotes: new Map(), killTarget: null, seerCheck: null, witchHeal: false, witchPoisonTarget: null };
-  game.dayState = { speeches: new Map(), votes: new Map() };
+  game.dayState = { speeches: new Map(), votes: new Map(), dayActions: [] };
   game.seerResults = [];
   game.hunterPending = null;
   game.lastNightDeaths = [];
   game.privateNotes = new Map();
   game.pendingObservations = [];
+  game.spectators = new Set();
+  game.dayActionsLog = [];
+  game.mvpSeat = null;
+  game.speechWindowEndsAt = undefined;
 
   broadcastFn(gameId, { type: "phase_change", phase: "night", day: game.day });
   addLog(game, `游戏开始，共 ${SEAT_COUNT} 名玩家入座。`);
@@ -432,12 +462,16 @@ export function getSnapshotForPlayer(gameId: string, userId: string): WerewolfPl
   };
   if (game.dayState.currentSpeakerSeat != null) base.currentSpeakerSeat = game.dayState.currentSpeakerSeat;
   if (game.lastVoteResult) base.lastVoteResult = game.lastVoteResult;
+  if (game.dayState.dayActions.length) base.dayActions = game.dayState.dayActions.map((r) => ({ ...r, action: { ...r.action } }));
+  if (game.speechWindowEndsAt) base.speechWindowEndsAt = game.speechWindowEndsAt;
 
   const me = playerByUserId(game, userId);
   if (!me) return base; // 旁观者：无任何私密字段
 
   base.mySeat = me.seat;
   base.myRole = me.role;
+  // Round2：出局即幽灵观众，留在局内看完全程。
+  if (!me.alive) base.spectator = true;
 
   // —— 角色专属私密信息 ——
   if (me.role === "werewolf") {
@@ -476,7 +510,8 @@ function computePending(game: WerewolfGame, me: InternalPlayer): string | null {
     return null;
   }
   if (game.phase === "speech") {
-    if (game.dayState.currentSpeakerSeat === me.seat) return "speak";
+    // Round2：90s 自由窗口内，任何存活玩家都可随时发言 / 打动作牌。
+    if (me.alive) return "speak";
     return null;
   }
   if (game.phase === "vote") {
@@ -598,9 +633,32 @@ function fallbackSpeechText(player: InternalPlayer, game: WerewolfGame): string 
   return `我是好人，目前信息还不够，先观察一下大家的发言。${recent ? `（刚才：${recent}）` : ""}`;
 }
 
+function describeDayActions(game: WerewolfGame): string {
+  if (game.dayState.dayActions.length === 0) return "目前还没有人打出动作牌。";
+  return game.dayState.dayActions
+    .map((r) => {
+      const who = `座位${r.seat}（${r.nickname}）`;
+      const a = r.action;
+      switch (a.kind) {
+        case "claim_role": return `${who} 跳了${roleLabel(a.role)}`;
+        case "report_check": return `${who} 报查验：${a.seat + 1}号是${a.isWolf ? "狼人" : "好人"}`;
+        case "suspect": return `${who} 怀疑${a.seat + 1}号${a.reason ? `（${a.reason}）` : ""}`;
+        case "defend": return `${who} 为${a.seat + 1}号辩护`;
+        case "pass": return `${who} 划水过`;
+        default: return who;
+      }
+    })
+    .join("；");
+}
+
+function roleLabel(role: WerewolfRole): string {
+  return role === "seer" ? "预言家" : role === "witch" ? "女巫" : role === "hunter" ? "猎人" : "村民";
+}
+
 async function aiSpeech(speaker: InternalPlayer, game: WerewolfGame): Promise<string> {
   const celeb = speaker.celebrityId ? resolveCharacter(speaker.celebrityId) : undefined;
   const publicLog = game.log.slice(-10).map((l) => l.text).join("；");
+  const actions = describeDayActions(game);
   const roleHint =
     speaker.role === "werewolf"
       ? "你是狼人，必须伪装成好人，不要暴露身份，可以适当分析或误导。"
@@ -609,14 +667,15 @@ async function aiSpeech(speaker: InternalPlayer, game: WerewolfGame): Promise<st
         : "你是好人阵营，认真分析局势、找出狼人。";
   const system =
     `${celeb?.persona ?? "你是一个参与狼人杀的玩家。"}\n` +
-    `现在你在玩狼人杀的白天发言环节。${roleHint}\n` +
-    `【硬性要求】请用 1-2 句话简洁发言，不超过 50 字，像真人随口说的，不要长篇大论。` +
+    `现在你在玩狼人杀的白天自由发言环节。${roleHint}\n` +
+    `【场上动作牌】${actions}\n` +
+    `【硬性要求】请用 2-4 句话发言，不超过 200 字，可以针对动作牌里怀疑你的人直接反驳，像真人在圆桌讨论，不要长篇大论。` +
     `只返回 JSON：{"text": "你的发言"}，不要解释。`;
   const user = `第 ${game.day} 天，存活玩家：${describePlayers(game)}。\n之前发生：${publicLog || "无"}。\n请发言。`;
-  const parsed = await aiDecision(system, user, 120);
+  const parsed = await aiDecision(system, user, 300);
   if (parsed && typeof parsed.text === "string" && parsed.text.trim()) {
     let text = parsed.text.trim().replace(/^[""「『]|[""」』]$/g, "");
-    if (text.length > 50) text = `${text.slice(0, 50)}…`;
+    if (text.length > 200) text = `${text.slice(0, 200)}…`;
     return text;
   }
   return fallbackSpeechText(speaker, game);
@@ -916,11 +975,14 @@ async function killAndResolveHunter(
     p.alive = false;
     p.hasSpoken = false;
     p.deathDay = game.day;
+    // Round2：出局即加入幽灵观众列表（不离开游戏，可看完全程）。
+    game.spectators.add(p.seat);
     names.push(p.nickname);
+    broadcastFn(game.gameId, { type: "spectator_notify", seat: s, day: game.day });
   }
   if (names.length) {
     const verb = cause === "night" ? "在夜晚倒下" : cause === "lynch" ? "被投票放逐" : "被猎人带走";
-    addLog(game, `${names.join("、")} ${verb}。`);
+    addLog(game, `${names.join("、")} ${verb}，化为幽灵观战本局。`);
   }
   if (seats.length) {
     broadcastFn(game.gameId, { type: "death", seats, cause });
@@ -969,35 +1031,45 @@ async function runDayAnnounce(game: WerewolfGame): Promise<void> {
   void runSpeech(game).catch((err) => console.error("[werewolf] runSpeech failed", err));
 }
 
-// ===== 白天发言 =====
+// ===== 白天发言（Round2：全体 90s 自由窗口，不再依次阻塞等待）=====
 async function runSpeech(game: WerewolfGame): Promise<void> {
   if (game.phase === "ended") return;
   game.phase = "speech";
   game.dayState.speeches = new Map();
+  game.dayState.dayActions = [];
+  game.dayState.currentSpeakerSeat = undefined;
+  game.speechWindowEndsAt = Date.now() + speechWindowMs;
   broadcastFn(game.gameId, { type: "phase_change", phase: "speech", day: game.day });
-  addLog(game, `进入白天发言环节。`);
+  addLog(game, `进入白天自由发言窗口（90s）：点左侧动作牌打标签，也可自由发言。`);
+  pushSnapshotsAll(game);
 
-  const speakers = game.players
-    .filter((p) => p.alive)
+  // AI 玩家在窗口内轮流发言（异步，不阻塞真人打动作牌）。
+  const aiSpeakers = game.players
+    .filter((p) => p.alive && p.isAI)
     .sort((a, b) => a.seat - b.seat);
-
-  for (const sp of speakers) {
-    game.dayState.currentSpeakerSeat = sp.seat;
-    pushSnapshotsAll(game);
-    let text: string;
-    if (sp.isAI) {
-      text = await aiSpeech(sp, game);
-    } else {
-      pushSnapshot(game, sp.userId);
-      text = await waitForRealSpeech(game, sp, SPEECH_TIMEOUT);
+  const aiSpeeches = (async () => {
+    for (const sp of aiSpeakers) {
+      let text: string;
+      try {
+        text = await aiSpeech(sp, game);
+      } catch {
+        text = fallbackSpeechText(sp, game);
+      }
+      if (game.phase !== "speech") return;
+      game.dayState.speeches.set(sp.seat, text);
+      sp.hasSpoken = true;
+      broadcastFn(game.gameId, { type: "speech", seat: sp.seat, nickname: sp.nickname, text });
+      addLog(game, `${sp.nickname} 发言：${text}`, sp.seat);
     }
-    game.dayState.speeches.set(sp.seat, text);
-    sp.hasSpoken = true;
-    broadcastFn(game.gameId, { type: "speech", seat: sp.seat, nickname: sp.nickname, text });
-    addLog(game, `${sp.nickname} 发言：${text}`, sp.seat);
-  }
+  })().catch(() => {});
+
+  // 全体自由窗口：固定等待 90s（测试缝可缩短），真人随时可发言 / 打动作牌。
+  await sleep(speechWindowMs);
+  // 给 AI 一个小收尾宽限（线上 AI 基本已在窗口内说完；测试里 chatProvider 永不 resolve，靠 race 兜底）。
+  await Promise.race([aiSpeeches, sleep(fastModeGlobal ? 60 : 400)]);
 
   game.dayState.currentSpeakerSeat = undefined;
+  game.speechWindowEndsAt = undefined;
   void runVote(game).catch((err) => console.error("[werewolf] runVote failed", err));
 }
 
@@ -1063,17 +1135,107 @@ async function runVote(game: WerewolfGame): Promise<void> {
   }
 
   if (checkWin(game)) { endGame(game); return; }
+  // Round2：第 MAX_DAYS 天结束强制终局，避免无限对局。
+  if (game.day >= MAX_DAYS) {
+    game.winner = computeDeadlineWinner(game);
+    addLog(game, `已达 ${MAX_DAYS} 天上限，按剩余人数裁定胜负。`);
+    endGame(game);
+    return;
+  }
   game.day += 1;
   void runNight(game).catch((err) => console.error("[werewolf] runNight failed", err));
 }
 
+/**
+ * Round2：到达天数上限后的强制裁定。
+ * checkWin 已处理"狼全灭 / 狼>=好人"；此处兜底：狼只要还在场且人数占优即狼胜，否则好人胜。
+ */
+export function computeDeadlineWinner(game: {
+  players: Array<{ alive: boolean; role: WerewolfRole }>;
+}): WerewolfWinner {
+  const wolves = game.players.filter((p) => p.alive && p.role === "werewolf").length;
+  const good = game.players.filter((p) => p.alive && p.role !== "werewolf").length;
+  return wolves >= good ? "wolf" : "good";
+}
+
 // ===== 结束 =====
+function pickMvpSeat(game: WerewolfGame): number {
+  // MVP：获胜阵营里投对狼最多的玩家；平局取存活者，再取小号。
+  const mySide = game.winner;
+  const pool = game.players.filter((p) =>
+    mySide === "wolf" ? p.role === "werewolf" : p.role !== "werewolf");
+  let best: InternalPlayer = pool[0] ?? game.players[0];
+  for (const p of pool) {
+    const score = p.correctVotes * 10 + (p.alive ? 2 : 0);
+    const bestScore = best.correctVotes * 10 + (best.alive ? 2 : 0);
+    if (score > bestScore) best = p;
+  }
+  return best?.seat ?? 0;
+}
+
+function buildHighlights(game: WerewolfGame): string[] {
+  const h: string[] = [];
+  h.push(game.winner === "wolf" ? "狼人阵营潜伏到最后，成功屠边。" : "好人阵营顶住压力，放逐了所有狼人。");
+  const seerClaims = game.dayActionsLog.filter(
+    (r) => r.action.kind === "claim_role" && (r.action as { role: string }).role === "seer");
+  if (seerClaims.length >= 2) {
+    h.push(`第${seerClaims[1].day}天出现对跳预言家：${seerClaims.map((c) => `${c.seat + 1}号`).join("、")}。`);
+  }
+  const lynchedWolf = game.log.find((l) => /被投票放逐。/.test(l.text) && l.text.includes("狼人"));
+  if (lynchedWolf) h.push(`关键放逐：${lynchedWolf.text.replace("。", "")}。`);
+  const hunterLog = game.log.find((l) => l.text.includes("猎人开枪"));
+  if (hunterLog) h.push(`高光时刻：${hunterLog.text.replace("。", "")}。`);
+  if (game.lastNightDeaths.length === 0 && game.day > 1) h.push("出现过平安夜，局势一度扑朔迷离。");
+  return h.slice(0, 5);
+}
+
+function calcReasoningScore(game: WerewolfGame, me: InternalPlayer): number {
+  const totalDays = Math.max(1, game.day);
+  const survivedDays = me.alive ? totalDays : (me.deathDay ?? 1);
+  let score = 0;
+  score += Math.round((Math.min(survivedDays, totalDays) / totalDays) * 30);
+  const acc = me.totalVotes > 0 ? me.correctVotes / me.totalVotes : 0;
+  score += Math.round(acc * 40);
+  const mySide: "wolf" | "good" = me.role === "werewolf" ? "wolf" : "good";
+  if (game.winner === mySide) score += 20;
+  const myActions = game.dayActionsLog.filter((r) => r.seat === me.seat).length;
+  score += Math.min(10, myActions * 3);
+  return Math.max(5, Math.min(100, score));
+}
+
+function buildPersonalReport(game: WerewolfGame, me: InternalPlayer, highlights: string[]): WerewolfPersonalReport {
+  const mySide: "wolf" | "good" = me.role === "werewolf" ? "wolf" : "good";
+  const won = game.winner === mySide;
+  return {
+    winner: game.winner,
+    myRole: me.role,
+    myKeyActions: me.quickActions.slice(-6).map((a) => ({
+      day: me.deathDay ?? game.day,
+      action: a,
+      outcome: won ? "帮助阵营取胜" : "未能帮助阵营取胜",
+    })),
+    reasoningScore: calcReasoningScore(game, me),
+    mvpSeat: game.mvpSeat ?? 0,
+    highlights,
+  };
+}
+
 function endGame(game: WerewolfGame): void {
   game.phase = "ended";
   clearAllTimers(game);
-  const report = generateReport(game.gameId);
+  game.mvpSeat = pickMvpSeat(game);
+  const highlights = buildHighlights(game);
   addLog(game, game.winner === "wolf" ? "狼人阵营获得胜利！" : "好人阵营获得胜利！");
-  broadcastFn(game.gameId, { type: "game_end", winner: game.winner, report });
+  broadcastFn(game.gameId, { type: "game_end", winner: game.winner, report: generateReport(game.gameId) });
+
+  // Round2：给每位真人单独推送他的私人复盘（myRole / 推理分 / 我的关键行动都因人而异）。
+  for (const p of game.players) {
+    if (p.userId.startsWith("ai:")) continue;
+    sendToUserFn(game.gameId, p.userId, {
+      type: "werewolf_report",
+      report: buildPersonalReport(game, p, highlights),
+    });
+  }
   pushSnapshotsAll(game);
 
   // 落库：记录对局结果，供"我的对局"历史查询。
@@ -1143,10 +1305,18 @@ export function handleAction(gameId: string, userId: string, action: WerewolfCli
     }
     case "day_speech": {
       if (!me || !me.alive) return;
-      if (game.phase !== "speech" || game.dayState.currentSpeakerSeat !== me.seat) return;
+      if (game.phase !== "speech") return;
       const text = (action.text ?? "").trim();
       if (!text) return;
-      game.awaiters.speech?.resolve(text);
+      const clean = text.replace(/\s+/g, " ").slice(0, 200);
+      game.dayState.speeches.set(me.seat, clean);
+      broadcastFn(gameId, { type: "speech", seat: me.seat, nickname: me.nickname, text: clean });
+      addLog(game, `${me.nickname} 发言：${clean}`, me.seat);
+      return;
+    }
+    case "day_action": {
+      const res = submitDayAction(gameId, userId, action.action);
+      if (!res.ok) console.warn("[werewolf] day_action rejected:", res.message);
       return;
     }
     case "day_vote": {
@@ -1304,6 +1474,80 @@ export function nightGoodAction(
   return { ok: false, message: "未知微操作" };
 }
 
+/**
+ * Round2：白天自由窗口内的结构化动作牌。
+ * 全员广播 day_action 事件，前端在对应头像挂【被怀疑】【跳身份】等标签；
+ * 同时写入 dayActionsLog，作为 AI 发言 / 投票决策的公开输入。
+ */
+export function submitDayAction(
+  gameId: string,
+  userId: string,
+  action: WerewolfDayAction,
+): { ok: boolean; message?: string } {
+  const game = games.get(gameId);
+  if (!game || game.phase === "ended") return { ok: false, message: "对局不存在或已结束" };
+  const me = playerByUserId(game, userId);
+  if (!me || !me.alive) return { ok: false, message: "你已出局或不在本局" };
+  if (game.phase !== "speech") return { ok: false, message: "只能在白天自由发言窗口打动作牌" };
+
+  switch (action.kind) {
+    case "claim_role": {
+      if (action.role === "seer") me.claimedSeer = true;
+      me.quickActions.push(`起跳${roleLabel(action.role)}`);
+      addLog(game, `${me.nickname} 起跳 ${roleLabel(action.role)}。`);
+      break;
+    }
+    case "report_check": {
+      if (me.role !== "seer") return { ok: false, message: "只有预言家能报查验结果" };
+      const target = playerAt(game, action.seat);
+      if (!target) return { ok: false, message: "目标座位不存在" };
+      // 只能报自己真实验过的结果。
+      const reportedSeat = action.seat;
+      const reportedIsWolf = action.isWolf;
+      const real = game.seerResults.find((r) => r.seat === reportedSeat);
+      const isWolf = real ? real.isWolf : reportedIsWolf;
+      me.quickActions.push(`报查验 ${target.nickname} 是${isWolf ? "狼人" : "好人"}`);
+      addLog(game, `${me.nickname} 报查验：${target.nickname} 是${isWolf ? "狼人" : "好人"}。`);
+      action = { ...action, isWolf };
+      break;
+    }
+    case "suspect": {
+      const target = playerAt(game, action.seat);
+      if (!target || !target.alive || target.seat === me.seat) {
+        return { ok: false, message: "请选择一名其他存活玩家进行怀疑" };
+      }
+      me.quickActions.push(`怀疑 ${target.nickname}`);
+      addLog(game, `${me.nickname} 怀疑 ${target.nickname}。`);
+      break;
+    }
+    case "defend": {
+      const target = playerAt(game, action.seat);
+      if (!target) return { ok: false, message: "请选择要辩护的玩家" };
+      me.quickActions.push(`辩护 ${target.nickname}`);
+      addLog(game, `${me.nickname} 为 ${target.nickname} 辩护。`);
+      break;
+    }
+    case "pass": {
+      me.quickActions.push("划水过");
+      addLog(game, `${me.nickname} 划水过。`);
+      break;
+    }
+    default:
+      return { ok: false, message: "未知动作" };
+  }
+
+  const record: WerewolfDayActionRecord = {
+    day: game.day,
+    seat: me.seat,
+    nickname: me.nickname,
+    action,
+  };
+  game.dayState.dayActions.push(record);
+  game.dayActionsLog.push(record);
+  broadcastFn(game.gameId, { type: "day_action", record });
+  return { ok: true };
+}
+
 /** 取走并清空某玩家的私密便签（偷听结果 / 观察线索）。 */
 export function drainPrivateNotes(gameId: string, userId: string): string[] {
   const game = games.get(gameId);
@@ -1364,4 +1608,17 @@ export function generateReport(gameId: string): WerewolfReportData {
     summary,
     createdAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Round2：按玩家视角生成私人复盘（供断线重连 / HTTP 兜底拉取）。
+ * myRole / reasoningScore / myKeyActions 都因人而异，不能广播。
+ */
+export function generatePersonalReport(gameId: string, userId: string): WerewolfPersonalReport | null {
+  const game = games.get(gameId);
+  if (!game) return null;
+  const me = playerByUserId(game, userId);
+  if (!me) return null;
+  game.mvpSeat = game.mvpSeat ?? pickMvpSeat(game);
+  return buildPersonalReport(game, me, buildHighlights(game));
 }
