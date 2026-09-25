@@ -30,18 +30,18 @@ class CanvasRenderErrorBoundary extends Component<
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        width: '100%', height: '100%', gap: 12, background: '#160d08', color: '#f4ecff',
-        fontFamily: 'system-ui, sans-serif', textAlign: 'center', padding: 24,
+        width: '100%', height: '100%', gap: 12, background: 'rgba(10,10,10,.55)', color: 'rgba(237,237,240,.66)',
+        fontFamily: 'inherit', textAlign: 'center', padding: 24,
       }}>
-        <div style={{ fontSize: 15, opacity: 0.85 }}>3D 渲染异常，场景未能加载</div>
+        <div style={{ fontSize: 13, opacity: 0.85 }}>3D 场景暂时未能加载</div>
         <button
           onClick={this.props.onReset}
           style={{
-            padding: '8px 20px', borderRadius: 8, border: '1px solid #7a4a10',
-            background: '#3a2a12', color: '#ffe6a8', cursor: 'pointer', fontSize: 13,
+            padding: '7px 18px', borderRadius: 8, border: '1px solid rgba(79,179,165,.42)',
+            background: 'rgba(79,179,165,.13)', color: '#4fb3a5', cursor: 'pointer', fontSize: 12,
           }}
         >
-          点击重试
+          重新加载
         </button>
       </div>
     )
