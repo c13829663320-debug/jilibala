@@ -10,14 +10,19 @@ import {
   selectDebaters,
   debateSpeech,
   bartenderSummary,
+  createDebateSession,
   type Debater,
   type DebateSide,
+  type DebateSession,
 } from "./bar-orchestrator.js";
 import { broadcastSceneEvent, updateSceneState } from "./ws.js";
 import { addSceneRecord, upsertContent, getUser, type StoredContent } from "./db.js";
 
 const SCENE: SceneId = "bar";
 const SESSION = "lobby";
+
+/** 玩家主导的 3 回合辩论会话（单房间 lobby，重启即重置）。 */
+let debate: DebateSession | null = null;
 
 /** 酒吧房间的内存态（单房间 lobby，重启即重置）。 */
 interface BarRoomState {
@@ -42,6 +47,76 @@ const isValidSide = (v: unknown): v is DebateSide => v === "pro" || v === "con";
 
 export function registerBarRoutes(app: FastifyInstance, deps: { chat: ChatFn; contents: StoredContent[] }): void {
   const { chat, contents } = deps;
+
+  // ===== 玩家主导辩论：开局（选辩题 + 选边） =====
+  app.post("/api/bar/debate/start", async (req, reply) => {
+    const body = (req.body ?? {}) as { topic?: string; playerSide?: DebateSide };
+    const topic = (body.topic ?? "").trim();
+    const playerSide: DebateSide = body.playerSide === "con" ? "con" : "pro";
+    if (!topic) return reply.code(400).send({ message: "topic 不能为空" });
+    try {
+      debate = createDebateSession(chat);
+      const state = await debate.start(topic, playerSide);
+      broadcastSceneEvent(SCENE, SESSION, {
+        type: "debate_session_start",
+        topic,
+        playerSide,
+        aiOpponent: { id: state.aiOpponent.id, name: state.aiOpponent.name },
+        round: state.round,
+        totalRounds: state.totalRounds,
+        argumentStrength: state.argumentStrength,
+      });
+      return { state };
+    } catch (error) {
+      req.log.error(error, "bar debate start failed");
+      return reply.code(502).send({ message: "酒保还在擦杯子，开桌失败。" });
+    }
+  });
+
+  // ===== 玩家发言：立论 → 对方 AI 反驳 → 论据强度更新 =====
+  app.post("/api/bar/debate/speak", async (req, reply) => {
+    const body = (req.body ?? {}) as { round?: number; content?: string };
+    if (!debate) return reply.code(409).send({ message: "请先开一桌辩论。" });
+    const round = Math.round(Number(body.round) || 0);
+    const content = (body.content ?? "").trim();
+    if (!content) return reply.code(400).send({ message: "发言内容不能为空" });
+    try {
+      const result = await debate.playerSpeak(round, content);
+      broadcastSceneEvent(SCENE, SESSION, {
+        type: "debate_turn",
+        round,
+        playerText: result.playerTurn.text,
+        aiText: result.aiTurn.text,
+        aiSpeaker: result.aiTurn.speaker,
+        argumentStrength: result.state.argumentStrength,
+      });
+      return result;
+    } catch (error) {
+      req.log.error(error, "bar debate speak failed");
+      const msg = error instanceof Error ? error.message : "发言失败";
+      return reply.code(400).send({ message: msg });
+    }
+  });
+
+  // ===== 裁判裁决 =====
+  app.post("/api/bar/debate/verdict", async (req, reply) => {
+    if (!debate) return reply.code(409).send({ message: "请先开一桌辩论。" });
+    try {
+      const result = await debate.judgeVerdict();
+      broadcastSceneEvent(SCENE, SESSION, {
+        type: "debate_verdict",
+        winner: result.verdict.winner,
+        reasoning: result.verdict.reasoning,
+        keyMoments: result.verdict.keyMoments,
+        argumentStrength: result.state.argumentStrength,
+      });
+      return result;
+    } catch (error) {
+      req.log.error(error, "bar debate verdict failed");
+      const msg = error instanceof Error ? error.message : "裁决失败";
+      return reply.code(400).send({ message: msg });
+    }
+  });
 
   /** GET /api/bar/topics — 话题库。 */
   app.get("/api/bar/topics", async () => ({ topics: TOPIC_LIBRARY }));
