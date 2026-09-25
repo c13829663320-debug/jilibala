@@ -21,8 +21,8 @@ describe('音色白名单完整性', () => {
     }
   })
 
-  it('白名单内无重复 id', () => {
-    expect(VOICE_WHITELIST.size).toBeGreaterThanOrEqual(39)
+  it('白名单内无重复 id（实测可用 13 个）', () => {
+    expect(VOICE_WHITELIST.size).toBe(13)
   })
 })
 

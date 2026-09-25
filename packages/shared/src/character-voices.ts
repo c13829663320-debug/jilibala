@@ -19,11 +19,11 @@ export const DEFAULT_VOICE = "jingdiannvsheng";
  */
 export const COURT_ROLE_VOICES: Record<string, string> = {
   judge: "cixingnansheng",        // 磁性男生 · 威严
-  plaintiff: "zixinnansheng",     // 自信男生
-  "plaintiff-counsel": "shuangkuainansheng", // 爽快男生 · 专业冷静
+  plaintiff: "boyinnansheng",     // 播音男生 · 陈述清晰有力
+  "plaintiff-counsel": "ruyananshi", // 儒雅男士 · 专业冷静
   defendant: "shenchennanyin",     // 低沉男音
-  "defendant-counsel": "shuangkuainansheng",
-  defender: "shuangkuainansheng",  // M13 CourtTurn.speaker='defender'
+  "defendant-counsel": "ruyananshi",
+  defender: "ruyananshi",          // M13 CourtTurn.speaker='defender'
   witness: "qingniandaxuesheng",   // 青年大学生 · 年轻
   juror: "wenrounansheng",          // 温柔男生
 };
@@ -44,23 +44,12 @@ export interface VoiceOption {
  * 这里至少包含全部已在名人/法庭映射中使用的音色。
  */
 export const VOICE_OPTIONS: VoiceOption[] = [
-  // —— 女声 ——
+  // —— 女声 ——（本账户实测可用）
   { id: "jingdiannvsheng", label: "经典女声（默认）", gender: "female" },
   { id: "zhixingjiejie", label: "知性姐姐", gender: "female" },
   { id: "wenrounvsheng", label: "温柔女声", gender: "female" },
   { id: "tianmeinvsheng", label: "甜美女声", gender: "female" },
-  { id: "kehuanvsheng", label: "可爱女声", gender: "female" },
-  { id: "yujiaonvsheng", label: "御姐女声", gender: "female" },
-  { id: "languonvsheng", label: "慵懒女声", gender: "female" },
-  { id: "wanyuenvsheng", label: "婉约女声", gender: "female" },
-  { id: "shaonvqingchun", label: "青春少女", gender: "female" },
-  { id: "mengtunnvsheng", label: "萌系女声", gender: "female" },
-  { id: "qingchengnvhai", label: "清澈女孩", gender: "female" },
-  { id: "wainingnvsheng", label: "温婉女声", gender: "female" },
-  { id: "ruyinvhai", label: "如意女孩", gender: "female" },
-  { id: "qingchengnvsheng", label: "清晨女声", gender: "female" },
-  // —— 男声 ——
-  { id: "zixinnansheng", label: "自信男生", gender: "male" },
+  // —— 男声 ——（本账户实测可用）
   { id: "boyinnansheng", label: "播音男生", gender: "male" },
   { id: "ruyananshi", label: "儒雅男士", gender: "male" },
   { id: "cixingnansheng", label: "磁性男生", gender: "male" },
@@ -68,23 +57,8 @@ export const VOICE_OPTIONS: VoiceOption[] = [
   { id: "yuanqinansheng", label: "元气男生", gender: "male" },
   { id: "wenrounansheng", label: "温柔男生", gender: "male" },
   { id: "zhengpaiqingnian", label: "正派青年", gender: "male" },
-  { id: "shuangkuainansheng", label: "爽快男生", gender: "male" },
   { id: "shenchennanyin", label: "低沉男音", gender: "male" },
   { id: "qingniandaxuesheng", label: "青年大学生", gender: "male" },
-  { id: "lengjunansheng", label: "冷峻男生", gender: "male" },
-  { id: "rexuennansheng", label: "热血男生", gender: "male" },
-  { id: "youmofengqu", label: "幽默风趣", gender: "male" },
-  { id: "shenshounansheng", label: "深沉男生", gender: "male" },
-  { id: "zhongniannansheng", label: "中年男声", gender: "male" },
-  { id: "baqilengjun", label: "霸气冷峻", gender: "male" },
-  { id: "laopaiqinkeng", label: "老派亲切", gender: "male" },
-  { id: "qingnianwenyu", label: "青年文郁", gender: "male" },
-  { id: "chenwennansheng", label: "沉稳男生", gender: "male" },
-  { id: "jidongnansheng", label: "激昂男生", gender: "male" },
-  { id: "gaolengnansheng", label: "高冷男生", gender: "male" },
-  { id: "xianqinnansheng", label: "仙气男生", gender: "male" },
-  { id: "shaonianganjue", label: "少年感", gender: "male" },
-  { id: "dashuwenzhong", label: "大叔稳重", gender: "male" },
 ];
 
 /** 白名单：合法音色 id 集合。 */

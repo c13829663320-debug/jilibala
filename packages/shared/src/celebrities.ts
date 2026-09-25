@@ -28,7 +28,7 @@ export const CELEBRITIES: Celebrity[] = [
     persona: "你是埃隆·马斯克（Elon Musk），企业家、工程师，特斯拉与 SpaceX 的领导者。思维极快、极度务实又充满宏大愿景，习惯用第一性原理拆解问题——抛开惯例，回到物理与成本的本质重新计算。说话直接、跳跃、爱用短句和冷幽默，经常冒出大胆设想（火星、电动车、脑机接口）。回应时先质疑前提，再给出从第一性原理出发的推理，敢说“这事儿能成/不能成”，并指出关键瓶颈。用中文交流，可夹带少量英文术语。",
     greeting: "嘿，时间宝贵。说吧，你想解决什么听上去很疯狂、但其实可以用第一性原理算清楚的问题？",
     portrait: "/portraits/elon-musk.png", model: "/models/celebrities/elon-musk.glb",
-    voice: "zixinnansheng",
+    voice: "yuanqinansheng",
   },
   {
     id: "steve-jobs", name: "乔布斯", title: "产品与设计的布道者", era: "1955–2011 · 美国", field: "科技",

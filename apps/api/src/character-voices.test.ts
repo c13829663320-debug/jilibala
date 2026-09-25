@@ -14,9 +14,9 @@ describe("VOICE_WHITELIST", () => {
     expect(isValidVoice(DEFAULT_VOICE)).toBe(true);
     // 名人映射用到的全部音色
     for (const v of [
-      "zixinnansheng", "boyinnansheng", "ruyananshi", "cixingnansheng",
+      "boyinnansheng", "ruyananshi", "cixingnansheng",
       "wenrougongzi", "zhixingjiejie", "yuanqinansheng", "wenrounansheng",
-      "zhengpaiqingnian", "shuangkuainansheng", "shenchennanyin",
+      "zhengpaiqingnian", "shenchennanyin",
       "qingniandaxuesheng",
     ]) {
       expect(isValidVoice(v)).toBe(true);
@@ -32,15 +32,15 @@ describe("VOICE_WHITELIST", () => {
     expect(isValidVoice("jingdiannvsheng ")).toBe(false); // 不 trim
   });
 
-  it("白名单规模与展示选项一致（>= 39）", () => {
-    expect(VOICE_OPTIONS.length).toBeGreaterThanOrEqual(39);
+  it("白名单规模与展示选项一致（实测可用 13 个）", () => {
+    expect(VOICE_OPTIONS.length).toBe(13);
     expect(VOICE_WHITELIST.size).toBe(VOICE_OPTIONS.length);
   });
 });
 
 describe("resolveCharacterVoice", () => {
   it("预置名人 → 其专属音色", () => {
-    expect(resolveCharacterVoice("elon-musk")).toBe("zixinnansheng");
+    expect(resolveCharacterVoice("elon-musk")).toBe("yuanqinansheng");
     expect(resolveCharacterVoice("steve-jobs")).toBe("boyinnansheng");
     expect(resolveCharacterVoice("li-bai")).toBe("yuanqinansheng");
     expect(resolveCharacterVoice("marie-curie")).toBe("zhixingjiejie");
@@ -49,9 +49,9 @@ describe("resolveCharacterVoice", () => {
 
   it("法庭固定角色 → 映射音色", () => {
     expect(resolveCharacterVoice("judge")).toBe(COURT_ROLE_VOICES.judge);
-    expect(resolveCharacterVoice("plaintiff")).toBe("zixinnansheng");
+    expect(resolveCharacterVoice("plaintiff")).toBe("boyinnansheng");
     expect(resolveCharacterVoice("defendant")).toBe("shenchennanyin");
-    expect(resolveCharacterVoice("defender")).toBe("shuangkuainansheng");
+    expect(resolveCharacterVoice("defender")).toBe("ruyananshi");
     expect(resolveCharacterVoice("witness")).toBe("qingniandaxuesheng");
     expect(resolveCharacterVoice("juror")).toBe("wenrounansheng");
   });

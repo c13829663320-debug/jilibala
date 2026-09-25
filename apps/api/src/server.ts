@@ -803,23 +803,36 @@ app.post('/api/tts', async (req, reply) => {
   // 白名单校验：非法音色静默回退默认，不向上游透传未知 voice。
   const voice = isValidVoice(body.voice) ? (body.voice as string) : DEFAULT_TTS_VOICE;
   const format = (body.format ?? 'mp3').toLowerCase();
-  try {
+  // 上游合成封装：便于在音色无权限时用默认音色兜底重试。
+  const ttsModel = process.env.STEPFUN_TTS_MODEL ?? 'step-tts-mini';
+  const synthesize = async (useVoice: string) => {
     const response = await fetch(`${stepfunBase.replace(/\/$/, '')}/audio/speech`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${stepfunKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: process.env.STEPFUN_TTS_MODEL ?? 'step-tts-mini', input: text, voice, response_format: format }),
+      body: JSON.stringify({ model: ttsModel, input: text, voice: useVoice, response_format: format }),
       signal: AbortSignal.timeout(30000),
     });
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      req.log.warn({ status: response.status, errText }, 'StepFun TTS failed');
-      return reply.code(502).send({ message: `语音合成失败（${response.status}）` });
+    if (response.ok) {
+      return { ok: true as const, audio: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get('content-type') ?? 'audio/mpeg' };
     }
-    const audio = Buffer.from(await response.arrayBuffer());
+    const errText = await response.text().catch(() => '');
+    return { ok: false as const, status: response.status, errText };
+  };
+  try {
+    let result = await synthesize(voice);
+    // 音色无效 / 无访问权限（400 voice_id_invalid）：用默认音色兜底重试一次，保证能出声。
+    if (!result.ok && result.status === 400 && voice !== DEFAULT_TTS_VOICE) {
+      req.log.warn({ voice, status: result.status, errText: result.errText }, 'TTS voice invalid; fallback to default');
+      result = await synthesize(DEFAULT_TTS_VOICE);
+    }
+    if (!result.ok) {
+      req.log.warn({ status: result.status, errText: result.errText }, 'StepFun TTS failed');
+      return reply.code(502).send({ message: `语音合成失败（${result.status}）` });
+    }
     return reply
-      .header('content-type', response.headers.get('content-type') ?? 'audio/mpeg')
+      .header('content-type', result.contentType)
       .header('cache-control', 'private, max-age=86400')
-      .send(audio);
+      .send(result.audio);
   } catch (error) {
     req.log.error(error);
     return reply.code(502).send({ message: '语音服务暂时不可用。' });
