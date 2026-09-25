@@ -10,16 +10,76 @@ import {
   audienceReaction,
   celebrityOpenMic,
   aiWriteJoke,
+  createOpenMicSession,
+  type OpenMicSession,
 } from "./talkshow-orchestrator.js";
 
 /** 剧场固定使用 lobby 会话（单房间开放剧场）。 */
 const SESSION = "lobby";
+
+/** 开放麦主循环会话（单房间 lobby，重启即重置；每次 /openmic/start 重新开局）。 */
+let openMic: OpenMicSession | null = null;
 
 export function registerTalkshowRoutes(
   app: FastifyInstance,
   deps: { chat: ChatFn; contents: StoredContent[] },
 ): void {
   const { chat } = deps;
+
+  // ===== 开放麦主循环：开局（AI 主持热身 → 玩家上台） =====
+  app.post("/api/talkshow/openmic/start", async (req, reply) => {
+    try {
+      openMic = createOpenMicSession(chat);
+      const state = await openMic.start();
+      broadcastSceneEvent("talkshow", SESSION, { type: "openmic_start", warmupJokes: state.warmupJokes });
+      return { state };
+    } catch (error) {
+      req.log.error(error, "talkshow openmic start failed");
+      return reply.code(502).send({ message: "剧场音响还没调好，请稍后再试。" });
+    }
+  });
+
+  // ===== 开放麦：玩家讲一个笑话，AI 观众实时评分 =====
+  app.post("/api/talkshow/openmic/joke", async (req, reply) => {
+    const body = (req.body ?? {}) as { text?: string };
+    const text = (body.text ?? "").trim();
+    if (!text) return reply.code(400).send({ message: "请先写一个段子。" });
+    if (!openMic) return reply.code(409).send({ message: "请先开始一局开放麦。" });
+    try {
+      const { result, state } = await openMic.tellJoke(text);
+      broadcastSceneEvent("talkshow", SESSION, {
+        type: "openmic_joke",
+        index: state.currentJokeIndex,
+        score: result.score,
+        reaction: result.reaction,
+        comment: result.comment,
+      });
+      return { result, state };
+    } catch (error) {
+      req.log.error(error, "talkshow openmic joke failed");
+      const msg = error instanceof Error ? error.message : "评分失败";
+      return reply.code(400).send({ message: msg });
+    }
+  });
+
+  // ===== 开放麦：3 个讲完，结算段位 =====
+  app.post("/api/talkshow/openmic/finish", async (req, reply) => {
+    if (!openMic) return reply.code(409).send({ message: "请先开始一局开放麦。" });
+    try {
+      const result = await openMic.finish();
+      broadcastSceneEvent("talkshow", SESSION, {
+        type: "openmic_result",
+        average: result.average,
+        tier: result.tier,
+        verdict: result.verdict,
+      });
+      return result;
+    } catch (error) {
+      req.log.error(error, "talkshow openmic finish failed");
+      const msg = error instanceof Error ? error.message : "结算失败";
+      return reply.code(400).send({ message: msg });
+    }
+  });
 
   // ===== 上台讲一段：AI 观众实时评分 + 广播 + 持久化 =====
   app.post("/api/talkshow/perform", async (req, reply) => {

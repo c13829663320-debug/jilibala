@@ -1,603 +1,311 @@
-// M8: 酒吧辩论 — 完整 UI 壳
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import {
-  ArrowLeft, Beer, Users, Send, Sparkles, Vote, MessageCircle, ChevronRight, Check,
-} from 'lucide-react'
-import { getCelebrity, type Celebrity, type WSMessage } from '@balabala/shared'
+// ===== 酒吧辩论：玩家正式辩手 + 裁判裁决（P0 重构）=====
+// 核心循环：选辩题选边（可押注虚拟金币）→ 3 回合（玩家立论 → 对方 AI 针对性反驳
+// → 双向论据强度条更新）→ 苏格拉底裁判裁决胜负。
+import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { ArrowLeft, Beer, Users, Send, Scale, RotateCcw, Gavel, Coins, Vote } from 'lucide-react'
+import { getCelebrity, type Celebrity } from '@balabala/shared'
 import { useIdentity } from './identity'
-import { fetchMyCharacters, fetchPublicCharacters, type UiCharacter } from './custom-characters'
 
 const BarView = lazy(() => import('./BarView'))
 
+const YELLOW = '#FFD60A'
+const TEAL = '#4fb3a5'
+
 type Side = 'pro' | 'con'
-type RoomPhase = 'pick' | 'debating' | 'summarized'
+type Stage = 'prepare' | 'debating' | 'verdict'
 
-interface DebaterInfo {
-  celebrityId: string
-  name: string
-  title?: string
-  portrait?: string
-  side: Side
-}
-
-interface TranscriptEntry {
-  id: string
-  speakerId?: string
-  speakerName: string
-  side: Side | 'bartender' | 'user'
-  text: string
-  quote?: string
-  time: string
-}
-
-interface BarQuote {
-  speaker: string
-  text: string
-  side: Side
-}
-
-interface ChatMsg {
-  userId: string
-  nickname: string
-  text: string
-}
+interface Turn { round: number; speaker: string; side: Side | 'player'; text: string }
 
 const SIDE_LABEL: Record<Side, string> = { pro: '正方', con: '反方' }
 
 export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
   const { user } = useIdentity()
 
-  // ===== 本地状态 =====
-  const [phase, setPhase] = useState<RoomPhase>('pick')
+  const [stage, setStage] = useState<Stage>('prepare')
   const [topics, setTopics] = useState<string[]>([])
   const [topic, setTopic] = useState('')
   const [customTopic, setCustomTopic] = useState('')
-  const [debaterList, setDebaterList] = useState<DebaterInfo[]>([])
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
-  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null)
-  const [votes, setVotes] = useState({ pro: 0, con: 0 })
-  const [consensus, setConsensus] = useState('')
-  const [quotes, setQuotes] = useState<BarQuote[]>([])
-  const [online, setOnline] = useState(1)
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([])
-  const [chatInput, setChatInput] = useState('')
-  const [joined, setJoined] = useState<Side | null>(null)
-  const [mySide, setMySide] = useState<Side>('pro')
+
+  const [playerSide, setPlayerSide] = useState<Side>('pro')
+  const [betSide, setBetSide] = useState<Side | null>(null)
+  const [coins, setCoins] = useState(100)
+
+  const [round, setRound] = useState(1)
+  const totalRounds = 3
+  const [strength, setStrength] = useState({ pro: 50, con: 50 })
+  const [transcript, setTranscript] = useState<Turn[]>([])
   const [myText, setMyText] = useState('')
   const [busy, setBusy] = useState(false)
-  const [busyName, setBusyName] = useState('')
-  const [published, setPublished] = useState<Set<string>>(new Set())
-  const [notice, setNotice] = useState('')
-  // 自定义辩手（我的 + 广场），可选加入辩论
-  const [customDebaters, setCustomDebaters] = useState<UiCharacter[]>([])
-  const [chosenDebaterIds, setChosenDebaterIds] = useState<string[]>([])
+  const [aiOpponent, setAiOpponent] = useState<{ id: string; name: string } | null>(null)
+  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null)
 
-  const wsRef = useRef<WebSocket | null>(null)
-  const activeTimer = useRef<number | null>(null)
-  const transcriptRef = useRef<TranscriptEntry[]>([])
-  transcriptRef.current = transcript
+  const [verdict, setVerdict] = useState<{ winner: Side | 'tie'; reasoning: string; keyMoments: string[] } | null>(null)
 
-  const showNotice = useCallback((msg: string) => {
-    setNotice(msg)
-    window.setTimeout(() => setNotice(''), 2400)
-  }, [])
-
-  // ===== 加载话题 =====
   useEffect(() => {
     fetch('/api/bar/topics')
-      .then(async (r) => { if (!r.ok) throw new Error('topics'); return r.json() as Promise<{ topics: string[] }> })
+      .then(async (r) => (r.json() as Promise<{ topics: string[] }>))
       .then((d) => setTopics(d.topics))
       .catch(() => setTopics(['外卖迟到，该不该给差评？', 'AI 会不会取代人类的工作？', '恋爱里，该不该看对方手机？']))
   }, [])
 
-  // ===== 加载可选自定义辩手（我的 + 广场，去重） =====
-  useEffect(() => {
-    const userId = user?.userId ?? ''
-    if (!userId) return
-    let alive = true
-    Promise.all([fetchMyCharacters(userId), fetchPublicCharacters()]).then(([mine, pub]) => {
-      if (!alive) return
-      const seen = new Set(mine.map((c) => c.id))
-      const merged = [...mine, ...pub.filter((c) => !seen.has(c.id))]
-      setCustomDebaters(merged)
-    })
-    return () => { alive = false }
-  }, [user?.userId])
-
-  // ===== WS 房间 =====
-  const handleSceneEvent = useCallback((event: Record<string, unknown>) => {
-    const type = event.type
-    switch (type) {
-      case 'debate_start': {
-        const list = (event.debaters ?? []) as DebaterInfo[]
-        if (Array.isArray(list) && list.length) {
-          setTopic(String(event.topic ?? ''))
-          setDebaterList(list)
-          setTranscript([])
-          setQuotes([])
-          setConsensus('')
-          setVotes({ pro: 0, con: 0 })
-          setPhase('debating')
-        }
-        break
-      }
-      case 'speech': {
-        const speakerId = String(event.speakerId ?? '')
-        const text = String(event.text ?? '')
-        // 去重：本地 POST 响应已追加，WS 回显跳过。
-        setTranscript((prev) => {
-          if (prev.some((e) => e.speakerId === speakerId && e.text === text)) return prev
-          return [...prev.slice(-80), {
-            id: `${Date.now()}-${Math.random()}`,
-            speakerId,
-            speakerName: String(event.speakerName ?? ''),
-            side: (event.side === 'con' ? 'con' : 'pro') as Side,
-            text,
-            quote: typeof event.quote === 'string' && event.quote ? event.quote : undefined,
-            time: new Date().toISOString(),
-          }]
-        })
-        break
-      }
-      case 'user_speech': {
-        setTranscript((prev) => [...prev.slice(-80), {
-          id: `${Date.now()}-${Math.random()}`,
-          speakerName: String(event.nickname ?? '客人'),
-          side: (event.side === 'con' ? 'con' : 'pro') as Side,
-          text: String(event.text ?? ''),
-          time: new Date().toISOString(),
-        }])
-        break
-      }
-      case 'vote_update': {
-        setVotes({ pro: Number(event.pro ?? 0), con: Number(event.con ?? 0) })
-        break
-      }
-      case 'summary': {
-        setConsensus(String(event.consensus ?? ''))
-        setQuotes(Array.isArray(event.quotes) ? (event.quotes as BarQuote[]) : [])
-        setPhase('summarized')
-        break
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!user?.userId) return
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const url = `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(user.userId)}&room=bar:lobby`
-    let closed = false
-    let timer: number | null = null
-    const connect = () => {
-      const ws = new WebSocket(url)
-      wsRef.current = ws
-      ws.onmessage = (ev) => {
-        let msg: WSMessage
-        try { msg = JSON.parse(ev.data) as WSMessage } catch { return }
-        switch (msg.type) {
-          case 'welcome': setOnline(msg.users.length); break
-          case 'user_joined': setOnline((n) => n + 1); break
-          case 'user_left': setOnline((n) => Math.max(1, n - 1)); break
-          case 'chat':
-            setChatMessages((p) => [...p.slice(-50), { userId: msg.userId, nickname: msg.nickname, text: msg.text }])
-            break
-          case 'scene_event': handleSceneEvent(msg.event); break
-        }
-      }
-      ws.onclose = () => {
-        if (!closed) timer = window.setTimeout(connect, 3000)
-      }
-      ws.onerror = () => { ws.close() }
-    }
-    connect()
-    return () => { closed = true; if (timer) window.clearTimeout(timer); wsRef.current?.close(); wsRef.current = null }
-  }, [user?.userId, handleSceneEvent])
-
-  // ===== 动作 =====
   const activeTopic = customTopic.trim() || topic
 
   const startDebate = async () => {
     const t = activeTopic
     if (!t || busy) return
-    setBusy(true); setBusyName('召集辩手中…')
+    setBusy(true)
     try {
-      const res = await fetch('/api/bar/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: t, userId: user?.userId ?? '', celebrityIds: chosenDebaterIds }),
+      const res = await fetch('/api/bar/debate/start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: t, playerSide }),
       })
-      const data = await res.json() as { debaters?: DebaterInfo[]; topic?: string; message?: string }
-      if (!res.ok) throw new Error(data.message ?? '开桌失败')
-      if (Array.isArray(data.debaters)) {
-        setDebaterList(data.debaters)
-        setTopic(data.topic ?? t)
-        setTranscript([])
-        setQuotes([]); setConsensus('')
-        setVotes({ pro: 0, con: 0 })
-        setPhase('debating')
-      }
+      const data = await res.json() as { state?: { topic: string; argumentStrength: { pro: number; con: number }; aiOpponent: { id: string; name: string } }; message?: string }
+      if (!res.ok || !data.state) throw new Error(data.message ?? '开桌失败')
+      setStrength(data.state.argumentStrength)
+      setAiOpponent(data.state.aiOpponent)
+      setTranscript([])
+      setRound(1)
+      setVerdict(null)
+      setStage('debating')
     } catch (e) {
-      showNotice(e instanceof Error ? e.message : '开桌失败')
+      window.alert(e instanceof Error ? e.message : '开桌失败')
     } finally {
-      setBusy(false); setBusyName('')
+      setBusy(false)
     }
   }
 
-  const markActiveSpeaker = useCallback((id: string) => {
-    setActiveSpeakerId(id)
-    if (activeTimer.current) window.clearTimeout(activeTimer.current)
-    activeTimer.current = window.setTimeout(() => setActiveSpeakerId(null), 3000)
+  const playerSpeak = async () => {
+    const text = myText.trim()
+    if (!text || busy || stage !== 'debating') return
+    setBusy(true)
+    try {
+      const res = await fetch('/api/bar/debate/speak', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ round, content: text }),
+      })
+      const data = await res.json() as {
+        playerTurn?: Turn; aiTurn?: Turn; state?: { round: number; argumentStrength: { pro: number; con: number } }; message?: string
+      }
+      if (!res.ok || !data.playerTurn || !data.aiTurn || !data.state) throw new Error(data.message ?? '发言失败')
+
+      setTranscript((prev) => [...prev, data.playerTurn!, data.aiTurn!])
+      setStrength(data.state.argumentStrength)
+      setMyText('')
+      if (aiOpponent) {
+        setActiveSpeakerId(aiOpponent.id)
+        window.setTimeout(() => setActiveSpeakerId(null), 3000)
+      }
+      setRound(data.state.round)
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '发言失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const askVerdict = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await fetch('/api/bar/debate/verdict', { method: 'POST' })
+      const data = await res.json() as { verdict?: { winner: Side | 'tie'; reasoning: string; keyMoments: string[] }; state?: { argumentStrength: { pro: number; con: number } }; message?: string }
+      if (!res.ok || !data.verdict) throw new Error(data.message ?? '裁决失败')
+      setVerdict(data.verdict)
+      if (data.state) setStrength(data.state.argumentStrength)
+      if (betSide && data.verdict.winner === betSide) setCoins((c) => c * 2)
+      else if (betSide) setCoins(0)
+      setStage('verdict')
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '裁决失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reset = useCallback(() => {
+    setStage('prepare')
+    setTranscript([])
+    setVerdict(null)
+    setStrength({ pro: 50, con: 50 })
+    setRound(1)
+    setAiOpponent(null)
+    setBetSide(null)
   }, [])
 
-  const speak = async (debater: DebaterInfo) => {
-    if (busy || !activeTopic) return
-    setBusy(true); setBusyName(`${debater.name} 正在发言…`)
-    markActiveSpeaker(debater.celebrityId)
-    const context = transcriptRef.current.map((e) => `【${e.speakerName}】${e.text}`)
-    try {
-      const res = await fetch('/api/bar/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ celebrityId: debater.celebrityId, topic: activeTopic, side: debater.side, context }),
-      })
-      const data = await res.json() as { text?: string; quote?: string; message?: string }
-      if (!res.ok) throw new Error(data.message ?? '发言失败')
-      if (data.text) {
-        setTranscript((prev) => [...prev.slice(-80), {
-          id: `${Date.now()}-${Math.random()}`,
-          speakerId: debater.celebrityId,
-          speakerName: debater.name,
-          side: debater.side,
-          text: data.text!,
-          quote: data.quote || undefined,
-          time: new Date().toISOString(),
-        }])
-      }
-    } catch (e) {
-      showNotice(e instanceof Error ? e.message : '发言失败')
-    } finally {
-      setBusy(false); setBusyName('')
-    }
-  }
-
-  const joinSide = (side: Side) => { setJoined(side); setMySide(side) }
-
-  const userSpeak = async () => {
-    const text = myText.trim()
-    if (!text || !joined) return
-    try {
-      await fetch('/api/bar/user-speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, side: joined, userId: user?.userId ?? '', nickname: user?.nickname ?? '' }),
-      })
-      setMyText('')
-    } catch { showNotice('发送失败') }
-  }
-
-  const castVote = async (side: Side) => {
-    try {
-      const res = await fetch('/api/bar/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ side, userId: user?.userId ?? '' }),
-      })
-      const data = await res.json() as { pro: number; con: number }
-      if (typeof data.pro === 'number') setVotes({ pro: data.pro, con: data.con })
-    } catch { showNotice('投票失败') }
-  }
-
-  const summarize = async () => {
-    if (busy || !activeTopic) return
-    setBusy(true); setBusyName('酒保听大家聊得差不多了…')
-    try {
-      const all = transcriptRef.current
-      const proPoints = all.filter((e) => e.side === 'pro' && e.speakerId).map((e) => e.text)
-      const conPoints = all.filter((e) => e.side === 'con' && e.speakerId).map((e) => e.text)
-      const res = await fetch('/api/bar/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: activeTopic, proPoints, conPoints }),
-      })
-      const data = await res.json() as { consensus?: string; quotes?: BarQuote[]; message?: string }
-      if (!res.ok) throw new Error(data.message ?? '总结失败')
-      setConsensus(data.consensus ?? '')
-      setQuotes(data.quotes ?? [])
-      setPhase('summarized')
-    } catch (e) {
-      showNotice(e instanceof Error ? e.message : '总结失败')
-    } finally {
-      setBusy(false); setBusyName('')
-    }
-  }
-
-  const publishQuote = async (quote: BarQuote, idx: number) => {
-    const key = `${idx}:${quote.text}`
-    if (published.has(key)) return
-    try {
-      const res = await fetch('/api/bar/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: `${activeTopic} · ${quote.speaker}`,
-          topic: activeTopic,
-          quote: quote.text,
-          speaker: quote.speaker,
-          side: quote.side,
-          consensus,
-          topics: [activeTopic],
-          userId: user?.userId ?? '',
-        }),
-      })
-      if (!res.ok) throw new Error('发布失败')
-      setPublished((p) => new Set(p).add(key))
-      showNotice('金句已发到广场 🍻')
-    } catch (e) {
-      showNotice(e instanceof Error ? e.message : '发布失败')
-    }
-  }
-
-  const sendChat = () => {
-    const text = chatInput.trim()
-    if (!text || !wsRef.current) return
-    wsRef.current.send(JSON.stringify({ type: 'chat', text }))
-    setChatInput('')
-  }
-
-  // 3D 用的名人对象（从 debaterList 映射）
-  const viewCelebs: Celebrity[] = debaterList
-    .map((d) => getCelebrity(d.celebrityId))
-    .filter((c): c is Celebrity => Boolean(c))
-
-  const proDebaters = debaterList.filter((d) => d.side === 'pro')
-  const conDebaters = debaterList.filter((d) => d.side === 'con')
-
-  const panelBg = '#141414'
-  const amber = '#4fb3a5'
+  // 3D 用的名人对象
+  const viewCelebs: Celebrity[] = aiOpponent ? [getCelebrity(aiOpponent.id)].filter((c): c is Celebrity => Boolean(c)) : []
+  const debateOver = round > totalRounds
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0A0A0A', color: '#EDEDF0' }}>
-      <img src="/scenes/bar.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.2, zIndex: 0, pointerEvents: 'none' }} />
       {/* 顶栏 */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-        background: '#141414', borderBottom: '1px solid rgba(255,255,255,0.08)',
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', background: '#141414', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <button onClick={onBack} style={headerBtn}><ArrowLeft size={16} /></button>
-        <span style={{ fontSize: 18, fontWeight: 700, color: amber }}>🍺 酒吧辩论</span>
-        <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>暖光小馆 · 不站队，只聊最有趣的</span>
+        <span style={{ fontSize: 18, fontWeight: 700, color: YELLOW }}>🍺 酒吧辩论</span>
+        <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>你是正式辩手 · 苏格拉底当裁判</span>
         <div style={{ flex: 1 }} />
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(237,237,240,0.7)' }}>
-          <Users size={14} /> {online} 位客人
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: TEAL }}>
+          <Coins size={14} /> {coins} 金币
         </span>
-        {onPlaza && (
-          <button onClick={onPlaza} style={{ ...headerBtn, color: amber }}>广场 →</button>
-        )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(237,237,240,0.7)' }}>
+          <Users size={14} /> 现场客人
+        </span>
+        {onPlaza && <button onClick={onPlaza} style={{ ...headerBtn, color: TEAL }}>广场 →</button>}
       </div>
 
       {/* 主体 */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* 左：3D 场景 */}
-        <div style={{ flex: 1.4, position: 'relative', minWidth: 0 }}>
+        <div style={{ flex: 1.4, position: 'relative', minWidth: 0, background: '#1a0f08' }}>
           {viewCelebs.length > 0 ? (
-            <Suspense fallback={<LoadingBar name={busyName} />}>
+            <Suspense fallback={<LoadingBar />}>
               <BarView celebrities={viewCelebs} activeSpeakerId={activeSpeakerId} />
             </Suspense>
           ) : (
-            <div style={{
-              height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', color: 'rgba(237,237,240,0.3)', gap: 12,
-            }}>
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(237,237,240,0.35)', gap: 12 }}>
               <Beer size={48} />
-              <div style={{ fontSize: 15 }}>挑一个话题，开一桌酒，让名人们先吵起来</div>
+              <div style={{ fontSize: 15 }}>选个辩题、站好队，开一桌你亲自下场的辩论</div>
             </div>
           )}
           {busy && (
-            <div style={{
-              position: 'absolute', left: 16, bottom: 16, padding: '8px 14px',
-              background: 'rgba(40,20,8,0.85)', border: '1px solid #5a3a22', borderRadius: 8,
-              fontSize: 13, color: amber,
-            }}>
-              {busyName || '…'}
+            <div style={{ position: 'absolute', left: 16, bottom: 16, padding: '8px 14px', background: 'rgba(40,20,8,0.85)', border: `1px solid ${TEAL}`, borderRadius: 8, fontSize: 13, color: TEAL }}>
+              正在交锋…
             </div>
-          )}
-          {notice && (
-            <div style={{
-              position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-              padding: '8px 16px', background: '#EDEDF0', color: '#0A0A0A', borderRadius: 8,
-              fontSize: 13, fontWeight: 600, zIndex: 5,
-            }}>{notice}</div>
           )}
         </div>
 
         {/* 右：控制面板 */}
-        <div style={{
-          width: 420, background: panelBg, borderLeft: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex', flexDirection: 'column', minHeight: 0,
-        }}>
-          {/* 话题选择 / 辩手 */}
-          {phase === 'pick' ? (
+        <div style={{ width: 420, background: '#141414', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {stage === 'prepare' && (
             <div style={{ padding: 18, overflowY: 'auto' }}>
-              <SectionTitle>选个话题开桌</SectionTitle>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-                {topics.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => { setTopic(t); setCustomTopic('') }}
-                    style={{
-                      ...topicBtn,
-                      borderColor: topic === t && !customTopic ? amber : 'rgba(255,255,255,0.08)',
-                      background: topic === t && !customTopic ? 'rgba(79,179,165,0.13)' : 'transparent',
-                    }}
-                  >{t}</button>
+              <Title>选个辩题，站好队</Title>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                {topics.slice(0, 8).map((t) => (
+                  <button key={t} onClick={() => { setTopic(t); setCustomTopic('') }}
+                    style={{ ...topicBtn, borderColor: topic === t && !customTopic ? YELLOW : 'rgba(255,255,255,0.08)', background: topic === t && !customTopic ? 'rgba(255,214,10,0.1)' : 'transparent' }}>
+                    {t}
+                  </button>
                 ))}
               </div>
-              <input
-                value={customTopic}
-                onChange={(e) => setCustomTopic(e.target.value)}
-                placeholder="或者自己想一个话题…"
-                style={inputStyle}
-              />
-              {/* 可选：自定义辩手（我的 + 广场人物） */}
-              {customDebaters.length > 0 && (
-                <>
-                  <SectionTitle>邀位自定义辩手（可选）</SectionTitle>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
-                    {customDebaters.map((c) => {
-                      const on = chosenDebaterIds.includes(c.id)
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={() => setChosenDebaterIds((prev) => on ? prev.filter((x) => x !== c.id) : [...prev, c.id])}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                            background: on ? 'rgba(79,179,165,0.13)' : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${on ? 'rgba(79,179,165,0.42)' : 'rgba(255,255,255,0.08)'}`,
-                            borderRadius: 6, color: '#EDEDF0', cursor: 'pointer', textAlign: 'left',
-                          }}
-                        >
-                          {c.portrait ? (
-                            <img src={c.portrait} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
-                          ) : (
-                            <span style={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,0.08)', fontSize: 12 }}>{c.name[0]}</span>
-                          )}
-                          <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
-                          <span style={{ fontSize: 11, color: 'rgba(237,237,240,0.48)' }}>{c.visibility === 'public' ? '广场' : '我的'}</span>
-                          {on && <Check size={13} color="#4fb3a5" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-              <button
-                onClick={startDebate}
-                disabled={(!topic && !customTopic.trim()) || busy}
-                style={{ ...primaryBtn, marginTop: 12, opacity: (!topic && !customTopic.trim()) || busy ? 0.5 : 1 }}
-              >
-                <Beer size={15} /> {busy ? '正在召集…' : '开始辩论'}
+              <input value={customTopic} onChange={(e) => setCustomTopic(e.target.value)} placeholder="或者自己想一个辩题…" style={inputStyle} />
+
+              <Title>你站哪边</Title>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button onClick={() => setPlayerSide('pro')} style={{ ...sideBtn, borderColor: playerSide === 'pro' ? YELLOW : 'rgba(255,255,255,0.15)', color: playerSide === 'pro' ? YELLOW : 'rgba(237,237,240,0.6)' }}>
+                  正方（赞成）
+                </button>
+                <button onClick={() => setPlayerSide('con')} style={{ ...sideBtn, borderColor: playerSide === 'con' ? TEAL : 'rgba(255,255,255,0.15)', color: playerSide === 'con' ? TEAL : 'rgba(237,237,240,0.6)' }}>
+                  反方（反对）
+                </button>
+              </div>
+
+              <Title>押注虚拟金币（可选）</Title>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                <Vote size={13} style={{ color: 'rgba(237,237,240,0.5)' }} />
+                <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.5)' }}>押 100 金币，赢了翻倍：</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {(['pro', 'con'] as Side[]).map((s) => (
+                  <button key={s} onClick={() => setBetSide(betSide === s ? null : s)}
+                    style={{ ...sideBtn, borderColor: betSide === s ? YELLOW : 'rgba(255,255,255,0.15)', background: betSide === s ? 'rgba(255,214,10,0.12)' : 'transparent' }}>
+                    {betSide === s ? '✓ ' : ''}押{SIDE_LABEL[s]}
+                  </button>
+                ))}
+                {betSide === null && <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.35)', alignSelf: 'center' }}>不押</span>}
+              </div>
+
+              <button onClick={() => void startDebate()} disabled={!activeTopic || busy} style={{ ...primaryBtn, opacity: !activeTopic || busy ? 0.5 : 1 }}>
+                <Scale size={15} /> {busy ? '召集对方辩手…' : '开战！'}
               </button>
             </div>
-          ) : (
+          )}
+
+          {stage !== 'prepare' && (
             <>
-              {/* 辩论进行区 */}
+              {/* 辩题 + 回合 + 强度条 */}
               <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                <SectionTitle>话题：{activeTopic}</SectionTitle>
-                <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                  <SideGroup label="正方" color="#6ab0ff" debaters={proDebaters} activeId={activeSpeakerId} onSpeak={speak} disabled={busy} />
-                  <SideGroup label="反方" color="#ff8a6a" debaters={conDebaters} activeId={activeSpeakerId} onSpeak={speak} disabled={busy} />
+                <div style={{ fontSize: 13, color: 'rgba(237,237,240,0.6)', marginBottom: 2 }}>辩题</div>
+                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{activeTopic}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ color: YELLOW, fontWeight: 700 }}>正方 {Math.round(strength.pro)}</span>
+                  <span style={{ color: 'rgba(237,237,240,0.45)' }}>{stage === 'verdict' ? '辩论结束' : `第 ${Math.min(round, totalRounds)}/${totalRounds} 回合`}</span>
+                  <span style={{ color: TEAL, fontWeight: 700 }}>反方 {Math.round(strength.con)}</span>
                 </div>
-                {/* 投票 */}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <Vote size={13} /> 谁更有趣
-                  </span>
-                  <button onClick={() => castVote('pro')} style={{ ...voteBtn, borderColor: '#6ab0ff', color: '#9cc8ff' }}>
-                    正方 {votes.pro}
-                  </button>
-                  <button onClick={() => castVote('con')} style={{ ...voteBtn, borderColor: '#ff8a6a', color: '#ffb09a' }}>
-                    反方 {votes.con}
-                  </button>
+                {/* 双向论据强度条：左正方明黄 / 右反方青绿 */}
+                <div style={{ display: 'flex', height: 14, borderRadius: 7, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div style={{ width: `${strength.pro}%`, background: YELLOW, transition: 'width 0.8s ease' }} />
+                  <div style={{ width: `${strength.con}%`, background: TEAL, transition: 'width 0.8s ease' }} />
                 </div>
               </div>
 
               {/* 发言记录 */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '10px 18px', minHeight: 0 }}>
                 {transcript.length === 0 && (
-                  <div style={{ color: 'rgba(237,237,240,0.3)', fontSize: 13, textAlign: 'center', marginTop: 24 }}>
-                    点一位名人的「发言」，先让场子热起来
+                  <div style={{ color: 'rgba(237,237,240,0.35)', fontSize: 13, textAlign: 'center', marginTop: 24 }}>
+                    {user?.nickname ?? '你'}（{SIDE_LABEL[playerSide]}）先立论吧
                   </div>
                 )}
-                {transcript.map((e) => (
-                  <div key={e.id} style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12, color: e.side === 'pro' ? '#9cc8ff' : e.side === 'con' ? '#ffb09a' : 'rgba(237,237,240,0.7)', marginBottom: 3 }}>
-                      {e.side === 'user' ? '👤 ' : ''}{e.speakerName}
-                      {e.side === 'pro' ? ' · 正方' : e.side === 'con' ? ' · 反方' : ''}
+                {transcript.map((t, i) => (
+                  <div key={i} style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, marginBottom: 3, color: t.side === 'player' ? YELLOW : t.side === 'pro' ? YELLOW : TEAL }}>
+                      {t.side === 'player' ? `👤 ${user?.nickname ?? '你'} · ` : `${t.speaker} · `}{t.side === 'player' ? SIDE_LABEL[playerSide] : SIDE_LABEL[t.side as Side]}
                     </div>
-                    <div style={{ fontSize: 14, lineHeight: 1.5, color: '#EDEDF0' }}>{e.text}</div>
-                    {e.quote && (
-                      <div style={{
-                        marginTop: 4, padding: '4px 10px', borderLeft: `3px solid ${amber}`,
-                        background: 'rgba(79,179,165,0.13)', fontSize: 13, color: amber,
-                      }}>“{e.quote}”</div>
-                    )}
+                    <div style={{ fontSize: 14, lineHeight: 1.5, color: '#EDEDF0' }}>{t.text}</div>
                   </div>
                 ))}
               </div>
 
-              {/* 酒保总结 */}
-              {consensus && (
-                <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(79,179,165,0.13)' }}>
-                  <SectionTitle>🍸 酒保小结</SectionTitle>
-                  <div style={{ fontSize: 13, lineHeight: 1.6, color: 'rgba(237,237,240,0.7)', marginBottom: 10 }}>{consensus}</div>
-                  {quotes.map((q, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
-                      padding: '6px 10px', background: 'rgba(79,179,165,0.13)', borderRadius: 6,
-                    }}>
-                      <div style={{ flex: 1, fontSize: 13, color: amber }}>
-                        “{q.text}”<span style={{ color: 'rgba(237,237,240,0.48)', fontSize: 11 }}> — {q.speaker}</span>
-                      </div>
-                      <button
-                        onClick={() => publishQuote(q, i)}
-                        disabled={published.has(`${i}:${q.text}`)}
-                        style={{
-                          ...voteBtn,
-                          opacity: published.has(`${i}:${q.text}`) ? 0.6 : 1,
-                          color: published.has(`${i}:${q.text}`) ? '#4fb3a5' : '#EDEDF0',
-                        }}
-                      >
-                        {published.has(`${i}:${q.text}`) ? <><Check size={12} /> 已发</> : '发广场'}
-                      </button>
+              {/* 裁决结果 */}
+              {stage === 'verdict' && verdict && (
+                <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,214,10,0.3)', background: 'rgba(255,214,10,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Gavel size={16} color={YELLOW} />
+                    <span style={{ fontSize: 14, fontWeight: 800, color: YELLOW }}>苏格拉底裁决</span>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6, color: verdict.winner === 'tie' ? '#EDEDF0' : YELLOW }}>
+                    {verdict.winner === 'tie' ? '平局！' : `${SIDE_LABEL[verdict.winner]}胜`}
+                    {betSide && (
+                      <span style={{ fontSize: 12, marginLeft: 8, color: TEAL }}>
+                        （押注{verdict.winner === betSide ? `翻倍 → ${coins} 金币 🎉` : '落空 😅'}）
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.6, color: 'rgba(237,237,240,0.8)' }}>{verdict.reasoning}</p>
+                  {verdict.keyMoments.length > 0 && (
+                    <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.55)' }}>
+                      <div style={{ marginBottom: 4 }}>精彩瞬间：</div>
+                      {verdict.keyMoments.map((m, i) => <div key={i}>· {m}</div>)}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
 
-              {/* 底部：用户发言 + 酒保按钮 */}
+              {/* 底部输入区 */}
               <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                {!joined ? (
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', alignSelf: 'center' }}>你站哪边：</span>
-                    <button onClick={() => joinSide('pro')} style={{ ...voteBtn, borderColor: '#6ab0ff', color: '#9cc8ff' }}>正方</button>
-                    <button onClick={() => joinSide('con')} style={{ ...voteBtn, borderColor: '#ff8a6a', color: '#ffb09a' }}>反方</button>
-                  </div>
-                ) : (
+                {stage === 'debating' && !debateOver && (
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, color: joined === 'pro' ? '#9cc8ff' : '#ffb09a', alignSelf: 'center' }}>
-                      你是{joined === 'pro' ? '正方' : '反方'}
-                    </span>
                     <input
                       value={myText}
                       onChange={(e) => setMyText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void userSpeak() }}
-                      placeholder="说两句…"
+                      onKeyDown={(e) => { if (e.key === 'Enter') void playerSpeak() }}
+                      placeholder={`第 ${round} 回合，陈述你的观点…`}
                       style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
                     />
-                    <button onClick={userSpeak} style={{ ...primaryBtn, padding: '8px 12px', marginTop: 0 }}>
-                      <Send size={13} />
+                    <button onClick={() => void playerSpeak()} disabled={!myText.trim() || busy} style={{ ...primaryBtn, padding: '8px 12px', marginTop: 0, opacity: !myText.trim() || busy ? 0.5 : 1 }}>
+                      <Send size={14} />
                     </button>
                   </div>
                 )}
-                {/* 聊天 */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                  <input
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') sendChat() }}
-                    placeholder="和客人闲聊…"
-                    style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
-                  />
-                  <button onClick={sendChat} style={{ ...voteBtn }}><MessageCircle size={13} /></button>
-                </div>
-                {chatMessages.slice(-3).map((m, i) => (
-                  <div key={i} style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', marginBottom: 2 }}>
-                    {m.nickname}：{m.text}
-                  </div>
-                ))}
-                <button onClick={summarize} disabled={busy || transcript.length === 0} style={{ ...primaryBtn, width: '100%', opacity: busy || transcript.length === 0 ? 0.5 : 1 }}>
-                  <Sparkles size={14} /> {phase === 'summarized' ? '重新听酒保小结' : '喊酒保总结'}
-                </button>
+                {stage === 'debating' && debateOver && (
+                  <button onClick={() => void askVerdict()} disabled={busy} style={{ ...primaryBtn, width: '100%', opacity: busy ? 0.5 : 1 }}>
+                    <Gavel size={14} /> {busy ? '苏格拉底思考中…' : '请裁判裁决'}
+                  </button>
+                )}
+                {stage === 'verdict' && (
+                  <button onClick={reset} style={{ ...primaryBtn, width: '100%' }}>
+                    <RotateCcw size={14} /> 换个辩题再来一局
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -607,90 +315,32 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
   )
 }
 
-/* ---------- 子组件 ---------- */
-function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(237,237,240,0.7)', marginBottom: 10, letterSpacing: 1 }}>
-      {children}
-    </div>
-  )
+function Title({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(237,237,240,0.7)', margin: '14px 0 8px', letterSpacing: 1 }}>{children}</div>
 }
 
-function SideGroup({
-  label, color, debaters, activeId, onSpeak, disabled,
-}: {
-  label: string
-  color: string
-  debaters: DebaterInfo[]
-  activeId: string | null
-  onSpeak: (d: DebaterInfo) => void
-  disabled: boolean
-}) {
-  return (
-    <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 12, color, marginBottom: 6, fontWeight: 600 }}>{label}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {debaters.map((d) => (
-          <button
-            key={d.celebrityId}
-            onClick={() => onSpeak(d)}
-            disabled={disabled}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-              background: d.celebrityId === activeId ? 'rgba(79,179,165,0.13)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${d.celebrityId === activeId ? 'rgba(79,179,165,0.42)' : 'rgba(255,255,255,0.08)'}`,
-              borderRadius: 6, color: '#EDEDF0', cursor: disabled ? 'wait' : 'pointer', textAlign: 'left',
-            }}
-          >
-            {d.portrait && (
-              <img src={d.portrait} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} />
-            )}
-            <span style={{ flex: 1, fontSize: 13 }}>{d.name}</span>
-            <ChevronRight size={13} color="rgba(237,237,240,0.48)" />
-          </button>
-        ))}
-      </div>
-    </div>
-  )
+function LoadingBar() {
+  return <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a0f08', color: '#4fb3a5', fontSize: 14 }}>布置酒吧中…</div>
 }
 
-function LoadingBar({ name }: { name: string }) {
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#0A0A0A', color: '#4fb3a5', fontSize: 14,
-    }}>
-      {name || '布置酒吧中…'}
-    </div>
-  )
-}
-
-/* ---------- 样式常量 ---------- */
 const headerBtn: CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 4,
-  padding: '6px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-  borderRadius: 6, color: 'rgba(237,237,240,0.7)', cursor: 'pointer', fontSize: 13,
+  display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: 'transparent',
+  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: 'rgba(237,237,240,0.7)', cursor: 'pointer', fontSize: 13,
 }
-
 const topicBtn: CSSProperties = {
-  padding: '8px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-  borderRadius: 6, color: 'rgba(237,237,240,0.7)', cursor: 'pointer', fontSize: 13, textAlign: 'left',
+  padding: '8px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6,
+  color: 'rgba(237,237,240,0.7)', cursor: 'pointer', fontSize: 13, textAlign: 'left',
 }
-
+const sideBtn: CSSProperties = {
+  flex: 1, padding: '8px 10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
+  cursor: 'pointer', fontSize: 13,
+}
 const inputStyle: CSSProperties = {
   width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 6,
-  border: '1px solid rgba(255,255,255,0.08)', background: '#0F0F0F', color: '#EDEDF0', fontSize: 13,
-  outline: 'none', marginBottom: 8,
+  border: '1px solid rgba(255,255,255,0.08)', background: '#0F0F0F', color: '#EDEDF0', fontSize: 13, outline: 'none', marginBottom: 8,
 }
-
 const primaryBtn: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-  padding: '10px 16px', background: '#EDEDF0', border: 'none', borderRadius: 6,
+  padding: '10px 16px', background: YELLOW, border: 'none', borderRadius: 6,
   color: '#0A0A0A', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 8,
-}
-
-const voteBtn: CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 4,
-  padding: '6px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-  borderRadius: 6, cursor: 'pointer', fontSize: 13,
 }

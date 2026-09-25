@@ -8,6 +8,8 @@ import { useSceneCleanup } from './useSceneCleanup'
 
 /** 明黄主题色。 */
 const YELLOW = '#4fb3a5'
+/** 玩家上台专属聚光色（品牌明黄）。 */
+const PLAYER_YELLOW = '#FFD60A'
 
 /** 模型加载失败时不拖垮整个 Canvas。 */
 class TalkshowModelErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
@@ -154,8 +156,8 @@ function Performer({ celebrity, position, active }: { celebrity: Celebrity; posi
   )
 }
 
-/** 阶梯式观众席：多排深色 box 排列。 */
-function AudienceSeats() {
+/** 阶梯式观众席：多排深色 box；兴奋度越高观众席越亮（颜色变化代替起立鼓掌）。 */
+function AudienceSeats({ excitement }: { excitement: number }) {
   const rows = useMemo(() => {
     const seats: Array<{ position: [number, number, number]; color: string }> = []
     const rowCount = 4
@@ -172,15 +174,79 @@ function AudienceSeats() {
     }
     return seats
   }, [])
+  // 兴奋度 0-100 → 观众席自发光强度。
+  const glow = Math.max(0, Math.min(1, excitement / 100))
   return (
     <group>
       {rows.map((s, i) => (
         <mesh key={i} position={s.position} castShadow receiveShadow>
           <boxGeometry args={[0.62, 0.42, 0.62]} />
-          <meshStandardMaterial color={s.color} roughness={0.9} />
+          <meshStandardMaterial
+            color={glow > 0.5 ? '#3a3416' : s.color}
+            emissive={PLAYER_YELLOW}
+            emissiveIntensity={glow * 0.9}
+            roughness={0.9}
+          />
         </mesh>
       ))}
     </group>
+  )
+}
+
+/** 玩家上台的 Q 版占位：胶囊小人 + 脚下明黄圈 + 头顶聚光。 */
+function PlayerOnStage({ active }: { active: boolean }) {
+  const ringMat = useRef<MeshStandardMaterial | null>(null)
+  useFrame(({ clock }) => {
+    if (!ringMat.current) return
+    ringMat.current.emissiveIntensity = active ? 2.0 + Math.sin(clock.getElapsedTime() * 5) * 1.0 : 0.2
+  })
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
+        <ringGeometry args={[0.5, 0.72, 48]} />
+        <meshStandardMaterial
+          ref={ringMat}
+          color={active ? PLAYER_YELLOW : '#3a3410'}
+          emissive={PLAYER_YELLOW}
+          emissiveIntensity={active ? 2.0 : 0.2}
+          transparent
+          opacity={active ? 1 : 0.5}
+          side={DoubleSide}
+        />
+      </mesh>
+      <mesh castShadow position={[0, 0.85, 0]}>
+        <cylinderGeometry args={[0.24, 0.32, 1.3, 16]} />
+        <meshStandardMaterial color={active ? PLAYER_YELLOW : '#5a5a66'} />
+      </mesh>
+      <mesh castShadow position={[0, 1.75, 0]}>
+        <sphereGeometry args={[0.2, 16, 16]} />
+        <meshStandardMaterial color={active ? '#fff2b0' : '#7a7a88'} />
+      </mesh>
+      <Text
+        position={[0, 2.12, 0.06]}
+        fontSize={0.22}
+        color="#fff6d8"
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={0.02}
+        outlineColor="#7a5a00"
+      >
+        {active ? '你 · 开放麦' : '你'}
+      </Text>
+    </group>
+  )
+}
+
+/** 打在玩家身上的聚光灯（明黄）。 */
+function PlayerSpotlight() {
+  const light = useMemo(() => new SpotLight(PLAYER_YELLOW, 120, 14, Math.PI / 5, 0.5, 1.4), [])
+  const target = useMemo(() => new Object3D(), [])
+  useLayoutEffect(() => { light.target = target }, [light, target])
+  return (
+    <>
+      <primitive object={light} position={[0, 5.4, -0.6]} />
+      <primitive object={target} position={[0, 0.4, -2.0]} />
+    </>
   )
 }
 
@@ -212,7 +278,17 @@ function CameraRig({ children }: { children?: ReactNode }) {
 }
 
 /** 剧场主场景。 */
-function Talkshow({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; activeSpeakerId: string | null }) {
+function Talkshow({
+  celebrities,
+  activeSpeakerId,
+  playerOnStage = false,
+  audienceExcitement = 0,
+}: {
+  celebrities: Celebrity[]
+  activeSpeakerId: string | null
+  playerOnStage?: boolean
+  audienceExcitement?: number
+}) {
   const sceneRef = useRef<Group>(null)
   useSceneCleanup(sceneRef, () =>
     celebrities.map((c) => c.model).filter((m): m is string => Boolean(m)),
@@ -300,8 +376,16 @@ function Talkshow({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; 
         叽里呱啦 · 脱口秀剧场
       </Text>
 
-      {/* 观众席。 */}
-      <AudienceSeats />
+      {/* 观众席（兴奋度驱动颜色反应）。 */}
+      <AudienceSeats excitement={audienceExcitement} />
+
+      {/* 玩家上台时：明黄聚光灯 + 玩家站位。 */}
+      {playerOnStage && <PlayerSpotlight />}
+      {playerOnStage && (
+        <group position={[0, stageTopY, -2.0]}>
+          <PlayerOnStage active />
+        </group>
+      )}
 
       {/* 舞台上的表演者。 */}
       {cast.map((c, i) => (
@@ -319,13 +403,22 @@ function Talkshow({ celebrities, activeSpeakerId }: { celebrities: Celebrity[]; 
 export default function TalkshowView({
   celebrities,
   activeSpeakerId,
+  playerOnStage = false,
+  audienceExcitement = 0,
 }: {
   celebrities: Celebrity[]
   activeSpeakerId: string | null
+  playerOnStage?: boolean
+  audienceExcitement?: number
 }) {
   return (
     <SafeCanvas shadows camera={{ position: [0, 1.9, 5.6], fov: 45 }} dpr={[1, 2]}>
-      <Talkshow celebrities={celebrities} activeSpeakerId={activeSpeakerId} />
+      <Talkshow
+        celebrities={celebrities}
+        activeSpeakerId={activeSpeakerId}
+        playerOnStage={playerOnStage}
+        audienceExcitement={audienceExcitement}
+      />
     </SafeCanvas>
   )
 }

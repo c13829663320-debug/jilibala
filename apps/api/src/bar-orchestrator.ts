@@ -228,3 +228,242 @@ export const bartenderSummary = async (
     return fallback;
   }
 };
+
+// ===== 4. 玩家作为正式辩手的 3 回合辩论 + 裁判裁决 =====
+// 现状是两位 AI 自动吵架、玩家围观投票。重构后：玩家选边加入完整 3 回合
+// （立论 → 对方 AI 针对性反驳 → 论据强度条变化），结束由「苏格拉底」裁判裁决胜负。
+export type DebateStage = "prepare" | "debating" | "verdict";
+
+export interface DebateTurn {
+  round: number;
+  side: DebateSide | "player";
+  speaker: string;
+  text: string;
+}
+
+export interface DebateState {
+  stage: DebateStage;
+  topic: string;
+  /** 玩家站的边。 */
+  playerSide: DebateSide;
+  /** 下一回合（1 起）；等于 totalRounds+1 表示已打满可裁决。 */
+  round: number;
+  totalRounds: number;
+  /** 双向论据强度，0-100，二者之和恒为 100。 */
+  argumentStrength: { pro: number; con: number };
+  transcript: DebateTurn[];
+  /** 对方 AI 辩手（名人 persona）。 */
+  aiOpponent: ResolvedCharacter;
+}
+
+export interface DebateVerdict {
+  winner: DebateSide | "tie";
+  reasoning: string;
+  keyMoments: string[];
+}
+
+export interface DebateSession {
+  start(topic: string, playerSide: DebateSide): Promise<DebateState>;
+  playerSpeak(round: number, content: string): Promise<{ playerTurn: DebateTurn; aiTurn: DebateTurn; state: DebateState }>;
+  aiSpeak(side: DebateSide, round: number): Promise<DebateTurn>;
+  judgeVerdict(): Promise<{ verdict: DebateVerdict; state: DebateState }>;
+  getState(): DebateState;
+}
+
+const TOTAL_ROUNDS = 3;
+
+/**
+ * 把一方论据强度变化映射到双向条（纯函数）：修改 side 方并 clamp 0-100，另一方取 100 补数。
+ */
+export const applyStrengthDelta = (
+  strength: { pro: number; con: number },
+  side: DebateSide,
+  delta: number,
+): { pro: number; con: number } => {
+  const nextSide = Math.max(0, Math.min(100, Math.round(strength[side] + delta)));
+  return side === "pro"
+    ? { pro: nextSide, con: 100 - nextSide }
+    : { pro: 100 - nextSide, con: nextSide };
+};
+
+/** 根据最终强度判定胜方（纯函数）：任一方领先 ≥3 分胜，否则平局。 */
+export const decideWinner = (strength: { pro: number; con: number }): DebateSide | "tie" => {
+  if (strength.pro - strength.con >= 3) return "pro";
+  if (strength.con - strength.pro >= 3) return "con";
+  return "tie";
+};
+
+/** bar-orchestrator 自带的轻量重试（本文件未导出 withRetry）。 */
+const withRetryChat = async (fn: () => Promise<string>): Promise<string> => {
+  try {
+    return await fn();
+  } catch {
+    await sleep(1000);
+    return await fn();
+  }
+};
+
+/** 让 LLM 给玩家这一轮发言质量打 0-10 分（映射到 strength ±5）。 */
+const scorePlayerArgument = async (
+  topic: string,
+  side: DebateSide,
+  content: string,
+  chat: ChatFn,
+): Promise<number> => {
+  const system =
+    "你是酒吧辩论的场外技术评委，只看论证质量：论点是否切题、论据是否扎实、逻辑是否自洽、表达是否有说服力。" +
+    "给这轮发言打 0-10 的整数分（10=极强，0=完全没说到点上）。" +
+    '只返回 JSON：{"score":0到10的整数}。不要解释。';
+  const user = `话题：${topic}\n我方立场：${side === "pro" ? "正方" : "反方"}\n发言内容：\n${content}`;
+  try {
+    const raw = await withRetryChat(() => chat(
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      200,
+    ));
+    const parsed = extractJson(raw) as { score?: unknown };
+    return Math.max(0, Math.min(10, Math.round(Number(parsed.score) || 5)));
+  } catch {
+    return 5; // 中庸，强度不变
+  }
+};
+
+/**
+ * 创建一局玩家主导的辩论会话：玩家选边，对面由一位名人 AI 担任辩手。
+ */
+export const createDebateSession = (chat: ChatFn): DebateSession => {
+  let state: DebateState;
+
+  const snapshot = (): DebateState => ({
+    ...state,
+    argumentStrength: { ...state.argumentStrength },
+    transcript: state.transcript.map((t) => ({ ...t })),
+    aiOpponent: state.aiOpponent,
+  });
+
+  const defaultOpponent = (side: DebateSide): ResolvedCharacter => {
+    const pool = CELEBRITIES.filter((c) => resolveCharacter(c.id));
+    const picked = pool[side === "con" ? 0 : Math.min(1, pool.length - 1)] ?? pool[0];
+    return resolveCharacter(picked.id)!;
+  };
+
+  return {
+    async start(topic, playerSide) {
+      const t = topic.trim();
+      if (!t) throw new Error("辩题不能为空");
+
+      // 让 AI 选一位对方辩手；失败则兜底一位。
+      let opponent: ResolvedCharacter = defaultOpponent(playerSide === "pro" ? "con" : "pro");
+      try {
+        const debaters = await selectDebaters(t, 2, chat);
+        const aiSide: DebateSide = playerSide === "pro" ? "con" : "pro";
+        const chosen = debaters.find((d) => d.side === aiSide);
+        if (chosen) opponent = chosen;
+      } catch { /* 用兜底辩手 */ }
+
+      state = {
+        stage: "debating",
+        topic: t,
+        playerSide,
+        round: 1,
+        totalRounds: TOTAL_ROUNDS,
+        argumentStrength: { pro: 50, con: 50 },
+        transcript: [],
+        aiOpponent: opponent,
+      };
+      return snapshot();
+    },
+
+    async playerSpeak(round, content) {
+      const text = content.trim().slice(0, 400);
+      if (!text) throw new Error("发言内容不能为空");
+      if (state.stage !== "debating") throw new Error("辩论未开始或已裁决");
+      if (round !== state.round) throw new Error(`现在是第 ${state.round} 回合`);
+
+      // 1) 记录玩家发言。
+      const playerTurn: DebateTurn = { round, side: "player", speaker: "我", text };
+      state.transcript.push(playerTurn);
+
+      // 2) LLM 给玩家发言质量打分 0-10 → 映射 ±5 到玩家方强度。
+      const quality = await scorePlayerArgument(state.topic, state.playerSide, text, chat);
+      const delta = quality - 5; // -5..+5
+      state.argumentStrength = applyStrengthDelta(state.argumentStrength, state.playerSide, delta);
+
+      // 3) 对方 AI 针对玩家发言做反驳，并给对方 +2 的小反击力度。
+      const aiSide: DebateSide = state.playerSide === "pro" ? "con" : "pro";
+      const context = state.transcript.slice(-6).map((t) => t.text);
+      const rebuttal = await debateSpeech(state.aiOpponent, state.topic, aiSide, context, chat);
+      const aiTurn: DebateTurn = { round, side: aiSide, speaker: state.aiOpponent.name, text: rebuttal.text };
+      state.transcript.push(aiTurn);
+      state.argumentStrength = applyStrengthDelta(state.argumentStrength, aiSide, 2);
+
+      state.round += 1;
+      return { playerTurn, aiTurn, state: snapshot() };
+    },
+
+    async aiSpeak(side, round) {
+      if (state.stage !== "debating") throw new Error("辩论未开始或已裁决");
+      const context = state.transcript.slice(-6).map((t) => t.text);
+      const result = await debateSpeech(state.aiOpponent, state.topic, side, context, chat);
+      const turn: DebateTurn = { round, side, speaker: state.aiOpponent.name, text: result.text };
+      state.transcript.push(turn);
+      return turn;
+    },
+
+    async judgeVerdict() {
+      if (state.transcript.length === 0) throw new Error("还没有任何发言");
+      const winner = decideWinner(state.argumentStrength);
+      const fallback: DebateVerdict = {
+        winner,
+        reasoning: winner === "tie"
+          ? "双方你来我往，论据势均力敌，这杯算平——再来一轮？"
+          : `根据双方论据强度（正方 ${state.argumentStrength.pro} : 反方 ${state.argumentStrength.con}），${winner === "pro" ? "正方" : "反方"} 更胜一筹。`,
+        keyMoments: state.transcript.slice(-4).map((t) => t.text),
+      };
+
+      const transcriptText = state.transcript
+        .map((t) => `【${t.round} 回合·${t.speaker}】${t.text}`)
+        .join("\n");
+      const system =
+        "你是这场酒吧辩论的裁判「苏格拉底」，爱追问、讲逻辑、不偏心，但也懂得酒吧里的幽默。" +
+        `最终论据强度：正方 ${state.argumentStrength.pro}，反方 ${state.argumentStrength.con}。` +
+        "请据此判定胜负，写一段 60-100 字的裁决理由（要点出双方谁的论证更扎实），并挑出 2-3 个最精彩的瞬间。" +
+        '只返回 JSON：{"winner":"pro"|"con"|"tie","reasoning":"裁决理由","keyMoments":["瞬间1","瞬间2"]}。' +
+        "强度领先 ≥3 分判对应方胜，接近则 tie。不要 Markdown。";
+      const user = `话题：${state.topic}\n辩论记录：\n${transcriptText}`;
+
+      try {
+        const raw = await withRetryChat(() => chat(
+          [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          600,
+        ));
+        const parsed = extractJson(raw) as { winner?: unknown; reasoning?: unknown; keyMoments?: unknown };
+        const winnerParsed: DebateSide | "tie" =
+          parsed.winner === "pro" || parsed.winner === "con" ? parsed.winner : winner;
+        const reasoning = tidy(String(parsed.reasoning ?? ""), 160);
+        const keyMoments = Array.isArray(parsed.keyMoments)
+          ? (parsed.keyMoments as unknown[]).map((k) => tidy(String(k), 60)).filter(Boolean).slice(0, 3)
+          : [];
+        state.stage = "verdict";
+        const verdict: DebateVerdict = {
+          winner: winnerParsed,
+          reasoning: reasoning || fallback.reasoning,
+          keyMoments: keyMoments.length ? keyMoments : fallback.keyMoments,
+        };
+        return { verdict, state: snapshot() };
+      } catch {
+        state.stage = "verdict";
+        return { verdict: fallback, state: snapshot() };
+      }
+    },
+
+    getState() {
+      return snapshot();
+    },
+  };
+};
