@@ -12,6 +12,12 @@ import type {
   CourtVerdict, EvidenceItem, KnowledgeBase, Perspective, RealVerdictResult, RoundScript,
 } from './types'
 
+/** 实时事件类型：court_turn/player_turn 的 turn 已转为 UI 类型，其余事件保持原样。 */
+export type LiveCourtEvent =
+  | Exclude<CourtTrialEvent, { type: 'court_turn' } | { type: 'player_turn' }>
+  | { type: 'court_turn'; turn: CourtTurn }
+  | { type: 'player_turn'; turn: CourtTurn }
+
 const nowISO = () => new Date().toISOString()
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `id-${Math.random().toString(36).slice(2)}`)
 

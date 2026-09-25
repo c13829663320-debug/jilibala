@@ -10,7 +10,7 @@ import type {
   PlazaContent,
 } from "@balabala/shared";
 import type { ChatFn } from "./bench-orchestrator.js";
-import { analyzeCase, COURT_PRESETS, draftStory, quickStartCase, runCourtTrial } from "./court-orchestrator.js";
+import { analyzeCase, COURT_PRESETS, draftStory, quickStartCase, runCourtTrial, TRIAL_ABORTED } from "./court-orchestrator.js";
 import { filterCaseForPerspective, transitionStatus } from "./court-state.js";
 import * as db from "./db.js";
 import type { StoredContent } from "./db.js";
@@ -191,6 +191,10 @@ export function registerCourtRoutes(
     courtSessions.delete(id);
     courtSessions.set(id, { inputs: [] });
 
+    // 客户端断连即 abort：终止庭审，避免僵尸会话占满 LLM 并发。
+    const ac = new AbortController();
+    req.raw.on("close", () => ac.abort());
+
     reply.hijack();
     const res = reply.raw;
     res.writeHead(200, {
@@ -213,6 +217,7 @@ export function registerCourtRoutes(
       await runCourtTrial({
         caseId: id,
         chat,
+        signal: ac.signal,
         perspective,
         defenderAssignments,
         playerSide: c.player_side,
@@ -227,12 +232,17 @@ export function registerCourtRoutes(
         },
       });
     } catch (err) {
-      req.log.error(err, "runCourtTrial failed");
-      send({ type: "error", message: "庭审中断，请稍后重试。" } satisfies CourtTrialEvent);
+      // 断连/abort：静默结束，不发 error、不记 error 日志。
+      if (err === TRIAL_ABORTED || (err as Error)?.name === "AbortError" || ac.signal.aborted) {
+        // client disconnected — expected, no action
+      } else {
+        req.log.error(err, "runCourtTrial failed");
+        try { send({ type: "error", message: "庭审中断，请稍后重试。" } satisfies CourtTrialEvent); } catch { /* stream closed */ }
+      }
+    } finally {
+      courtSessions.delete(id);
+      try { res.end(); } catch { /* already closed */ }
     }
-
-    courtSessions.delete(id);
-    res.end();
   });
 
   // ---- 玩家输入（非阻塞入队）----

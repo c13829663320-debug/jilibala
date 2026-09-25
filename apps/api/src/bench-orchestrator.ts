@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 export type ChatFn = (
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
   maxTokens?: number,
+  opts?: { signal?: AbortSignal },
 ) => Promise<string>;
 
 export interface RunBenchOpts {

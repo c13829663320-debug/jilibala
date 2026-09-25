@@ -66,6 +66,24 @@ const evomapBase = process.env.EVOMAP_API_BASE_URL ?? "https://api.evomap.ai/v1"
 const evomapKey = process.env.EVOMAP_API_KEY;
 const evomapModel = process.env.EVOMAP_MODEL ?? "evomap-deepseek-v4-flash";
 
+// ===== 全局 LLM 并发限流 =====
+// 防止僵尸庭审/断连会话占满上游并发，导致新庭审开场 hang。
+const LLM_MAX_CONCURRENCY = parseInt(process.env.LLM_MAX_CONCURRENCY ?? "6", 10);
+let llmActive = 0;
+const llmQueue: Array<() => void> = [];
+async function withLlmSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (llmActive >= LLM_MAX_CONCURRENCY) {
+    await new Promise<void>((resolve) => { llmQueue.push(resolve); });
+  }
+  llmActive += 1;
+  try { return await fn(); }
+  finally {
+    llmActive -= 1;
+    const next = llmQueue.shift();
+    if (next) next();
+  }
+}
+
 const moderationTerms = [
   /自杀|自残|轻生|suicide|self[- ]?harm/i,
   /家暴|虐待|强奸|性侵|child\s*abuse/i,
@@ -136,20 +154,24 @@ const generateHearing = async (input:string):Promise<GeneratedHearing> => {
 
 // ===== 人物馆 · 名人对话 =====
 type ChatMessage = { role: 'system'|'user'|'assistant'; content: string };
-const requestChatCompletion = async (provider: ProviderConfig, messages: ChatMessage[], maxTokens = 800): Promise<string> => {
-  const response = await fetch(`${provider.base.replace(/\/$/,'')}/chat/completions`, {
-    method:'POST',
-    headers:{ Authorization:`Bearer ${provider.key}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ model: provider.model, messages, temperature:.8, max_tokens:maxTokens, thinking:{type:'disabled'} }),
-    signal: AbortSignal.timeout(60000),
+const requestChatCompletion = async (provider: ProviderConfig, messages: ChatMessage[], maxTokens = 800, opts: { signal?: AbortSignal } = {}): Promise<string> => {
+  return withLlmSlot(async () => {
+    const signals: AbortSignal[] = [AbortSignal.timeout(45000)];
+    if (opts.signal) signals.push(opts.signal);
+    const response = await fetch(`${provider.base.replace(/\/$/,'')}/chat/completions`, {
+      method:'POST',
+      headers:{ Authorization:`Bearer ${provider.key}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ model: provider.model, messages, temperature:.8, max_tokens:maxTokens, thinking:{type:'disabled'} }),
+      signal: AbortSignal.any(signals),
+    });
+    if (!response.ok) throw new Error(`${provider.name} ${response.status}`);
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error(`${provider.name} empty (finish=${data.choices?.[0]?.finish_reason})`);
+    return content;
   });
-  if (!response.ok) throw new Error(`${provider.name} ${response.status}`);
-  const data = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error(`${provider.name} empty (finish=${data.choices?.[0]?.finish_reason})`);
-  return content;
 };
-const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800, opts: { characterId?: string } = {}): Promise<string> => {
+const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800, opts: { characterId?: string; signal?: AbortSignal } = {}): Promise<string> => {
   const providers: ProviderConfig[] = [
     { name:'StepFun', base:stepfunBase, key:stepfunKey, model:stepfunModel },
     { name:'EvoMap', base:evomapBase, key:evomapKey, model:evomapModel },
@@ -157,8 +179,10 @@ const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800, opts:
   let lastError: unknown;
   for (const provider of providers) {
     if (!provider.key) continue;
-    try { return await requestChatCompletion(provider, messages, maxTokens); }
-    catch (error) { lastError = error; app.log.warn({ provider:provider.name, error }, 'celebrity chat failed; trying next provider'); }
+    try { return await requestChatCompletion(provider, messages, maxTokens, { signal: opts.signal }); }
+    catch (error) {
+      if (opts.signal?.aborted || (error as Error)?.name === 'AbortError') throw error;
+      lastError = error; app.log.warn({ provider:provider.name, error }, 'celebrity chat failed; trying next provider'); }
   }
   // 双 LLM 都挂时的离线兜底：仅在有名人上下文（characterId）时启用离线脑。
   // 通用调用（润色/编排等）继续抛出，由各自路由决定如何降级。离线脑是有限预置内容，

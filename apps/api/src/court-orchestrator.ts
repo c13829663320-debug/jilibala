@@ -39,6 +39,12 @@ import { buildSpeakerContext, transitionStatus } from "./court-state.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 客户端断连/abort 时抛出，路由层静默处理。 */
+export class TrialAbortedError extends Error {
+  constructor() { super("trial aborted"); this.name = "TrialAbortedError"; }
+}
+export const TRIAL_ABORTED = new TrialAbortedError();
+
 /** 抽取 LLM 返回中的 JSON 对象。 */
 const extractJson = (text: string): unknown => {
   const clean = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/g, "").trim();
@@ -58,10 +64,12 @@ const tidySpeech = (raw: string): string => {
 };
 
 /** 带退避与容错的 LLM 调用：失败重试 1 次（间隔 500ms），再失败返回 fallbackText。 */
-const withRetry = async (fn: () => Promise<string>, fallbackText: string): Promise<string> => {
+const withRetry = async (fn: () => Promise<string>, fallbackText: string, signal?: AbortSignal): Promise<string> => {
   try {
     return await fn();
-  } catch {
+  } catch (err) {
+    // abort 立即抛出，不重试、不兜底
+    if (signal?.aborted || (err as Error)?.name === "AbortError" || err instanceof TrialAbortedError) throw err;
     try {
       await sleep(500);
       return await fn();
@@ -312,6 +320,8 @@ export function quickStartCase(
 export interface RunCourtTrialOpts {
   caseId: string;
   chat: ChatFn;
+  /** 客户端断连信号：abort 后庭审立即终止，不再调 LLM。 */
+  signal?: AbortSignal;
   onEvent: (e: CourtTrialEvent) => void;
   getPendingPlayerInputs: () => CourtPlayerInput[];
   markPlayerInputHandled: (id: string) => void;
@@ -340,7 +350,12 @@ const JUDGE_SYSTEM =
  * 主庭审流程：加载案件 -> 开庭循环（最多5轮） -> 判决。
  */
 export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict: CourtVerdict; turns: CourtTurn[] }> {
-  const { caseId, chat, onEvent, getPendingPlayerInputs, markPlayerInputHandled, defenderAssignments, perspective, playerSide } = opts;
+  const { caseId, chat, onEvent, getPendingPlayerInputs, markPlayerInputHandled, defenderAssignments, perspective, playerSide, signal } = opts;
+  const checkAbort = (): void => { if (signal?.aborted) throw TRIAL_ABORTED; };
+  const signalChat: ChatFn = (messages, maxTokens, chatOpts) => {
+    checkAbort();
+    return chat(messages, maxTokens, { ...chatOpts, signal });
+  };
 
   let full = getCourtCase(caseId);
   if (!full) throw new Error(`案件不存在: ${caseId}`);
@@ -402,6 +417,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     speakerName: string,
     content: string,
   ): CourtTurn => {
+    checkAbort();
     turnCounter += 1;
     const turn: CourtTurn = {
       id: `ctt-${randomUUID()}`,
@@ -464,7 +480,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
 
     const text = await withRetry(
       async () => {
-        const raw = await chat([
+        const raw = await signalChat([
           { role: "system", content: `${persona}\n保持你的角色，用第一人称发言，100-300字，有观点。` },
           { role: "user", content: context },
         ], 800);
@@ -507,7 +523,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     }) + `\n\n你是${side === "plaintiff" ? "原告方" : "被告方"}的辩护人，请用第一人称发言。`;
 
     const text = await withRetry(
-      () => celebritySpeak(character, context, chat, 800),
+      () => celebritySpeak(character, context, signalChat, 800),
       character.greeting || `${character.name}: （兜底）`,
     );
     pushTurn(round, "defender", character.id, character.name, prefix ? `${prefix}${text}` : text);
@@ -538,7 +554,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
 
     const text = await withRetry(
       async () => {
-        const raw = await chat([
+        const raw = await signalChat([
           { role: "system", content: JUDGE_SYSTEM },
           { role: "user", content: context },
         ], 600);
@@ -634,7 +650,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
 
     const text = await withRetry(
       async () => {
-        const raw = await chat([
+        const raw = await signalChat([
           { role: "system", content: `${persona}\n保持你的角色，第一人称短接茬。` },
           { role: "user", content: context },
         ], 300);
@@ -662,7 +678,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
 只返回 JSON。`;
 
     try {
-      const raw = await chat([
+      const raw = await signalChat([
         { role: "system", content: `${JUDGE_SYSTEM} 只返回合法 JSON。` },
         { role: "user", content: prompt },
       ], 1000);
@@ -694,7 +710,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     }
     // 询问法官是否继续
     try {
-      const raw = await chat([
+      const raw = await signalChat([
         { role: "system", content: `${JUDGE_SYSTEM} 根据未决问题数量和辩论充分性，决定是否继续。只返回 JSON {"shouldContinue": bool, "reason": "..."}。` },
         { role: "user", content: `第 ${round} 轮结束。未决问题：${record.unresolved.join("；")}。已解决：${record.resolved.join("；")}。最多 ${MAX_ROUNDS} 轮。` },
       ], 300);
@@ -771,7 +787,8 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
   onEvent({ type: "court_status", status: "JUDGING", round: 0, turn: turnCounter });
 
   const playerTurns = allTurns.filter((t) => t.speaker === "player");
-  const verdict = await generateVerdict(caseId, chat, full, allTurns, record, playerTurns, effectivePlayerSide);
+  checkAbort();
+  const verdict = await generateVerdict(caseId, signalChat, full, allTurns, record, playerTurns, effectivePlayerSide, signal);
   setCourtVerdict(caseId, verdict);
   updateCourtCaseStatus(caseId, transitionStatus("JUDGING", "verdict_done"));
   onEvent({ type: "court_verdict", verdict });
@@ -788,7 +805,9 @@ async function generateVerdict(
   record: CourtRecord,
   playerTurns: CourtTurn[],
   playerSide?: "plaintiff" | "defendant",
+  signal?: AbortSignal,
 ): Promise<CourtVerdict> {
+  if (signal?.aborted) throw TRIAL_ABORTED;
   const turnSummary = turns.slice(-30).map((t) => `[R${t.round} ${t.speakerName}] ${t.content}`).join("\n");
   const evidenceList = getCourtEvidence(caseId);
   const factsList = getCourtFacts(caseId);
@@ -821,7 +840,7 @@ async function generateVerdict(
     const raw = await chat([
       { role: "system", content: `${JUDGE_SYSTEM} 只返回合法 JSON，不要 Markdown。` },
       { role: "user", content: prompt },
-    ], 2000);
+    ], 2000, { signal });
     const parsed = extractJson(raw) as Partial<CourtVerdict>;
     return {
       id: `ctv-${randomUUID()}`,
