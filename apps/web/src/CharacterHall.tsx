@@ -734,14 +734,20 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
                 {!videoMissing && (
                   <div className="character-dialog__video-wrap">
                     <video
+                      key={selected.id}
                       className="character-dialog__video"
                       src={`/videos/${selected.id}.mp4`}
                       poster={selected.portrait || undefined}
-                      playsInline controls
+                      playsInline controls muted
                       ref={(el) => { if (el && !el.dataset.mutedSet) { el.muted = true; el.dataset.mutedSet = '1' } }}
                       autoPlay
                       loop
-                      onError={() => setVideoMissing(true)}
+                      onError={(e) => {
+                        const el = e.currentTarget;
+                        if (el.error && el.error.code === 1) return;
+                        if (!el.dataset.retried) { el.dataset.retried = '1'; setTimeout(() => el.load(), 80); return; }
+                        setVideoMissing(true);
+                      }}
                     />
                   </div>
                 )}
