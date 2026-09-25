@@ -206,7 +206,7 @@
 .main-home__modules button {
   position: relative;
   min-height: 88px;
-  padding: 13px 12px;
+  padding: 0 12px 13px;
   text-align: left;
   border: 1px solid var(--hair);
   border-radius: 10px;
@@ -214,15 +214,29 @@
   color: var(--ink);
   font-family: inherit;
   cursor: pointer;
+  overflow: hidden;
   transition: background .18s, border-color .18s;
 }
 
+.main-home__modules-thumb {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  margin: 0 0 10px;
+  border-radius: 6px;
+  opacity: .92;
+}
+
 .main-home__modules button:hover { background: var(--s2); border-color: var(--hair-2); }
+.main-home__modules button:hover .main-home__modules-thumb { opacity: 1; }
 
 .main-home__modules button.is-active {
   background: var(--s3);
   border-color: var(--accent-line);
 }
+
+.main-home__modules button.is-active .main-home__modules-thumb { opacity: 1; }
 
 .main-home__modules span {
   display: block;

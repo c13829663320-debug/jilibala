@@ -377,6 +377,7 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
     <section className="main-home__modules" aria-label="场景列表">
       {items.map((item) => (
         <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => openScene(item)}>
+          <img className="main-home__modules-thumb" src={`/scene-thumbs/${item.id}.png`} alt="" loading="lazy" />
           <span>{item.eyebrow}</span><b>{item.label}</b><small>{item.hint}</small><i>↗</i>
         </button>
       ))}

@@ -5,6 +5,10 @@ node_modules/
 dist/
 **/.data/
 **/data/
+# 离线知识包需入库：显式否定上面的 **/data/ 规则
+!apps/api/data/
+!apps/api/data/offline-brains/
+!apps/api/data/offline-brains/**
 *.db
 *.db-journal
 *.db-wal

@@ -22,6 +22,7 @@ import { registerCourtRoutes } from './court-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
+import { offlineFallbackReply } from './offline-brain.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
 for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
@@ -148,7 +149,7 @@ const requestChatCompletion = async (provider: ProviderConfig, messages: ChatMes
   if (!content) throw new Error(`${provider.name} empty (finish=${data.choices?.[0]?.finish_reason})`);
   return content;
 };
-const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800): Promise<string> => {
+const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800, opts: { characterId?: string } = {}): Promise<string> => {
   const providers: ProviderConfig[] = [
     { name:'StepFun', base:stepfunBase, key:stepfunKey, model:stepfunModel },
     { name:'EvoMap', base:evomapBase, key:evomapKey, model:evomapModel },
@@ -158,6 +159,19 @@ const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800): Prom
     if (!provider.key) continue;
     try { return await requestChatCompletion(provider, messages, maxTokens); }
     catch (error) { lastError = error; app.log.warn({ provider:provider.name, error }, 'celebrity chat failed; trying next provider'); }
+  }
+  // 双 LLM 都挂时的离线兜底：仅在有名人上下文（characterId）时启用离线脑。
+  // 通用调用（润色/编排等）继续抛出，由各自路由决定如何降级。离线脑是有限预置内容，
+  // 回复会带「（离线模式）」前缀，保证名人对话链路不返回 502。
+  if (opts.characterId) {
+    const userText = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+    try {
+      const reply = offlineFallbackReply(opts.characterId, userText);
+      app.log.warn({ characterId: opts.characterId }, 'all chat providers failed; offline brain fallback');
+      return reply;
+    } catch (offlineError) {
+      app.log.error({ offlineError, lastError }, 'offline brain fallback also failed');
+    }
   }
   throw lastError ?? new Error('no chat provider available');
 };
@@ -756,7 +770,7 @@ app.post('/api/celebrities/:id/chat', async (req, reply) => {
     ...history.map((m) => ({ role: m.role as 'user'|'assistant', content: m.content as string })),
   ];
   try {
-    const text = await chatWithProviders(messages);
+    const text = await chatWithProviders(messages, 800, { characterId: id });
     return { reply: text, name: celebrity.name };
   } catch (error) {
     req.log.error(error);

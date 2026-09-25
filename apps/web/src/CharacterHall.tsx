@@ -250,6 +250,7 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
 
   // ===== 人物视频（/videos/<id>.mp4 不存在时静默隐藏） =====
   const [videoMissing, setVideoMissing] = useState(false)
+  const [videoUnmuted, setVideoUnmuted] = useState(false)
 
   // 自定义人物列表
   const [mine, setMine] = useState<UiCharacter[]>([])
@@ -738,10 +739,15 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
                       className="character-dialog__video"
                       src={`/videos/${selected.id}.mp4`}
                       poster={selected.portrait || undefined}
-                      playsInline controls muted
-                      ref={(el) => { if (el && !el.dataset.mutedSet) { el.muted = true; el.dataset.mutedSet = '1' } }}
+                      playsInline
+                      muted={!videoUnmuted}
                       autoPlay
                       loop
+                      onClick={(e) => {
+                        const el = e.currentTarget;
+                        if (el.muted) { el.muted = false; setVideoUnmuted(true); }
+                        else { el.muted = true; setVideoUnmuted(false); }
+                      }}
                       onError={(e) => {
                         const el = e.currentTarget;
                         if (el.error && el.error.code === 1) return;
@@ -749,6 +755,7 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
                         setVideoMissing(true);
                       }}
                     />
+                    {!videoUnmuted && <span className="character-dialog__video-mute-badge">&#128263; 点击出声</span>}
                   </div>
                 )}
               </div>
