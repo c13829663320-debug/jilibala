@@ -13,7 +13,7 @@ import {
 } from "@balabala/shared";
 import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
-import { generatePlan, checkAchievements, getCoaches, getWorkoutPresets, startWorkout, recordRhythm, coachSpeak, finishWorkout } from "./gym-orchestrator.js";
+import { generatePlan, checkAchievements, getCoaches, getWorkoutPresets, startWorkout, recordRhythm, coachSpeak, finishWorkout, celebrityCoachComment, type CircuitStationSummary } from "./gym-orchestrator.js";
 import { broadcastToRoom } from "./ws.js";
 import * as db from "./db.js";
 import type { StoredContent } from "./db.js";
@@ -206,6 +206,22 @@ export function registerGymRoutes(
       req.log.error(error, "gym celebrity coach failed");
       return reply.code(502).send({ message: "对话服务暂时不可用，请稍后再试。" });
     }
+  });
+
+  // ---- M14：三关电路 · 名人教练单关异步点评（不阻塞下一关）----
+  app.post("/api/gym/circuit/comment", async (req) => {
+    const body = (req.body ?? {}) as { celebrityId?: string; station?: Partial<CircuitStationSummary> };
+    const station: CircuitStationSummary = {
+      kind: (body.station?.kind ?? "reaction") as CircuitStationSummary["kind"],
+      hits: Math.round(Number(body.station?.hits) || 0),
+      misses: Math.round(Number(body.station?.misses) || 0),
+      bestMs: body.station?.bestMs != null ? Number(body.station.bestMs) : undefined,
+      maxCombo: body.station?.maxCombo != null ? Number(body.station.maxCombo) : undefined,
+      bestPower: body.station?.bestPower != null ? Number(body.station.bestPower) : undefined,
+      score: Math.round(Number(body.station?.score) || 0),
+    };
+    const { note, name } = await celebrityCoachComment(body.celebrityId ?? "", station);
+    return { note, name };
   });
 
   // ---- 发布打卡到广场 ----

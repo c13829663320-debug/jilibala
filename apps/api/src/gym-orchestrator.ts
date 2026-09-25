@@ -7,8 +7,10 @@ import type {
   GymExercise,
   GymPlan,
   GymAchievementId,
+  MiniGameKind,
 } from "@balabala/shared";
 import type { ChatFn } from "./bench-orchestrator.js";
+import { resolveCharacter } from "./character-resolver.js";
 
 // ===== 连续打卡天数计算 =====
 
@@ -431,3 +433,96 @@ export function finishWorkout(sessionId: string): GymWorkoutResult | { error: st
     coachComment: comment,
   };
 }
+
+// ===== M14: 90 秒三关电路 · 名人教练异步点评 =====
+
+/** 传给点评的单关结果摘要（前端算好分数后异步上报）。 */
+export interface CircuitStationSummary {
+  kind: MiniGameKind;
+  hits: number;
+  misses: number;
+  bestMs?: number;
+  maxCombo?: number;
+  bestPower?: number;
+  score: number;
+}
+
+const STATION_LABEL: Record<MiniGameKind, string> = {
+  reaction: "反应关",
+  rhythm: "节奏关",
+  power: "力量关",
+};
+
+/** 把单关结果压成一句话喂给 LLM。 */
+function summarizeStation(s: CircuitStationSummary): string {
+  switch (s.kind) {
+    case "reaction":
+      return `${STATION_LABEL[s.kind]}：命中 ${s.hits} 个、漏 ${s.misses} 个` +
+        (s.bestMs ? `，最快 ${Math.round(s.bestMs)}ms` : "") +
+        `，本关 ${s.score} 分。`;
+    case "rhythm":
+      return `${STATION_LABEL[s.kind]}：${s.hits} 次判定命中、${s.misses} 次错过` +
+        (s.maxCombo ? `，最高连击 ${s.maxCombo}` : "") +
+        `，本关 ${s.score} 分。`;
+    case "power":
+      return `${STATION_LABEL[s.kind]}：最好力量 ${Math.round(s.bestPower ?? 0)}` +
+        `，本关 ${s.score} 分。`;
+  }
+}
+
+/** 无 LLM / 角色解析失败时的兜底点评。 */
+const FALLBACK_NOTES: Record<MiniGameKind, string> = {
+  reaction: "反应不错，再来一组！",
+  rhythm: "跟上节拍，稳住别慌。",
+  power: "爆发到位，继续保持。",
+};
+
+/** 把 LLM 输出清洗成 20 字以内的一句点评。 */
+function tidyCoachNote(raw: string, fallback: string): string {
+  const cleaned = raw
+    .trim()
+    .replace(/^[""「『（(]|[""」』）).。!！?？\s.]+$/g, "")
+    .replace(/\s+/g, "");
+  const text = cleaned || fallback;
+  // 20 字以内（中英文按字符计）
+  return text.length > 20 ? text.slice(0, 20) : text;
+}
+
+/**
+ * 每关结束后调用：以所选名人的口吻给一句 ≤20 字的点评。
+ * 用模块注入的 gymChat（server.ts 启动时 setGymChat）；无 LLM 时回退 canned 文案。
+ * 异步、不阻塞下一关——前端 fire-and-forget 即可。
+ */
+export async function celebrityCoachComment(
+  celebrityId: string,
+  station: CircuitStationSummary,
+): Promise<{ note: string; name: string }> {
+  const stationLabel = STATION_LABEL[station.kind];
+  const fallback = FALLBACK_NOTES[station.kind];
+  const character = resolveCharacter(celebrityId);
+  const name = character?.name ?? "教练";
+
+  if (!character || !gymChat) {
+    return { note: fallback, name };
+  }
+
+  try {
+    const raw = await gymChat(
+      [
+        {
+          role: "system",
+          content: `${character.persona}\n你是健身房里的名人教练。刚结束一关训练，用你本人的口吻给学员一句点评：口语化、简短、有感染力，严格不超过 20 个汉字，不要解释、不要 markdown、不要复述题目。`,
+        },
+        {
+          role: "user",
+          content: `${summarizeStation(station)}请用你的口吻点评一句（≤20字）。`,
+        },
+      ],
+      60,
+    );
+    return { note: tidyCoachNote(raw, fallback), name };
+  } catch {
+    return { note: fallback, name };
+  }
+}
+

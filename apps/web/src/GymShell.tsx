@@ -15,6 +15,7 @@ import { useIdentity } from './identity'
 import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSocket'
 import { TtsPlayButton } from './TtsPlayButton'
 import { RhythmWorkout } from './RhythmWorkout'
+import CircuitChallenge from './gym/CircuitChallenge'
 import type { GymPlayer, GymCheer } from './GymView'
 import './gym.css'
 
@@ -77,6 +78,8 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
   // ===== UI 状态 =====
   const [tab, setTab] = useState<Tab>('coach')
+  // M14：主入口改为「电路挑战」，旧的自动 tick 训练降级为「自主训练」次级模式。
+  const [mode, setMode] = useState<'circuit' | 'self'>('circuit')
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -461,6 +464,15 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
       <div className="gym-body">
         {/* 左侧控制面板 */}
         <aside className="gym-panel">
+          <button
+            onClick={() => setMode('circuit')}
+            style={{ ...primaryBtn, marginTop: 0, marginBottom: 10, width: '100%', background: '#FFD600', color: '#000', justifyContent: 'center' }}
+          >
+            ⚡ 进入 90 秒三关电路
+          </button>
+          <div style={{ fontSize: 11, color: 'rgba(237,237,240,0.4)', marginBottom: 8 }}>
+            以下为「自主训练」（原计划 / 器械 / 带练）
+          </div>
           <div className="gym-tabbar">
             {tabs.map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)} style={tabStyle(tab === t.id)}>
@@ -705,6 +717,17 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
           userId={userId}
           preview={previewMode === 'gym-workout' ? 'workout' : previewMode === 'gym-coaches' ? 'coaches' : null}
           onExit={() => setRhythmOpen(false)}
+        />
+      )}
+
+      {/* M14：90 秒三关电路主玩法（全屏 overlay） */}
+      {mode === 'circuit' && (
+        <CircuitChallenge
+          userId={userId}
+          celebrityId={celebId}
+          onCelebrityChange={setCelebId}
+          onCheckin={doCheckin}
+          onExit={() => setMode('self')}
         />
       )}
     </div>

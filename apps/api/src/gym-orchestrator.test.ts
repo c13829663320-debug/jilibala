@@ -234,3 +234,114 @@ describe("P0: AI 教练与节奏带练", () => {
     expect(r.score).toBeLessThan(60);
   });
 });
+
+// ===== M14：90 秒三关电路 · 纯计分 + 名人教练点评 =====
+import {
+  scoreReactionHit,
+  judgeRhythm,
+  rhythmPoints,
+  powerValue,
+  scorePower,
+  getCircuitTier,
+  circuitTotalScore,
+} from "@balabala/shared";
+import { celebrityCoachComment } from "./gym-orchestrator.js";
+
+describe("M14: 反应关计分 scoreReactionHit", () => {
+  it("反应越快分越高：100ms 得 100 分", () => {
+    expect(scoreReactionHit(100)).toBe(100);
+  });
+  it("中等反应 380ms 衰减到保底 50 分", () => {
+    expect(scoreReactionHit(380)).toBe(50);
+  });
+  it("瞬时反应 0ms 得满分 200", () => {
+    expect(scoreReactionHit(0)).toBe(200);
+  });
+});
+
+describe("M14: 节奏关判定 judgeRhythm + rhythmPoints", () => {
+  it("±50ms 内为 perfect，±150ms 内为 good，其余 miss", () => {
+    expect(judgeRhythm(0)).toBe("perfect");
+    expect(judgeRhythm(50)).toBe("perfect");
+    expect(judgeRhythm(-50)).toBe("perfect");
+    expect(judgeRhythm(100)).toBe("good");
+    expect(judgeRhythm(-150)).toBe("good");
+    expect(judgeRhythm(151)).toBe("miss");
+    expect(judgeRhythm(-200)).toBe("miss");
+  });
+  it("perfect 30 分且连击加成：comboBefore=2 时 ×1.2 = 36", () => {
+    expect(rhythmPoints("perfect", 0)).toBe(30);
+    expect(rhythmPoints("perfect", 2)).toBe(36);
+  });
+  it("good 固定 15，miss 0，不受连击影响", () => {
+    expect(rhythmPoints("good", 5)).toBe(15);
+    expect(rhythmPoints("miss", 9)).toBe(0);
+  });
+});
+
+describe("M14: 力量关 powerValue + scorePower", () => {
+  it("落在绿色中心 85 → 满力量 100", () => {
+    expect(powerValue(85)).toBe(100);
+  });
+  it("绿色边缘 80/90 → 力量 95", () => {
+    expect(powerValue(80)).toBe(95);
+    expect(powerValue(90)).toBe(95);
+  });
+  it("远离目标（pct=0）力量很低", () => {
+    expect(powerValue(0)).toBe(15); // 100 - |0-85|
+    expect(powerValue(100)).toBe(85); // 100 距中心 85 仅 15，并不差
+  });
+  it("scorePower = bestPower × 10", () => {
+    expect(scorePower(95)).toBe(950);
+  });
+});
+
+describe("M14: 段位 getCircuitTier 边界", () => {
+  it("分段正确：青铜/白银/黄金/爆杆", () => {
+    expect(getCircuitTier(1999)).toBe("bronze");
+    expect(getCircuitTier(2000)).toBe("silver");
+    expect(getCircuitTier(2999)).toBe("silver");
+    expect(getCircuitTier(3000)).toBe("gold");
+    expect(getCircuitTier(3999)).toBe("gold");
+    expect(getCircuitTier(4000)).toBe("explosive");
+  });
+  it("总分 = 三关求和", () => {
+    expect(circuitTotalScore([{ score: 600 }, { score: 1480 }, { score: 950 }])).toBe(3030);
+  });
+});
+
+describe("M14: celebrityCoachComment", () => {
+  it("注入 mock chat：返回非空且 ≤20 字", async () => {
+    setGymChat(async (msgs) => `[${msgs[1].content.slice(0, 8)}] 漂亮，最后两个慢了点`);
+    const { note, name } = await celebrityCoachComment("elon-musk", {
+      kind: "reaction", hits: 10, misses: 2, bestMs: 380, score: 600,
+    });
+    expect(note.length).toBeGreaterThan(0);
+    expect(note.length).toBeLessThanOrEqual(20);
+    expect(name).toBeTruthy();
+  });
+
+  it("LLM 输出过长时截断到 20 字", async () => {
+    setGymChat(async () => "这是一句故意写得非常非常非常非常非常非常长的点评用来测试截断逻辑是否正常工作");
+    const { note } = await celebrityCoachComment("elon-musk", {
+      kind: "power", hits: 1, misses: 0, bestPower: 95, score: 950,
+    });
+    expect(note.length).toBeLessThanOrEqual(20);
+  });
+
+  it("无 chat 时回退 canned 文案不报错", async () => {
+    setGymChat(null as unknown as Parameters<typeof setGymChat>[0]);
+    const { note } = await celebrityCoachComment("elon-musk", {
+      kind: "rhythm", hits: 20, misses: 4, maxCombo: 7, score: 1480,
+    });
+    expect(note.length).toBeGreaterThan(0);
+  });
+
+  it("未知名人 id 仍回退文案不抛错", async () => {
+    setGymChat(null as unknown as Parameters<typeof setGymChat>[0]);
+    const { note } = await celebrityCoachComment("no-such-person", {
+      kind: "reaction", hits: 0, misses: 3, score: 0,
+    });
+    expect(note.length).toBeGreaterThan(0);
+  });
+});
