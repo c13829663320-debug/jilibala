@@ -335,7 +335,8 @@ export interface RunCourtTrialOpts {
   playerInputPollMs?: number;
 }
 
-const MAX_ROUNDS = 5;
+// 趣味法庭以「短平快」为原则：3 轮足以把一个争议辩清楚，避免庭审拖到数分钟。
+const MAX_ROUNDS = 3;
 
 /** 局势优势条初始值（原告:被告）。 */
 const INITIAL_MOMENTUM = { plaintiff: 50, defendant: 50 } as const;
@@ -531,93 +532,52 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     await sleep(200);
   };
 
-  // 法官发言
-  const judgeSpeak = async (round: number, promptSuffix: string): Promise<void> => {
-    const recentTurns = allTurns.slice(-8);
-    const context = buildSpeakerContext({
-      caseTitle: full!.title || "未命名案件",
-      userInput: full!.user_input,
-      disputePoints: full!.dispute_points,
-      publicFacts: record.facts,
-      evidenceNames: full!.evidence.map((e) => e.name),
-      priorTurns: recentTurns,
-      kbFacts: [],
-      kbClaims: [],
-      kbArguments: [],
-      kbAssumptions: [],
-      kbUserAdditions: [],
-      opponentArguments: [],
-      unresolvedPoints: record.unresolved,
-      round,
-      speakerSide: "judge",
-    }) + promptSuffix;
-
-    const text = await withRetry(
-      async () => {
-        const raw = await signalChat([
-          { role: "system", content: JUDGE_SYSTEM },
-          { role: "user", content: context },
-        ], 600);
-        return tidySpeech(raw) || "本庭记录在案。";
-      },
-      "本庭记录在案。",
-    );
+  // 法官程序性开场/过场：固定话术直接上屏（0 LLM、首句 0ms 到达），
+  // 不再为「现在开庭 / 进入下一轮」这类套话额外等待一次 LLM 往返，
+  // 玩家一进法庭就能看到反馈，避免长时间停在「法庭准备中」。
+  const judgeOpenRound = (round: number): void => {
+    const title = full!.title || "本案";
+    let text: string;
+    if (round === 1) {
+      const focus = full!.dispute_points.length
+        ? full!.dispute_points.join("；")
+        : full!.user_input.slice(0, 60);
+      text = `现在开庭。本案「${title}」的争议焦点是：${focus}。下面先由原告陈述主张，再由被告答辩。`;
+    } else {
+      const resolved = record.resolved.length ? `已厘清 ${record.resolved.slice(0, 2).join("、")}；` : "";
+      const unresolved = record.unresolved.length ? record.unresolved.join("；") : "双方的核心分歧";
+      text = `进入第 ${round} 轮辩论。${resolved}目前仍需查明：${unresolved}。请双方继续，尽量提出新的论点。`;
+    }
     pushTurn(round, "judge", "judge", "AI 法官", text);
   };
 
-  // ===== 玩家当庭发言（玩家驱动庭审核心）=====
-  // emit player_turn_request -> 轮询等待玩家输入 -> 创建 speaker='player' 的 turn 上屏 -> emit player_turn。
-  // 最多等 60 秒；超时则由玩家方辩护人（或 AI 当事人）代述，保证庭审不卡死。
-  const speakAsPlayer = async (
+  // ===== 玩家当庭发言（非阻塞 · 玩家驱动庭审核心）=====
+  // 不轮询、不等待：只快照并处理玩家【已经提交】给 side 的输入；每条
+  // ack -> 写 KB.user_additions -> 落 speaker='player' 的 turn -> 上屏。
+  // 玩家不发言时返回空数组，庭审由 AI 连续推进，绝不卡死。
+  const consumePlayerInputs = async (
+    side: "plaintiff" | "defendant",
     round: number,
-    priorTurns: CourtTurn[],
-  ): Promise<CourtTurn | null> => {
-    if (!effectivePlayerSide) return null;
-    const side = effectivePlayerSide;
-    // 通知前端：轮到玩家发言，展开输入面板、聚焦。
-    onEvent({ type: "player_turn_request", round, side });
+  ): Promise<CourtTurn[]> => {
+    const produced: CourtTurn[] = [];
+    const mine = getPendingPlayerInputs().filter((i) => i.player_role === side);
+    for (const input of mine) {
+      checkAbort();
+      onEvent({ type: "player_input_ack", inputId: input.id });
+      markPlayerInputHandled(input.id);
 
-    const POLL_INTERVAL = opts.playerInputPollMs ?? 500;
-    const MAX_WAIT = opts.playerInputTimeoutMs ?? 60_000;
-    let waited = 0;
-    let input: CourtPlayerInput | null = null;
-    while (waited < MAX_WAIT) {
-      const pending = getPendingPlayerInputs();
-      // 只取属于玩家方的输入（防御性：忽略对方视角误入的输入）。
-      const mine = pending.find((i) => i.player_role === side);
-      if (mine) {
-        input = mine;
-        break;
-      }
-      await sleep(POLL_INTERVAL);
-      waited += POLL_INTERVAL;
+      // 玩家发言写入本方 KB 的 user_additions，供后续 AI 发言引用。
+      const kb = side === "plaintiff" ? full!.plaintiff_kb : full!.defendant_kb;
+      if (kb) kb.user_additions.push(`[玩家] ${input.content}`);
+
+      const turn = pushTurn(round, "player", "player", "你", input.content);
+      // 玩家发言 +5；提交证据 +8。
+      bumpMomentum(side, input.type === "evidence" ? 8 : 5);
+      onEvent({ type: "player_turn", turn });
+      produced.push(turn);
+      await sleep(150);
     }
-
-    // 超时兜底：玩家没说话，由辩护人/AI 当事人代述。
-    if (!input) {
-      const defenderId = defenderAssignments?.[side]?.[0];
-      if (defenderId) {
-        await speakAsDefender(defenderId, side, round, priorTurns, "（辩护人代述）");
-      } else {
-        await speakAsSide(side, round, priorTurns, "（辩护人代述）");
-      }
-      return null;
-    }
-
-    // 拿到玩家输入：ack -> 落一条 speaker='player' 的 turn -> 上屏。
-    onEvent({ type: "player_input_ack", inputId: input.id });
-    markPlayerInputHandled(input.id);
-
-    // 玩家发言写入本方 KB 的 user_additions，供后续 AI 发言引用。
-    const kb = side === "plaintiff" ? full!.plaintiff_kb : full!.defendant_kb;
-    if (kb) kb.user_additions.push(`[玩家] ${input.content}`);
-
-    const turn = pushTurn(round, "player", "player", "你", input.content);
-    // 玩家发言 +5；提交证据 +8。
-    bumpMomentum(side, input.type === "evidence" ? 8 : 5);
-    onEvent({ type: "player_turn", turn });
-    await sleep(200);
-    return turn;
+    return produced;
   };
 
   // 玩家发言后，对方当事人立即短接茬（≤300 token 的一次 LLM 调用）。
@@ -700,80 +660,68 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     onEvent({ type: "court_record", record });
   };
 
-  // 决定是否继续
-  const shouldContinue = async (round: number): Promise<{ shouldContinue: boolean; unresolvedPoints: string[]; reason: string }> => {
+  // 决定是否继续（纯规则，不再单独占用一次 LLM 往返）：
+  // 达最大轮次 / 争议点全部解决 → 结束；否则继续下一轮。
+  const shouldContinue = (round: number): { shouldContinue: boolean; unresolvedPoints: string[]; reason: string } => {
     if (round >= MAX_ROUNDS) {
       return { shouldContinue: false, unresolvedPoints: record.unresolved, reason: `已达最大轮次 ${MAX_ROUNDS}` };
     }
     if (record.unresolved.length === 0) {
       return { shouldContinue: false, unresolvedPoints: [], reason: "所有争议点已解决" };
     }
-    // 询问法官是否继续
-    try {
-      const raw = await signalChat([
-        { role: "system", content: `${JUDGE_SYSTEM} 根据未决问题数量和辩论充分性，决定是否继续。只返回 JSON {"shouldContinue": bool, "reason": "..."}。` },
-        { role: "user", content: `第 ${round} 轮结束。未决问题：${record.unresolved.join("；")}。已解决：${record.resolved.join("；")}。最多 ${MAX_ROUNDS} 轮。` },
-      ], 300);
-      const parsed = extractJson(raw) as { shouldContinue?: boolean; reason?: string };
-      if (typeof parsed.shouldContinue === "boolean") {
-        return {
-          shouldContinue: parsed.shouldContinue,
-          unresolvedPoints: record.unresolved,
-          reason: parsed.reason ?? (parsed.shouldContinue ? "继续辩论" : "结束辩论"),
-        };
-      }
-    } catch {
-      // fallback
-    }
-    return { shouldContinue: record.unresolved.length > 0 && round < MAX_ROUNDS, unresolvedPoints: record.unresolved, reason: "默认继续" };
+    return { shouldContinue: true, unresolvedPoints: record.unresolved, reason: `仍有 ${record.unresolved.length} 个争议点待辩论` };
   };
 
   // ===== 开庭循环 =====
   onEvent({ type: "court_status", status: "IN_PROGRESS", round: 1, turn: 0 });
 
   for (let round = 1; round <= MAX_ROUNDS; round += 1) {
-    const priorTurns = allTurns.slice(-10);
+    // a. 法官程序性开场（模板话术，0 LLM、首句 0ms 上屏）
+    judgeOpenRound(round);
 
-    // a. 法官开场/总结
-    await judgeSpeak(round, round === 1 ? "\n请宣布开庭，简述案件争议焦点。" : "\n请总结上一轮要点并宣布本轮开始。");
-
-    // b. 原告方发言：玩家扮演原告则轮到玩家，否则 AI 原告自动发言
-    if (effectivePlayerSide === "plaintiff") {
-      const playerTurn = await speakAsPlayer(round, allTurns.slice(-10));
-      // 玩家说完，被告当事人立即短接茬
-      if (playerTurn) await respondToPlayer(playerTurn, "defendant", round);
-    } else {
-      await speakAsSide("plaintiff", round, allTurns.slice(-10));
+    // 非阻塞提示玩家：现在起随时可以插话（不等待，AI 会继续自动推进）。
+    if (effectivePlayerSide) {
+      onEvent({ type: "player_turn_request", round, side: effectivePlayerSide });
     }
 
-    // c. 原告辩护人
+    // b. 原告方：AI 原告当事人先自动陈述（给玩家示范、保证流程连续），
+    //    再非阻塞消费玩家给原告的插话，由被告当事人接茬；玩家不发言流程也不停。
+    await speakAsSide("plaintiff", round, allTurns.slice(-10));
+    for (const t of await consumePlayerInputs("plaintiff", round)) {
+      await respondToPlayer(t, "defendant", round);
+    }
+
+    // c. 原告辩护人，其后再消费一次玩家插话（密集检查点，缩短插话上屏延迟）。
     if (defenderAssignments?.plaintiff?.length) {
       for (const defenderId of defenderAssignments.plaintiff) {
         await speakAsDefender(defenderId, "plaintiff", round, allTurns.slice(-10));
       }
     }
-
-    // d. 被告方发言：玩家扮演被告则轮到玩家，否则 AI 被告自动发言
-    if (effectivePlayerSide === "defendant") {
-      const playerTurn = await speakAsPlayer(round, allTurns.slice(-10));
-      // 玩家说完，原告当事人立即短接茬
-      if (playerTurn) await respondToPlayer(playerTurn, "plaintiff", round);
-    } else {
-      await speakAsSide("defendant", round, allTurns.slice(-10));
+    for (const t of await consumePlayerInputs("plaintiff", round)) {
+      await respondToPlayer(t, "defendant", round);
     }
 
-    // e. 被告辩护人
+    // d. 被告方：AI 被告当事人先自动陈述，再非阻塞消费玩家给被告的插话并由原告接茬。
+    await speakAsSide("defendant", round, allTurns.slice(-10));
+    for (const t of await consumePlayerInputs("defendant", round)) {
+      await respondToPlayer(t, "plaintiff", round);
+    }
+
+    // e. 被告辩护人，其后再消费一次玩家插话。
     if (defenderAssignments?.defendant?.length) {
       for (const defenderId of defenderAssignments.defendant) {
         await speakAsDefender(defenderId, "defendant", round, allTurns.slice(-10));
       }
     }
+    for (const t of await consumePlayerInputs("defendant", round)) {
+      await respondToPlayer(t, "plaintiff", round);
+    }
 
     // f. 更新法官记录
     await updateRecord(round);
 
-    // g. should_continue 判断
-    const cont = await shouldContinue(round);
+    // g. should_continue 判断（纯规则、无 LLM）
+    const cont = shouldContinue(round);
     onEvent({ type: "should_continue", shouldContinue: cont.shouldContinue, unresolvedPoints: cont.unresolvedPoints, reason: cont.reason });
 
     if (!cont.shouldContinue) {

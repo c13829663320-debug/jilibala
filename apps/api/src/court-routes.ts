@@ -193,7 +193,9 @@ export function registerCourtRoutes(
 
     // 客户端断连即 abort：终止庭审，避免僵尸会话占满 LLM 并发。
     const ac = new AbortController();
-    req.raw.on("close", () => ac.abort());
+    // 监听【响应流】而非请求流：Node 的请求流在 body 被正常读取完后就会触发 close，
+    // 会误判为客户端断开；只有响应流 close 且未正常 finish，才是连接被提前中断。
+    reply.raw.on("close", () => { if (!reply.raw.writableFinished) ac.abort(); });
 
     reply.hijack();
     const res = reply.raw;

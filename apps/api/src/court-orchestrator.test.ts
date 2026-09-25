@@ -240,9 +240,9 @@ describe("court-orchestrator", () => {
 
     const mEvents = events.filter((e) => e.type === "momentum_update") as Array<{ type: "momentum_update"; momentum: { plaintiff: number; defendant: number } }>;
     expect(mEvents.length).toBeGreaterThan(0);
-    // 玩家提交证据 +8：原告应从 50 升到 58（初始 50:50 是开庭广播）。
+    // 初始广播 50:50。新流程：AI 原告先自动发言 +3（→53），玩家提交证据再 +8（→61）。
     expect(mEvents[0].momentum).toEqual({ plaintiff: 50, defendant: 50 });
-    expect(mEvents.some((e) => e.momentum.plaintiff === 58)).toBe(true);
+    expect(mEvents.some((e) => e.momentum.plaintiff === 61)).toBe(true);
   });
 
   it("玩家超时未发言：由辩护人/AI 代述兜底，庭审不卡死", async () => {
@@ -266,15 +266,16 @@ describe("court-orchestrator", () => {
       markPlayerInputHandled: vi.fn(),
     });
 
-    // 有 player_turn_request（轮到玩家）
+    // 有 player_turn_request（非阻塞提示玩家随时插话）
     expect(events.some((e) => e.type === "player_turn_request")).toBe(true);
     // 没有 speaker='player' 的 turn（玩家没发言）
     const turnEvts = events.filter((e) => e.type === "court_turn") as Array<{ type: "court_turn"; turn: { speaker: string; content: string } }>;
     expect(turnEvts.some((e) => e.turn.speaker === "player")).toBe(false);
-    // 兜底代述：原告方仍有发言，且 content 带「辩护人代述」
+    // 新设计非阻塞：玩家不发言时 AI 原告当事人自动接上发言（不再阻塞等待/不再有「辩护人代述」前缀），
+    // 庭审流程连续不卡死。
     const plaintiffTurn = turnEvts.find((e) => e.turn.speaker === "plaintiff");
     expect(plaintiffTurn).toBeDefined();
-    expect(plaintiffTurn!.turn.content).toContain("辩护人代述");
+    expect(plaintiffTurn!.turn.content.length).toBeGreaterThan(0);
     // 庭审正常走到 verdict
     expect(events.some((e) => e.type === "court_verdict")).toBe(true);
   });

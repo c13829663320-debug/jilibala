@@ -179,20 +179,42 @@ export class HttpCourtEngine implements CourtEngineClient {
   private verdict: BackendVerdict | null = null
   private verdictWaiters: ((v: BackendVerdict) => void)[] = []
 
-  // ---- 实时事件订阅（玩家驱动庭审：player_turn_request / momentum_update 等）----
-  private liveListeners = new Set<(ev: CourtTrialEvent) => void>()
+  // ---- 实时事件订阅（玩家驱动庭审：court_turn / player_turn_request / momentum_update 等）----
+  private liveListeners = new Set<(ev: LiveCourtEvent) => void>()
   /** 订阅 SSE 实时事件（不等待轮次缓冲）。返回取消订阅函数。 */
-  subscribe(listener: (ev: CourtTrialEvent) => void): () => void {
+  subscribe(listener: (ev: LiveCourtEvent) => void): () => void {
     this.liveListeners.add(listener)
     return () => { this.liveListeners.delete(listener) }
   }
   private emitLive(ev: CourtTrialEvent): void {
-    this.liveListeners.forEach((fn) => { try { fn(ev) } catch { /* 忽略订阅者异常 */ } })
+    // court_turn/player_turn 的 turn 先转成 UI 字段再下发（见 LiveCourtEvent）。
+    const live: LiveCourtEvent =
+      ev.type === 'court_turn' || ev.type === 'player_turn'
+        ? { type: ev.type, turn: backendTurnToUi(ev.turn) }
+        : (ev as LiveCourtEvent)
+    this.liveListeners.forEach((fn) => { try { fn(live) } catch { /* 忽略订阅者异常 */ } })
   }
 
   /** 最新局势优势条（原告:被告），初始 50:50。 */
   private latestMomentum = { plaintiff: 50, defendant: 50 }
   getMomentum(): { plaintiff: number; defendant: number } { return { ...this.latestMomentum } }
+
+  /**
+   * 订阅前已缓冲状态快照：返回【已转 UI】的全部 turns、法官记录、优势条。
+   * UI 订阅时调用，补齐在监听空窗（如 StrictMode remount）内已到达、engine
+   * 已缓冲但当时无监听者的首批事件，避免法官开场等被永久丢失。
+   */
+  getBufferedState(): {
+    turns: CourtTurn[]
+    record: BackendRecord | null
+    momentum: { plaintiff: number; defendant: number }
+  } {
+    const turns = [...this.byRound.keys()]
+      .sort((a, b) => a - b)
+      .flatMap((r) => this.byRound.get(r) ?? [])
+      .map((t) => backendTurnToUi(t))
+    return { turns, record: this.lastRecord, momentum: { ...this.latestMomentum } }
+  }
 
   configure(patch: Partial<EngineConfig>): void {
     this.cfg = { ...this.cfg, ...patch }
@@ -286,6 +308,17 @@ export class HttpCourtEngine implements CourtEngineClient {
     void this.readStream(res)
   }
 
+  /** 出错后强制重启 SSE（中止旧流 → 重置缓冲 → 重新 start）；实时订阅者保留。 */
+  async restartTrial(): Promise<void> {
+    try { this.abort?.abort() } catch { /* noop */ }
+    this.resetStreamState()
+    this.streamStarted = false
+    this.dead = true
+    this.aborted = false
+    this.streamError = null
+    await this.startTrial()
+  }
+
   private resetStreamState(): void {
     this.byRound = new Map()
     this.completedRounds = new Set()
@@ -341,6 +374,8 @@ export class HttpCourtEngine implements CourtEngineClient {
   private failStream(err: Error): void {
     if (this.streamError) return
     this.streamError = err
+    // 通过实时通道下发合成 error 事件，让 UI 统一感知网络/解码错误。
+    this.emitLive({ type: 'error', message: err.message } as CourtTrialEvent)
     this.errorWaiters.forEach((w) => w(err))
     this.errorWaiters = []
     this.continueWaiters.forEach((w) => w({ shouldContinue: false, unresolvedPoints: [], reason: err.message }))

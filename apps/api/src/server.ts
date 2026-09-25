@@ -68,7 +68,9 @@ const evomapModel = process.env.EVOMAP_MODEL ?? "evomap-deepseek-v4-flash";
 
 // ===== 全局 LLM 并发限流 =====
 // 防止僵尸庭审/断连会话占满上游并发，导致新庭审开场 hang。
-const LLM_MAX_CONCURRENCY = parseInt(process.env.LLM_MAX_CONCURRENCY ?? "6", 10);
+// StepFun 账户实测「并发上限 5」（第 6 个并发请求直接 429）。
+// 内部 semaphore 保守设为 4，给 TTS / 突发请求留出额度，避免临界触发限流。
+const LLM_MAX_CONCURRENCY = parseInt(process.env.LLM_MAX_CONCURRENCY ?? "4", 10);
 let llmActive = 0;
 const llmQueue: Array<() => void> = [];
 async function withLlmSlot<T>(fn: () => Promise<T>): Promise<T> {
@@ -154,21 +156,52 @@ const generateHearing = async (input:string):Promise<GeneratedHearing> => {
 
 // ===== 人物馆 · 名人对话 =====
 type ChatMessage = { role: 'system'|'user'|'assistant'; content: string };
+const sleepMs = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const requestChatCompletion = async (provider: ProviderConfig, messages: ChatMessage[], maxTokens = 800, opts: { signal?: AbortSignal } = {}): Promise<string> => {
   return withLlmSlot(async () => {
-    const signals: AbortSignal[] = [AbortSignal.timeout(45000)];
-    if (opts.signal) signals.push(opts.signal);
-    const response = await fetch(`${provider.base.replace(/\/$/,'')}/chat/completions`, {
-      method:'POST',
-      headers:{ Authorization:`Bearer ${provider.key}`, 'Content-Type':'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, temperature:.8, max_tokens:maxTokens, thinking:{type:'disabled'} }),
-      signal: AbortSignal.any(signals),
-    });
-    if (!response.ok) throw new Error(`${provider.name} ${response.status}`);
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error(`${provider.name} empty (finish=${data.choices?.[0]?.finish_reason})`);
-    return content;
+    let lastError: unknown;
+    // 对「可恢复错误」做指数退避重试：429 限流 / 5xx / 并发下偶发空 content / 网络抖动。
+    // StepFun 是主 provider、EvoMap 常无 key，直接 fallback 无意义，故在同 provider 内重试。
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (opts.signal?.aborted) throw new Error('aborted');
+      const signals: AbortSignal[] = [AbortSignal.timeout(45000)];
+      if (opts.signal) signals.push(opts.signal);
+      let backoffMs = 0;
+      try {
+        const response = await fetch(`${provider.base.replace(/\/$/,'')}/chat/completions`, {
+          method:'POST',
+          headers:{ Authorization:`Bearer ${provider.key}`, 'Content-Type':'application/json' },
+          body: JSON.stringify({ model: provider.model, messages, temperature:.8, max_tokens:maxTokens, thinking:{type:'disabled'} }),
+          signal: AbortSignal.any(signals),
+        });
+        if (response.status === 429 || response.status >= 500) {
+          backoffMs = Math.min(500 * 2 ** attempt, 4000);
+          throw new Error(`${provider.name} ${response.status}`);
+        }
+        if (!response.ok) throw new Error(`${provider.name} ${response.status}`);
+        const data = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+          backoffMs = Math.min(500 * 2 ** attempt, 4000);
+          throw new Error(`${provider.name} empty (finish=${data.choices?.[0]?.finish_reason})`);
+        }
+        return content;
+      } catch (error) {
+        if (opts.signal?.aborted || (error as Error)?.name === 'AbortError') throw error;
+        lastError = error;
+        const msg = (error as Error)?.message ?? '';
+        const statusMatch = /\s(\d{3})$/.exec(msg);
+        const status = statusMatch ? parseInt(statusMatch[1], 10) : 0;
+        const isNetworkError = !statusMatch && !msg.includes('empty');
+        const isEmpty = msg.includes('empty');
+        const isRateOrServer = status === 429 || status >= 500;
+        // 4xx（400/401/403/404 等）不可恢复，立即上抛，不做无意义重试。
+        if (!isNetworkError && !isEmpty && !isRateOrServer) throw error;
+        // 退避期间仍占用 slot 形成背压，阻止更多请求同时打到已限流的账户。
+        await sleepMs(backoffMs || Math.min(500 * 2 ** attempt, 4000));
+      }
+    }
+    throw lastError ?? new Error(`${provider.name} failed after retries`);
   });
 };
 const chatWithProviders = async (messages: ChatMessage[], maxTokens = 800, opts: { characterId?: string; signal?: AbortSignal } = {}): Promise<string> => {
