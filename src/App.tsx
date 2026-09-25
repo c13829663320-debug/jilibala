@@ -63,8 +63,8 @@ function Courtroom() {
   )
 }
 
-function Bench({ position }: { position: [number, number, number] }) {
-  return <group position={position}>
+function Bench({ position, scale = 1 }: { position: [number, number, number]; scale?: [number, number, number] | number }) {
+  return <group position={position} scale={scale}>
     <mesh castShadow><boxGeometry args={[3.9, 1.5, 0.8]} /><meshStandardMaterial color="#6b3f57" roughness={0.48} /></mesh>
     <mesh position={[0, 0.84, 0]} castShadow><boxGeometry args={[4.35, 0.22, 1]} /><meshStandardMaterial color="#f1c05f" emissive="#79502a" emissiveIntensity={0.15} /></mesh>
   </group>
