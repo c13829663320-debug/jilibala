@@ -13,6 +13,7 @@ import {
 import { useIdentity } from './identity'
 
 const LibraryView = lazy(() => import('./LibraryView'))
+const QuizArena = lazy(() => import('./library/QuizArena'))
 
 type Tab = 'club' | 'deep' | 'librarian'
 type ChatRole = 'user' | 'assistant'
@@ -72,6 +73,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
   const { user } = useIdentity()
 
   // ===== 通用状态 =====
+  const [view, setView] = useState<'arena' | 'deep'>('arena')
   const [tab, setTab] = useState<Tab>('club')
   const [topics, setTopics] = useState<string[]>([])
   const [online, setOnline] = useState(1)
@@ -290,6 +292,11 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
         <LibraryIcon size={18} color={accent} />
         <strong style={{ letterSpacing: 1 }}>图书馆</strong>
         <span style={{ fontSize: 12, color: muted }}>安静 · 书卷气 · 与智者共读</span>
+        {/* 主入口切换：知识擂台 / 深聊 */}
+        <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
+          <button onClick={() => setView('arena')} style={viewTabStyle(view === 'arena', true)}>知识擂台</button>
+          <button onClick={() => setView('deep')} style={viewTabStyle(view === 'deep', false)}>深聊</button>
+        </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: accent, background: 'rgba(79,179,165,0.13)', borderRadius: 12, padding: '2px 10px' }}>
             <Users size={12} /> {online} 人在线
@@ -299,6 +306,15 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
         </div>
       </header>
 
+      {view === 'arena' && (
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: '#000000' }}>
+          <Suspense fallback={<div style={{ padding: 80, textAlign: 'center', color: muted }}>擂台布置中…</div>}>
+            <QuizArena onDeepChat={() => setView('deep')} />
+          </Suspense>
+        </div>
+      )}
+
+      {view === 'deep' && (
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* 左侧控制面板 */}
         <aside style={{ width: 380, overflowY: 'auto', padding: 14, borderRight: '1px solid rgba(255,255,255,0.08)' }}>
@@ -463,6 +479,7 @@ export default function LibraryShell({ onBack, onPlaza }: { onBack: () => void; 
           </aside>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -498,6 +515,13 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   border: active ? `1px solid ${accent}` : '1px solid rgba(255,255,255,0.08)',
   background: active ? 'rgba(79,179,165,0.13)' : 'rgba(12,11,20,0.6)',
   color: active ? accent : 'rgba(237,237,240,0.7)',
+})
+// 顶栏主入口切换：擂台用明黄，深聊用青
+const viewTabStyle = (active: boolean, arena: boolean): React.CSSProperties => ({
+  padding: '6px 14px', borderRadius: 9, cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+  border: active ? `1px solid ${arena ? '#FFD600' : accent}` : '1px solid rgba(255,255,255,0.08)',
+  background: active ? (arena ? '#FFD600' : 'rgba(79,179,165,0.13)') : 'rgba(12,11,20,0.6)',
+  color: active ? (arena ? '#000' : accent) : 'rgba(237,237,240,0.7)',
 })
 const primaryBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 9, cursor: 'pointer',
