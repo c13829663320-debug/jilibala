@@ -11,9 +11,11 @@ import {
   debateSpeech,
   bartenderSummary,
   createDebateSession,
+  isArgumentAngle,
   type Debater,
   type DebateSide,
   type DebateSession,
+  type ArgumentAngle,
 } from "./bar-orchestrator.js";
 import { broadcastSceneEvent, updateSceneState } from "./ws.js";
 import { addSceneRecord, upsertContent, getUser, type StoredContent } from "./db.js";
@@ -65,6 +67,7 @@ export function registerBarRoutes(app: FastifyInstance, deps: { chat: ChatFn; co
         round: state.round,
         totalRounds: state.totalRounds,
         argumentStrength: state.argumentStrength,
+        aiTendency: state.aiTendency,
       });
       return { state };
     } catch (error) {
@@ -73,18 +76,49 @@ export function registerBarRoutes(app: FastifyInstance, deps: { chat: ChatFn; co
     }
   });
 
-  // ===== 玩家发言：立论 → 对方 AI 反驳 → 论据强度更新 =====
+  // ===== 玩家点选攻击角度卡：预览克制关系（纯查询，不改状态）=====
+  app.post("/api/bar/debate/pick-angle", async (req, reply) => {
+    if (!debate) return reply.code(409).send({ message: "请先开一桌辩论。" });
+    const body = (req.body ?? {}) as { angle?: ArgumentAngle };
+    if (!isArgumentAngle(body.angle)) return reply.code(400).send({ message: "angle 必须是 data/emotion/logic" });
+    try {
+      const result = debate.previewAngle(body.angle);
+      broadcastSceneEvent(SCENE, SESSION, {
+        type: "bar_angle_picked",
+        angle: body.angle,
+        aiTendency: debate.getState().aiTendency,
+        effectiveness: result.effectiveness,
+        angleDelta: result.delta,
+      });
+      return result;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "选角度失败";
+      return reply.code(400).send({ message: msg });
+    }
+  });
+
+  // ===== 玩家发言：选角度 → 立论 → AI 对称反驳 → 双向强度更新 =====
   app.post("/api/bar/debate/speak", async (req, reply) => {
-    const body = (req.body ?? {}) as { round?: number; content?: string };
+    const body = (req.body ?? {}) as { round?: number; angle?: ArgumentAngle; content?: string };
     if (!debate) return reply.code(409).send({ message: "请先开一桌辩论。" });
     const round = Math.round(Number(body.round) || 0);
     const content = (body.content ?? "").trim();
+    if (!isArgumentAngle(body.angle)) return reply.code(400).send({ message: "请先选一个攻击角度（data/emotion/logic）" });
     if (!content) return reply.code(400).send({ message: "发言内容不能为空" });
     try {
-      const result = await debate.playerSpeak(round, content);
+      const result = await debate.playerSpeak(round, body.angle, content);
       broadcastSceneEvent(SCENE, SESSION, {
-        type: "debate_turn",
+        type: "bar_turn_resolved",
         round,
+        playerAngle: result.playerTurn.angle,
+        aiAngle: result.aiTurn.angle,
+        playerEffectiveness: result.playerEffectiveness,
+        aiEffectiveness: result.aiEffectiveness,
+        playerDelta: result.playerDelta,
+        aiDelta: result.aiDelta,
+        playerScore: result.playerScore,
+        aiScore: result.aiScore,
+        nextAiTendency: result.nextAiTendency,
         playerText: result.playerTurn.text,
         aiText: result.aiTurn.text,
         aiSpeaker: result.aiTurn.speaker,

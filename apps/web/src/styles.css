@@ -437,3 +437,15 @@ button { min-height: 44px; }
   .archive-topbar { padding: 0 18px; }
   .archive-back-button { min-height: 44px; }
 }
+
+/* ===== 酒吧辩论：角度克制飘字 / 淡入 ===== */
+@keyframes bar-floatup {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
+  15% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  30% { transform: translate(-50%, -4px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+}
+@keyframes bar-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
