@@ -523,8 +523,9 @@ export interface CourtTurn {
   caseId: string;
   round: number;
   turn: number;
-  speaker: 'judge' | 'plaintiff' | 'defendant' | 'defender';
-  speakerId: string; // role id 或 celebrity id 或 'judge'
+  /** player = 玩家本人当庭发言上屏（玩家驱动庭审） */
+  speaker: 'judge' | 'plaintiff' | 'defendant' | 'defender' | 'player';
+  speakerId: string; // role id 或 celebrity id 或 'judge' 或 'player'
   speakerName: string;
   content: string;
   referenced_evidence: string[];
@@ -542,6 +543,8 @@ export interface CourtRecord {
   evidence_relations: Array<{ evidenceId: string; supports: string }>;
   unresolved: string[];
   resolved: string[];
+  /** 局势优势条：原告:被告，0-100，初始 50:50，玩家行为实时影响。 */
+  momentum?: { plaintiff: number; defendant: number };
   updatedAt: string;
 }
 
@@ -591,6 +594,8 @@ export interface CourtCase {
   current_round: number;
   current_turn: number;
   final_verdict: CourtVerdict | null;
+  /** 玩家选择扮演的一方（玩家驱动庭审：玩家当庭发言）。 */
+  player_side?: 'plaintiff' | 'defendant';
   createdAt: string;
   updatedAt: string;
 }
@@ -603,6 +608,12 @@ export type CourtTrialEvent =
   | { type: 'should_continue'; shouldContinue: boolean; unresolvedPoints: string[]; reason: string }
   | { type: 'court_verdict'; verdict: CourtVerdict }
   | { type: 'player_input_ack'; inputId: string }
+  /** 轮到玩家发言：前端展开输入面板、聚焦、提示「轮到你发言」。 */
+  | { type: 'player_turn_request'; round: number; side: 'plaintiff' | 'defendant' }
+  /** 局势优势条更新（原告:被告，0-100）。 */
+  | { type: 'momentum_update'; momentum: { plaintiff: number; defendant: number } }
+  /** 玩家发言已上屏确认（speaker='player' 的 CourtTurn）。 */
+  | { type: 'player_turn'; turn: CourtTurn }
   | { type: 'error'; message: string };
 
 // ===== 人物馆 · 真实名人 =====

@@ -22,6 +22,7 @@ import {
   addCourtFact,
   addCourtPlayerInput,
   addCourtTurn,
+  createCourtCase,
   getCourtCase,
   getCourtEvidence,
   getCourtFacts,
@@ -29,6 +30,7 @@ import {
   getCourtTurns,
   setCourtVerdict,
   updateCourtCaseAnalysis,
+  updateCourtCasePlayerSide,
   updateCourtCaseStatus,
   updateCourtRecord,
   updateCourtRoundTurn,
@@ -273,6 +275,39 @@ export async function draftStory(chat: ChatFn, seed?: string): Promise<DraftStor
   return DRAFT_FALLBACKS[Math.floor(Math.random() * DRAFT_FALLBACKS.length)];
 }
 
+/** 供前端「快速开庭」展示的 3 个预置生活小案。 */
+export const COURT_PRESETS: Array<{ description: string; stance: string }> = DRAFT_FALLBACKS;
+
+/**
+ * 快速开庭：用预置故事直接建案 + 本地（无 LLM）分析，跳过 38 秒 analyze 等待。
+ * 玩家选好身份后一键开庭，立即进入 review。
+ */
+export function quickStartCase(
+  userId: string,
+  storyIndex: number,
+  playerSide: "plaintiff" | "defendant",
+): CourtCase {
+  const preset = COURT_PRESETS[((storyIndex % COURT_PRESETS.length) + COURT_PRESETS.length) % COURT_PRESETS.length];
+  const c = createCourtCase(userId, preset.description);
+  // 本地兜底分析（不调 LLM）：直接落角色/KB/起诉状。
+  const result = fallbackAnalyze(preset.description);
+  updateCourtCaseAnalysis(c.id, {
+    title: result.title,
+    facts: result.facts,
+    disputePoints: result.dispute_points,
+    plaintiffRole: result.plaintiff_role,
+    defendantRole: result.defendant_role,
+    plaintiffKb: result.plaintiff_kb,
+    defendantKb: result.defendant_kb,
+    plaintiffComplaint: result.plaintiff_complaint,
+    defendantAnswer: result.defendant_answer,
+  });
+  // 保存玩家身份
+  updateCourtCasePlayerSide(c.id, playerSide);
+  updateCourtCaseStatus(c.id, transitionStatus("ANALYZING", "analysis_done"));
+  return getCourtCase(c.id)!;
+}
+
 // ===== 编排器 opts =====
 export interface RunCourtTrialOpts {
   caseId: string;
@@ -282,9 +317,21 @@ export interface RunCourtTrialOpts {
   markPlayerInputHandled: (id: string) => void;
   defenderAssignments?: { plaintiff?: string[]; defendant?: string[] };
   perspective: Perspective;
+  /** 玩家扮演的一方：该方当事人席位由玩家本人当庭发言（玩家驱动庭审）。 */
+  playerSide?: "plaintiff" | "defendant";
+  /** 测试可调：等待玩家输入的总时长（默认 60s）。 */
+  playerInputTimeoutMs?: number;
+  /** 测试可调：轮询玩家输入的间隔（默认 500ms）。 */
+  playerInputPollMs?: number;
 }
 
 const MAX_ROUNDS = 5;
+
+/** 局势优势条初始值（原告:被告）。 */
+const INITIAL_MOMENTUM = { plaintiff: 50, defendant: 50 } as const;
+
+/** 把动量夹到 0-100。 */
+const clampMomentum = (n: number): number => Math.max(0, Math.min(100, Math.round(n)));
 
 const JUDGE_SYSTEM =
   "你是叽里呱啦趣味法庭的 AI 法官，友善、幽默、公正。负责主持庭审、归纳记录、决定是否继续辩论并作出判决。判决不具有真实法律效力。";
@@ -293,13 +340,15 @@ const JUDGE_SYSTEM =
  * 主庭审流程：加载案件 -> 开庭循环（最多5轮） -> 判决。
  */
 export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict: CourtVerdict; turns: CourtTurn[] }> {
-  const { caseId, chat, onEvent, getPendingPlayerInputs, markPlayerInputHandled, defenderAssignments, perspective } = opts;
+  const { caseId, chat, onEvent, getPendingPlayerInputs, markPlayerInputHandled, defenderAssignments, perspective, playerSide } = opts;
 
   let full = getCourtCase(caseId);
   if (!full) throw new Error(`案件不存在: ${caseId}`);
   if (full.status !== "CONFIRMED") {
     throw new Error(`案件状态非 CONFIRMED，当前: ${full.status}`);
   }
+  // 优先以 opts 传入的 playerSide 为准，否则回落到案件上保存的 player_side。
+  const effectivePlayerSide = playerSide ?? full.player_side;
 
   updateCourtCaseStatus(caseId, transitionStatus(full.status, "start"));
   full = getCourtCase(caseId)!;
@@ -326,8 +375,25 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     evidence_relations: [],
     unresolved: [...full.dispute_points],
     resolved: [],
+    momentum: { ...INITIAL_MOMENTUM },
     updatedAt: new Date().toISOString(),
   };
+
+  // ===== 局势优势条 momentum =====
+  // 玩家发言 +5、提交证据 +8；AI 当事人/辩护人发言对应方 +3。
+  // 每次变动立即 emit momentum_update，前端平滑动画。
+  let momentum: { plaintiff: number; defendant: number } = { ...INITIAL_MOMENTUM };
+  const bumpMomentum = (side: "plaintiff" | "defendant", delta: number): void => {
+    momentum = {
+      plaintiff: clampMomentum(momentum.plaintiff + (side === "plaintiff" ? delta : 0)),
+      defendant: clampMomentum(momentum.defendant + (side === "defendant" ? delta : 0)),
+    };
+    record = { ...record, momentum: { ...momentum }, updatedAt: new Date().toISOString() };
+    updateCourtRecord(caseId, record);
+    onEvent({ type: "momentum_update", momentum: { ...momentum } });
+  };
+  // 开庭即广播一次初始优势条（前端据此渲染天平）。
+  onEvent({ type: "momentum_update", momentum: { ...INITIAL_MOMENTUM } });
 
   const pushTurn = (
     round: number,
@@ -389,6 +455,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     side: "plaintiff" | "defendant",
     round: number,
     priorTurns: CourtTurn[],
+    prefix?: string,
   ): Promise<void> => {
     const role = side === "plaintiff" ? full!.plaintiff : full!.defendant;
     const persona = role?.persona ?? (side === "plaintiff" ? "你是原告。" : "你是被告。");
@@ -405,7 +472,8 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
       },
       `${speakerName}: （兜底发言）`,
     );
-    pushTurn(round, side, role?.id ?? side, speakerName, text);
+    pushTurn(round, side, role?.id ?? side, speakerName, prefix ? `${prefix}${text}` : text);
+    bumpMomentum(side, 3);
     await sleep(200);
   };
 
@@ -415,6 +483,7 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     side: "plaintiff" | "defendant",
     round: number,
     priorTurns: CourtTurn[],
+    prefix?: string,
   ): Promise<void> => {
     const character = resolveCharacter(defenderId);
     if (!character) return;
@@ -441,7 +510,8 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
       () => celebritySpeak(character, context, chat, 800),
       character.greeting || `${character.name}: （兜底）`,
     );
-    pushTurn(round, "defender", character.id, character.name, text);
+    pushTurn(round, "defender", character.id, character.name, prefix ? `${prefix}${text}` : text);
+    bumpMomentum(side, 3);
     await sleep(200);
   };
 
@@ -479,19 +549,102 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     pushTurn(round, "judge", "judge", "AI 法官", text);
   };
 
-  // 消费玩家输入，加入对应方 KB 的 user_additions
-  const drainPlayerInputs = (): void => {
-    const pending = getPendingPlayerInputs();
-    for (const input of pending) {
-      onEvent({ type: "player_input_ack", inputId: input.id });
-      markPlayerInputHandled(input.id);
-      // 加入对应方 KB
-      if (input.player_role === "plaintiff" && full!.plaintiff_kb) {
-        full!.plaintiff_kb.user_additions.push(`[玩家] ${input.content}`);
-      } else if (input.player_role === "defendant" && full!.defendant_kb) {
-        full!.defendant_kb.user_additions.push(`[玩家] ${input.content}`);
+  // ===== 玩家当庭发言（玩家驱动庭审核心）=====
+  // emit player_turn_request -> 轮询等待玩家输入 -> 创建 speaker='player' 的 turn 上屏 -> emit player_turn。
+  // 最多等 60 秒；超时则由玩家方辩护人（或 AI 当事人）代述，保证庭审不卡死。
+  const speakAsPlayer = async (
+    round: number,
+    priorTurns: CourtTurn[],
+  ): Promise<CourtTurn | null> => {
+    if (!effectivePlayerSide) return null;
+    const side = effectivePlayerSide;
+    // 通知前端：轮到玩家发言，展开输入面板、聚焦。
+    onEvent({ type: "player_turn_request", round, side });
+
+    const POLL_INTERVAL = opts.playerInputPollMs ?? 500;
+    const MAX_WAIT = opts.playerInputTimeoutMs ?? 60_000;
+    let waited = 0;
+    let input: CourtPlayerInput | null = null;
+    while (waited < MAX_WAIT) {
+      const pending = getPendingPlayerInputs();
+      // 只取属于玩家方的输入（防御性：忽略对方视角误入的输入）。
+      const mine = pending.find((i) => i.player_role === side);
+      if (mine) {
+        input = mine;
+        break;
       }
+      await sleep(POLL_INTERVAL);
+      waited += POLL_INTERVAL;
     }
+
+    // 超时兜底：玩家没说话，由辩护人/AI 当事人代述。
+    if (!input) {
+      const defenderId = defenderAssignments?.[side]?.[0];
+      if (defenderId) {
+        await speakAsDefender(defenderId, side, round, priorTurns, "（辩护人代述）");
+      } else {
+        await speakAsSide(side, round, priorTurns, "（辩护人代述）");
+      }
+      return null;
+    }
+
+    // 拿到玩家输入：ack -> 落一条 speaker='player' 的 turn -> 上屏。
+    onEvent({ type: "player_input_ack", inputId: input.id });
+    markPlayerInputHandled(input.id);
+
+    // 玩家发言写入本方 KB 的 user_additions，供后续 AI 发言引用。
+    const kb = side === "plaintiff" ? full!.plaintiff_kb : full!.defendant_kb;
+    if (kb) kb.user_additions.push(`[玩家] ${input.content}`);
+
+    const turn = pushTurn(round, "player", "player", "你", input.content);
+    // 玩家发言 +5；提交证据 +8。
+    bumpMomentum(side, input.type === "evidence" ? 8 : 5);
+    onEvent({ type: "player_turn", turn });
+    await sleep(200);
+    return turn;
+  };
+
+  // 玩家发言后，对方当事人立即短接茬（≤300 token 的一次 LLM 调用）。
+  const respondToPlayer = async (
+    playerTurn: CourtTurn,
+    opponentSide: "plaintiff" | "defendant",
+    round: number,
+  ): Promise<void> => {
+    const role = opponentSide === "plaintiff" ? full!.plaintiff : full!.defendant;
+    const persona = role?.persona ?? (opponentSide === "plaintiff" ? "你是原告。" : "你是被告。");
+    const kb = opponentSide === "plaintiff" ? full!.plaintiff_kb : full!.defendant_kb;
+    const speakerName = role?.name ?? (opponentSide === "plaintiff" ? "原告" : "被告");
+    const context = buildSpeakerContext({
+      caseTitle: full!.title || "未命名案件",
+      userInput: full!.user_input,
+      disputePoints: full!.dispute_points,
+      publicFacts: record.facts,
+      evidenceNames: full!.evidence.map((e) => e.name),
+      priorTurns: allTurns.slice(-10),
+      kbFacts: kb?.facts ?? [],
+      kbClaims: kb?.claims ?? [],
+      kbArguments: kb?.arguments ?? [],
+      kbAssumptions: kb?.assumptions ?? [],
+      kbUserAdditions: kb?.user_additions ?? [],
+      opponentArguments: kb?.opponent_arguments ?? [],
+      unresolvedPoints: record.unresolved,
+      round,
+      speakerSide: opponentSide,
+    }) + `\n\n对方当事人刚刚当庭说：「${playerTurn.content}」。请你用第一人称、30-80字直接针对这句话接茬回应，简短有力，不要重复之前说过的论点。`;
+
+    const text = await withRetry(
+      async () => {
+        const raw = await chat([
+          { role: "system", content: `${persona}\n保持你的角色，第一人称短接茬。` },
+          { role: "user", content: context },
+        ], 300);
+        return tidySpeech(raw) || `${speakerName}: （接茬）`;
+      },
+      `${speakerName}: （接茬）`,
+    );
+    pushTurn(round, opponentSide, role?.id ?? opponentSide, speakerName, text);
+    bumpMomentum(opponentSide, 3);
+    await sleep(200);
   };
 
   // 更新法官记录
@@ -568,18 +721,30 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     // a. 法官开场/总结
     await judgeSpeak(round, round === 1 ? "\n请宣布开庭，简述案件争议焦点。" : "\n请总结上一轮要点并宣布本轮开始。");
 
-    // b. 原告发言
-    await speakAsSide("plaintiff", round, priorTurns);
+    // b. 原告方发言：玩家扮演原告则轮到玩家，否则 AI 原告自动发言
+    if (effectivePlayerSide === "plaintiff") {
+      const playerTurn = await speakAsPlayer(round, allTurns.slice(-10));
+      // 玩家说完，被告当事人立即短接茬
+      if (playerTurn) await respondToPlayer(playerTurn, "defendant", round);
+    } else {
+      await speakAsSide("plaintiff", round, allTurns.slice(-10));
+    }
 
     // c. 原告辩护人
     if (defenderAssignments?.plaintiff?.length) {
       for (const defenderId of defenderAssignments.plaintiff) {
-        await speakAsDefender(defenderId, "plaintiff", round, priorTurns);
+        await speakAsDefender(defenderId, "plaintiff", round, allTurns.slice(-10));
       }
     }
 
-    // d. 被告发言
-    await speakAsSide("defendant", round, allTurns.slice(-10));
+    // d. 被告方发言：玩家扮演被告则轮到玩家，否则 AI 被告自动发言
+    if (effectivePlayerSide === "defendant") {
+      const playerTurn = await speakAsPlayer(round, allTurns.slice(-10));
+      // 玩家说完，原告当事人立即短接茬
+      if (playerTurn) await respondToPlayer(playerTurn, "plaintiff", round);
+    } else {
+      await speakAsSide("defendant", round, allTurns.slice(-10));
+    }
 
     // e. 被告辩护人
     if (defenderAssignments?.defendant?.length) {
@@ -588,13 +753,10 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
       }
     }
 
-    // f. 消费玩家输入
-    drainPlayerInputs();
-
-    // g. 更新法官记录
+    // f. 更新法官记录
     await updateRecord(round);
 
-    // h. should_continue 判断
+    // g. should_continue 判断
     const cont = await shouldContinue(round);
     onEvent({ type: "should_continue", shouldContinue: cont.shouldContinue, unresolvedPoints: cont.unresolvedPoints, reason: cont.reason });
 
@@ -608,7 +770,8 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
   updateCourtCaseStatus(caseId, transitionStatus("IN_PROGRESS", "stop_for_verdict"));
   onEvent({ type: "court_status", status: "JUDGING", round: 0, turn: turnCounter });
 
-  const verdict = await generateVerdict(caseId, chat, full, allTurns, record);
+  const playerTurns = allTurns.filter((t) => t.speaker === "player");
+  const verdict = await generateVerdict(caseId, chat, full, allTurns, record, playerTurns, effectivePlayerSide);
   setCourtVerdict(caseId, verdict);
   updateCourtCaseStatus(caseId, transitionStatus("JUDGING", "verdict_done"));
   onEvent({ type: "court_verdict", verdict });
@@ -623,20 +786,35 @@ async function generateVerdict(
   full: CourtCase,
   turns: CourtTurn[],
   record: CourtRecord,
+  playerTurns: CourtTurn[],
+  playerSide?: "plaintiff" | "defendant",
 ): Promise<CourtVerdict> {
   const turnSummary = turns.slice(-30).map((t) => `[R${t.round} ${t.speakerName}] ${t.content}`).join("\n");
   const evidenceList = getCourtEvidence(caseId);
   const factsList = getCourtFacts(caseId);
+  const momentum = record.momentum ?? { plaintiff: 50, defendant: 50 };
+  const playerSideName = playerSide === "plaintiff" ? "原告" : playerSide === "defendant" ? "被告" : null;
+  const playerTurnText = playerTurns.length
+    ? playerTurns.map((t) => `[R${t.round}] ${t.content}`).join("\n")
+    : "（玩家本轮未发言，由辩护人/AI 代述）";
 
-  const prompt = `案件：${full.title}\n案情：${full.user_input}\n\n结构化事实：\n${factsList.map((f) => `- ${f.content}${f.disputed ? "（有争议）" : ""}`).join("\n")}\n\n证据：\n${evidenceList.map((e) => `- [${e.type}] ${e.name}: ${e.content}`).join("\n")}\n\n庭审发言摘要：\n${turnSummary}\n\n法官记录：\n未决：${record.unresolved.join("；")}\n已决：${record.resolved.join("；")}\n\n请生成结构化判决，返回 JSON：
+  // 局势优势明显时给法官一个倾向性提示（差距 >20 时倾向优势方）。
+  let momentumHint = "双方势均力敌，请依据事实与证据独立判定。";
+  if (momentum.plaintiff - momentum.defendant > 20) {
+    momentumHint = `庭审局势明显偏向原告（优势 ${momentum.plaintiff}:${momentum.defendant}），请在事实与证据基础上适当考虑原告的临场表现。`;
+  } else if (momentum.defendant - momentum.plaintiff > 20) {
+    momentumHint = `庭审局势明显偏向被告（优势 ${momentum.plaintiff}:${momentum.defendant}），请在事实与证据基础上适当考虑被告的临场表现。`;
+  }
+
+  const prompt = `案件：${full.title}\n案情：${full.user_input}\n\n结构化事实：\n${factsList.map((f) => `- ${f.content}${f.disputed ? "（有争议）" : ""}`).join("\n")}\n\n证据：\n${evidenceList.map((e) => `- [${e.type}] ${e.name}: ${e.content}`).join("\n")}\n\n庭审发言摘要：\n${turnSummary}\n\n法官记录：\n未决：${record.unresolved.join("；")}\n已决：${record.resolved.join("；")}\n\n局势优势条（原告:被告）：${momentum.plaintiff}:${momentum.defendant}。${momentumHint}\n\n${playerSideName ? `玩家扮演的是${playerSideName}方。玩家当庭发言记录：\n${playerTurnText}\n\n` : ""}请生成结构化判决，返回 JSON：
 - case_summary: 案件摘要
 - key_facts: 关键事实数组
 - key_evidence: 关键证据数组
 - plaintiff_arguments: 原告核心论点数组
 - defendant_arguments: 被告核心论点数组
 - judge_analysis: 法官分析
-- reasoning: 判决理由
-- verdict: "plaintiff" | "defendant" | "mixed" | "dismissed"（按事实权重/证据/逻辑/反驳有效性判定，不是谁先没话说）
+- reasoning: 判决理由（${playerSideName ? `必须显式引用玩家的当庭表现，例如"由于你当庭出示……并质问……"，把判决归因到玩家行为；` : "基于事实与证据"}）
+- verdict: "plaintiff" | "defendant" | "mixed" | "dismissed"（按事实权重/证据/逻辑/反驳有效性判定，参考局势优势但不是唯一句据）
 - conclusion: 结论`;
 
   try {

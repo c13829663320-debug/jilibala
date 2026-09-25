@@ -32,7 +32,7 @@ type Props = {
   onOpenArchive: () => void
 }
 
-const ROLE_LABEL: Record<string, string> = { judge: '法官', plaintiff: '原告', defendant: '被告', defender: '辩护人', witness: '证人' }
+const ROLE_LABEL: Record<string, string> = { judge: '法官', plaintiff: '原告', defendant: '被告', defender: '辩护人', witness: '证人', player: '你' }
 
 export default function CourtroomLive({ courtCase, engine, initialPerspective, defenderAssignments, onVerdict, onExit, onOpenArchive }: Props) {
   const [perspective, setPerspective] = useState<Perspective>(initialPerspective)
@@ -54,6 +54,9 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
   const [errorWhere, setErrorWhere] = useState<'trial' | 'verdict'>('trial')
   const [canContinueNext, setCanContinueNext] = useState(false)
   const [onlineCount, setOnlineCount] = useState(1)
+  // 玩家驱动庭审：轮到玩家发言 / 局势优势条
+  const [waitingForPlayer, setWaitingForPlayer] = useState(false)
+  const [momentum, setMomentum] = useState<{ plaintiff: number; defendant: number }>({ plaintiff: 50, defendant: 50 })
 
   // 被指派辅助人 → 3D 模型字典（名人 + 我的人物 + 广场人物）
   const { user } = useIdentity()
@@ -76,6 +79,8 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
   const busyRef = useRef(false)
   const recognitionRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const inputTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const optimisticRef = useRef<string | null>(null)
 
   // ---- WS 多人同步 ----
   const caseId = engine.getCaseId()
@@ -123,6 +128,48 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
     return () => { stopTts() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ---- 实时订阅：玩家驱动庭审（player_turn_request / momentum_update / player_turn）----
+  useEffect(() => {
+    const unsub = engine.subscribe((ev) => {
+      switch (ev.type) {
+        case 'momentum_update':
+          setMomentum({ ...ev.momentum })
+          break
+        case 'player_turn_request':
+          // 轮到玩家发言：自动展开输入面板、聚焦、高亮提示。
+          setWaitingForPlayer(true)
+          setInputOpen(true)
+          window.setTimeout(() => inputTextareaRef.current?.focus(), 60)
+          break
+        case 'player_turn': {
+          // 玩家发言已上屏：用真实 turn 替换乐观气泡。
+          setWaitingForPlayer(false)
+          setInputOpen(false)
+          const real: CourtTurn = {
+            id: ev.turn.id, round: ev.turn.round, speaker: ev.turn.speaker,
+            speakerId: ev.turn.speakerId, speakerName: ev.turn.speakerName,
+            content: ev.turn.content, referencedEvidence: ev.turn.referenced_evidence,
+            responseTo: ev.turn.response_to_turn_id, isRecord: false, createdAt: ev.turn.createdAt,
+          }
+          setAllTurns((prev) => {
+            // 去掉同内容的乐观气泡，换成真实 turn（带真 id）
+            const filtered = optimisticRef.current
+              ? prev.filter((t) => !(t.speaker === 'player' && t.id === optimisticRef.current))
+              : prev
+            if (appendedRef.current.has(real.id)) return filtered
+            appendedRef.current.add(real.id)
+            return [...filtered, real]
+          })
+          break
+        }
+        default:
+          break
+      }
+    })
+    return unsub
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine])
 
   // 自动推进:每句停留 TURN_DELAY;玩家点画面可提前跳过
   useEffect(() => {
@@ -178,35 +225,32 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
     if (turnIdx < roundTurns.length - 1) setTurnIdx((i) => i + 1)
     else setPhase('waiting')
   }
-  // Auto-advance at end of a round: if the player does not click while in
-  // 'waiting', move to the next round (or judging) after a short pause so the
-  // trial never appears frozen. Click still works; inputs can be sent anytime.
-  useEffect(() => {
-    if (phase !== 'waiting') return
-    const timer = window.setTimeout(() => {
-      if (busyRef.current) return
-      busyRef.current = true
-      const next = canContinueNext ? startRound(currentRound + 1) : startJudging()
-      void next.finally(() => { busyRef.current = false })
-    }, 1600)
-    return () => window.clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, canContinueNext, currentRound])
+  // 轮间自动推进已移除：AI 轮播完后停在 waiting，玩家点「继续」才进下一轮/判决。
+  // （玩家驱动庭审节奏由玩家掌控，不再 1600ms 自动跳走。）
 
-  // ---- 补充观点/证据:真实 POST player-input ----
+  // ---- 玩家当庭发言：POST player-input + 乐观气泡立即上屏 ----
   const submitInput = () => {
     if (!draft.trim() && trialEvidence.length === 0) return
-    const playerRole = perspective === 'defendant' ? 'defendant' : 'plaintiff'
-    const type = trialEvidence.length > 0 ? 'evidence' : 'opinion'
+    // 玩家本人的席位：默认跟随 perspective（CourtFlow 已按 player_side 初始化）。
+    const playerRole: 'plaintiff' | 'defendant' = perspective === 'defendant' ? 'defendant' : 'plaintiff'
+    const content = draft.trim() || '补充证据'
     void engine.submitPlayerInput({
       playerRole,
       type: trialEvidence.length > 0 ? 'evidence' : 'argument',
-      content: draft.trim() || '补充证据',
+      content,
       evidenceName: trialEvidence[0]?.name,
     })
+    // 乐观 turn：立即在 transcript 插入「你」的气泡，等 player_turn 事件替换成真实 turn。
+    const optId = uid()
+    optimisticRef.current = optId
+    const optTurn: CourtTurn = {
+      id: optId, round: currentRound, speaker: 'player', speakerId: 'player',
+      speakerName: '你', content, isRecord: false, createdAt: new Date().toISOString(),
+    }
+    setAllTurns((prev) => [...prev, optTurn])
     setPlayerInputs((prev) => [...prev, {
-      id: uid(), playerRole: perspective, type: type as 'opinion' | 'evidence',
-      content: draft.trim() || '补充证据', evidence: trialEvidence.length > 0 ? trialEvidence : undefined,
+      id: uid(), playerRole: perspective, type: (trialEvidence.length > 0 ? 'evidence' : 'opinion') as 'opinion' | 'evidence',
+      content, evidence: trialEvidence.length > 0 ? trialEvidence : undefined,
       createdAt: new Date().toISOString(),
     }])
     setDraft('')
@@ -293,6 +337,25 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
         </button>
       </div>
 
+      {/* 局势优势条：左=原告(明黄) 右=被告(青绿)，宽度随 momentum 平滑动画 */}
+      {phase !== 'judging' && phase !== 'error' && (
+        <div className="momentum-bar" aria-label="局势优势条">
+          <span className="momentum-bar__side momentum-bar__side--plaintiff">原告 {momentum.plaintiff}</span>
+          <div className="momentum-bar__track">
+            <div
+              className="momentum-bar__fill"
+              style={{ width: `${momentum.plaintiff}%`, background: '#FFD60A', transition: 'width 0.6s ease' }}
+            />
+          </div>
+          <span className="momentum-bar__side momentum-bar__side--defendant">{momentum.defendant} 被告</span>
+        </div>
+      )}
+
+      {/* 轮到你发言：高亮提示条 */}
+      {waitingForPlayer && (
+        <div className="your-turn-banner">🔔 轮到你发言了！在下方输入框陈述你的主张</div>
+      )}
+
       {/* 判决过场遮罩 */}
       {phase === 'judging' && (
         <div className="live-judging">
@@ -355,7 +418,7 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
           )}
 
           <div className="live-continue-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {submitFlash && <span className="live-hint">已提交,将在下一轮体现 ✓</span>}
+            {submitFlash && <span className="live-hint">已提交 ✓</span>}
             <span style={{ flex: 1 }} />
             <button
               className={`court-btn court-btn--sm live-continue-btn${phase === 'waiting' ? ' live-continue--active' : ''}`}
@@ -367,21 +430,22 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
         </div>
       )}
 
-      {/* 补充输入:观众视角无输入框 */}
-      {phase !== 'judging' && phase !== 'error' && !isAudience && !inputOpen && (
-        <button className="live-input-fab" onClick={() => setInputOpen(true)} aria-label="补充观点或证据">
+      {/* 玩家发言输入面板：玩家是当事人，始终可发言（不再因观众席隐藏） */}
+      {phase !== 'judging' && phase !== 'error' && !inputOpen && (
+        <button className="live-input-fab" onClick={() => setInputOpen(true)} aria-label="当庭发言">
           <Plus size={22} />
         </button>
       )}
-      {phase !== 'judging' && phase !== 'error' && inputOpen && !isAudience && (
-        <div className="live-input-panel">
+      {phase !== 'judging' && phase !== 'error' && inputOpen && (
+        <div className={`live-input-panel${waitingForPlayer ? ' live-input-panel--urgent' : ''}`}>
           <div className="live-input-panel__head">
-            <span className="live-input-panel__label">补充观点 / 证据</span>
+            <span className="live-input-panel__label">{waitingForPlayer ? '🔔 轮到你发言' : '当庭发言 / 证据'}</span>
             <button className="live-input-panel__close" onClick={() => setInputOpen(false)} aria-label="收起">×</button>
           </div>
           <textarea
+            ref={inputTextareaRef}
             className="live-input-panel__textarea"
-            placeholder={perspective === 'defendant' ? '为被告方补充辩护观点或证据说明…' : '为原告方补充主张或证据说明…'}
+            placeholder={perspective === 'defendant' ? '以你（被告）的口吻陈述辩护观点或证据…' : '以你（原告）的口吻陈述主张或证据…'}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             autoFocus

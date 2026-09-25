@@ -462,3 +462,54 @@
 .defender-picker__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 15px 12px; border-top: 1px solid var(--court-border); color: var(--court-text-4); font-size: 11px; line-height: 1.5; }
 .defender-picker__clear { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border: 1px solid var(--court-border); border-radius: var(--court-radius-pill); background: transparent; color: var(--court-text-3); font-size: 11px; cursor: pointer; white-space: nowrap; }
 .defender-picker__clear:hover { color: var(--court-text-1); border-color: var(--court-border-2); }
+
+/* ===== 玩家驱动庭审：局势优势条 / 轮到你发言 ===== */
+.momentum-bar {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 60vw);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 30;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 214, 10, 0.25);
+  border-radius: 999px;
+  font-size: 11px;
+  color: #fff;
+  pointer-events: none;
+}
+.momentum-bar__track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #4fb3a5;
+}
+.momentum-bar__fill { height: 100%; border-radius: 999px; }
+.momentum-bar__side--plaintiff { color: #FFD60A; white-space: nowrap; }
+.momentum-bar__side--defendant { color: #4fb3a5; white-space: nowrap; }
+
+.your-turn-banner {
+  position: fixed;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 31;
+  padding: 8px 18px;
+  background: linear-gradient(90deg, #FFD60A, #fff3b0);
+  color: #000;
+  font-weight: 700;
+  border-radius: 999px;
+  font-size: 13px;
+  box-shadow: 0 4px 20px rgba(255, 214, 10, 0.5);
+  animation: yourTurnPulse 1.2s ease-in-out infinite;
+}
+@keyframes yourTurnPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.04); }
+}
+.live-input-panel--urgent { border-color: #FFD60A; box-shadow: 0 0 0 2px rgba(255, 214, 10, 0.5); }

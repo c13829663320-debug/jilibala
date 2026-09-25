@@ -6,8 +6,8 @@ import type { Verdict } from '@balabala/shared'
 /** 玩家游戏视角(= 3D 机位),不是账号身份,庭审中可随时切换。 */
 export type Perspective = 'plaintiff' | 'audience' | 'defendant'
 
-/** 庭审角色:法官/原告/被告/辩护人/证人。 */
-export type CourtRoleType = 'judge' | 'plaintiff' | 'defendant' | 'defender' | 'witness'
+/** 庭审角色:法官/原告/被告/辩护人/证人/玩家本人。 */
+export type CourtRoleType = 'judge' | 'plaintiff' | 'defendant' | 'defender' | 'witness' | 'player'
 
 /** 案件状态机。 */
 export type CourtCaseStatus =
@@ -145,6 +145,10 @@ export interface CourtCase {
   complaint?: string
   /** AI 生成、用户可编辑的答辩状（被告文书）。 */
   answer?: string
+  /** 玩家扮演的一方（玩家驱动庭审）。 */
+  player_side?: 'plaintiff' | 'defendant'
+  /** 庭审结束时的局势优势条。 */
+  momentum?: { plaintiff: number; defendant: number }
 }
 
 /** 分析输入。 */

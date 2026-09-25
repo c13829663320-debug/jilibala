@@ -10,7 +10,7 @@ import type {
   PlazaContent,
 } from "@balabala/shared";
 import type { ChatFn } from "./bench-orchestrator.js";
-import { analyzeCase, draftStory, runCourtTrial } from "./court-orchestrator.js";
+import { analyzeCase, COURT_PRESETS, draftStory, quickStartCase, runCourtTrial } from "./court-orchestrator.js";
 import { filterCaseForPerspective, transitionStatus } from "./court-state.js";
 import * as db from "./db.js";
 import type { StoredContent } from "./db.js";
@@ -78,6 +78,32 @@ export function registerCourtRoutes(
     }
   });
 
+  // ---- 预置生活小案列表（CreateCase 页「快速开庭」卡片）----
+  app.get("/api/court/presets", async () => {
+    return { presets: COURT_PRESETS };
+  });
+
+  // ---- 快速开庭：预置故事 + 玩家身份，本地分析跳过 38 秒等待 ----
+  app.post("/api/court/cases/quick", async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      userId?: string;
+      storyIndex?: number;
+      playerSide?: "plaintiff" | "defendant";
+    };
+    const userId = body.userId ?? "";
+    if (!userId) return reply.code(400).send({ message: "userId 为必填" });
+    if (body.playerSide !== "plaintiff" && body.playerSide !== "defendant") {
+      return reply.code(400).send({ message: "playerSide 必选（plaintiff/defendant）" });
+    }
+    try {
+      const c = quickStartCase(userId, body.storyIndex ?? 0, body.playerSide);
+      return reply.code(201).send({ case: c });
+    } catch (err) {
+      req.log.error(err, "quickStartCase failed");
+      return reply.code(500).send({ message: "快速开庭失败，请重试" });
+    }
+  });
+
   // ---- 分析案件（DRAFT -> ANALYZING -> GENERATED）----
   app.post("/api/court/cases/:id/analyze", async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -121,6 +147,7 @@ export function registerCourtRoutes(
       userId?: string;
       plaintiffComplaint?: string;
       defendantAnswer?: string;
+      playerSide?: "plaintiff" | "defendant";
     };
     const c = db.getCourtCase(id);
     if (!c) return reply.code(404).send({ message: "案件不存在" });
@@ -133,6 +160,11 @@ export function registerCourtRoutes(
         plaintiffComplaint: body.plaintiffComplaint,
         defendantAnswer: body.defendantAnswer,
       });
+    }
+
+    // 保存玩家身份（玩家驱动庭审：玩家当原告/被告）。
+    if (body.playerSide === "plaintiff" || body.playerSide === "defendant") {
+      db.updateCourtCasePlayerSide(id, body.playerSide);
     }
 
     db.updateCourtCaseStatus(id, transitionStatus(c.status, "confirm"));
@@ -183,6 +215,7 @@ export function registerCourtRoutes(
         chat,
         perspective,
         defenderAssignments,
+        playerSide: c.player_side,
         onEvent: (event) => {
           send(event);
           broadcast(event);
