@@ -157,7 +157,7 @@ describe("court-orchestrator", () => {
     expect(finalCase.final_verdict).not.toBeNull();
   });
 
-  it("PlayerInput 被消费并 ack", async () => {
+  it("玩家当原告：发 player_turn_request，输入创建 speaker='player' 的 turn 并 ack", async () => {
     const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
     const c = ctx.mod.createCourtCase("u1", "测试案情");
     const chat = makeMockChat();
@@ -165,7 +165,7 @@ describe("court-orchestrator", () => {
     ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
 
     const events: CourtTrialEvent[] = [];
-    // 预置一条玩家输入
+    // 预置一条玩家输入（原告方）
     const playerInput: CourtPlayerInput = {
       id: "ctp-test",
       caseId: c.id,
@@ -180,17 +180,154 @@ describe("court-orchestrator", () => {
       caseId: c.id,
       chat,
       perspective: "plaintiff",
+      playerSide: "plaintiff",
+      // 测试缩短等待
+      playerInputTimeoutMs: 200,
+      playerInputPollMs: 20,
       onEvent: (e) => events.push(e),
       getPendingPlayerInputs: () => [playerInput],
       markPlayerInputHandled: vi.fn(),
     });
 
-    // 验证有 player_input_ack 事件
+    // 轮到玩家：player_turn_request 事件
+    const reqEvent = events.find((e) => e.type === "player_turn_request");
+    expect(reqEvent).toBeDefined();
+    // ack 事件
     const ackEvent = events.find((e) => e.type === "player_input_ack");
     expect(ackEvent).toBeDefined();
-    if (ackEvent && "inputId" in ackEvent) {
-      expect(ackEvent.inputId).toBe("ctp-test");
-    }
+    if (ackEvent && "inputId" in ackEvent) expect(ackEvent.inputId).toBe("ctp-test");
+    // 玩家发言上屏：player_turn 事件 + turn.speaker === 'player'
+    const ptEvent = events.find((e) => e.type === "player_turn") as { type: "player_turn"; turn: { speaker: string; speakerName: string; content: string } } | undefined;
+    expect(ptEvent).toBeDefined();
+    expect(ptEvent!.turn.speaker).toBe("player");
+    expect(ptEvent!.turn.speakerName).toBe("你");
+    expect(ptEvent!.turn.content).toContain("凌晨3点");
+    // 对方被告应立即短接茬：defendant 的 court_turn 在玩家发言之后出现
+    const turnEvts = events.filter((e) => e.type === "court_turn") as Array<{ type: "court_turn"; turn: { speaker: string } }>;
+    const speakers = turnEvts.map((e) => e.turn.speaker);
+    expect(speakers).toContain("player");
+  });
+
+  it("momentum 更新规则：玩家发言 +5，证据 +8，并 emit momentum_update", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试案情");
+    const chat = makeMockChat();
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+
+    const events: CourtTrialEvent[] = [];
+    const playerInput: CourtPlayerInput = {
+      id: "ctp-momentum",
+      caseId: c.id,
+      userId: "u1",
+      player_role: "plaintiff",
+      type: "evidence",
+      content: "玩家出示录音证据",
+      createdAt: new Date().toISOString(),
+    };
+
+    await runCourtTrial({
+      caseId: c.id,
+      chat,
+      perspective: "plaintiff",
+      playerSide: "plaintiff",
+      playerInputTimeoutMs: 200,
+      playerInputPollMs: 20,
+      onEvent: (e) => events.push(e),
+      getPendingPlayerInputs: () => [playerInput],
+      markPlayerInputHandled: vi.fn(),
+    });
+
+    const mEvents = events.filter((e) => e.type === "momentum_update") as Array<{ type: "momentum_update"; momentum: { plaintiff: number; defendant: number } }>;
+    expect(mEvents.length).toBeGreaterThan(0);
+    // 玩家提交证据 +8：原告应从 50 升到 58（初始 50:50 是开庭广播）。
+    expect(mEvents[0].momentum).toEqual({ plaintiff: 50, defendant: 50 });
+    expect(mEvents.some((e) => e.momentum.plaintiff === 58)).toBe(true);
+  });
+
+  it("玩家超时未发言：由辩护人/AI 代述兜底，庭审不卡死", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试案情");
+    const chat = makeMockChat();
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+
+    const events: CourtTrialEvent[] = [];
+    // 玩家不提供输入：getPendingPlayerInputs 永远空
+    await runCourtTrial({
+      caseId: c.id,
+      chat,
+      perspective: "plaintiff",
+      playerSide: "plaintiff",
+      playerInputTimeoutMs: 150, // 快速超时
+      playerInputPollMs: 20,
+      onEvent: (e) => events.push(e),
+      getPendingPlayerInputs: () => [],
+      markPlayerInputHandled: vi.fn(),
+    });
+
+    // 有 player_turn_request（轮到玩家）
+    expect(events.some((e) => e.type === "player_turn_request")).toBe(true);
+    // 没有 speaker='player' 的 turn（玩家没发言）
+    const turnEvts = events.filter((e) => e.type === "court_turn") as Array<{ type: "court_turn"; turn: { speaker: string; content: string } }>;
+    expect(turnEvts.some((e) => e.turn.speaker === "player")).toBe(false);
+    // 兜底代述：原告方仍有发言，且 content 带「辩护人代述」
+    const plaintiffTurn = turnEvts.find((e) => e.turn.speaker === "plaintiff");
+    expect(plaintiffTurn).toBeDefined();
+    expect(plaintiffTurn!.turn.content).toContain("辩护人代述");
+    // 庭审正常走到 verdict
+    expect(events.some((e) => e.type === "court_verdict")).toBe(true);
+  });
+
+  it("generateVerdict prompt 包含玩家 turn 与 momentum", async () => {
+    const { analyzeCase, runCourtTrial } = await import("./court-orchestrator.js");
+    const c = ctx.mod.createCourtCase("u1", "测试案情");
+    const chat = makeMockChat();
+    await analyzeCase(c.id, chat);
+    ctx.mod.updateCourtCaseStatus(c.id, "CONFIRMED");
+
+    const playerInput: CourtPlayerInput = {
+      id: "ctp-verdict",
+      caseId: c.id,
+      userId: "u1",
+      player_role: "defendant",
+      type: "argument",
+      content: "玩家(被告)主张：我有施工许可",
+      createdAt: new Date().toISOString(),
+    };
+
+    // 捕获判决生成时的 user prompt
+    let verdictPrompt = "";
+    const spy: ChatFn = vi.fn(async (messages) => {
+      const sys = messages[0]?.content ?? "";
+      const user = messages[1]?.content ?? "";
+      if (sys.includes("只返回合法 JSON") && user.includes("生成结构化判决")) {
+        verdictPrompt = user;
+        return JSON.stringify({
+          case_summary: "s", key_facts: ["f"], key_evidence: ["e"],
+          plaintiff_arguments: [], defendant_arguments: [], judge_analysis: "a",
+          reasoning: "由于你当庭出示证据……", verdict: "defendant", conclusion: "c",
+        });
+      }
+      return (chat as any)(messages);
+    });
+
+    await runCourtTrial({
+      caseId: c.id,
+      chat: spy,
+      perspective: "defendant",
+      playerSide: "defendant",
+      playerInputTimeoutMs: 200,
+      playerInputPollMs: 20,
+      onEvent: () => {},
+      getPendingPlayerInputs: () => [playerInput],
+      markPlayerInputHandled: vi.fn(),
+    });
+
+    // prompt 应包含玩家发言记录与最终 momentum
+    expect(verdictPrompt).toContain("我有施工许可");
+    expect(verdictPrompt).toContain("局势优势条");
+    expect(verdictPrompt).toContain("被告方"); // 玩家扮演被告
   });
 
   it("should_continue 事件被推送", async () => {

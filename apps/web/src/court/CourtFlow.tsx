@@ -9,7 +9,7 @@ import { EMPTY_ASSIGNMENTS, type DefenderAssignments } from './DefenderPicker'
 import type {
   AnalyzeCaseInput, CourtCase, CourtVerdict, EvidenceItem, Perspective,
 } from './types'
-import CreateCase, { type RawEvidence } from './screens/CreateCase'
+import CreateCase, { type RawEvidence, type PlayerSide } from './screens/CreateCase'
 import Analyzing from './screens/Analyzing'
 import PartiesReview from './screens/PartiesReview'
 import CourtroomLive from './screens/CourtroomLive'
@@ -48,6 +48,7 @@ export default function CourtFlow({
   const [verdict, setVerdict] = useState<CourtVerdict | null>(null)
   const [backendCaseId, setBackendCaseId] = useState<string | undefined>()
   const [perspective, setPerspective] = useState<Perspective>('audience')
+  const [playerSide, setPlayerSide] = useState<PlayerSide | null>(null)
   const [defenderAssignments, setDefenderAssignments] = useState<DefenderAssignments>(EMPTY_ASSIGNMENTS)
   const [confirming, setConfirming] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -57,17 +58,35 @@ export default function CourtFlow({
   const goCreate = useCallback(() => {
     setFlowState('create')
     setInput(null); setCourtCase(null); setVerdict(null); setBackendCaseId(undefined)
-    setPerspective('audience'); setError('')
+    setPerspective('audience'); setPlayerSide(null); setError('')
   }, [])
 
-  const handleCreate = useCallback((payload: { description: string; stance?: string; evidence: RawEvidence[] }) => {
+  const handleCreate = useCallback((payload: { description: string; stance?: string; evidence: RawEvidence[]; playerSide: PlayerSide }) => {
     engine.configure({ userId })
+    setPlayerSide(payload.playerSide)
+    // 玩家默认坐在自己这一方视角，不再是观众席。
+    setPerspective(payload.playerSide)
     setInput({
       description: payload.description,
       stance: payload.stance,
       evidence: toEvidence(payload.evidence),
     })
     setFlowState('analyzing')
+  }, [engine, userId])
+
+  // 快速开庭：预置故事 + 玩家身份，跳过 analyze 直接进 review。
+  const handleQuickStart = useCallback(async (storyIndex: number, side: PlayerSide) => {
+    engine.configure({ userId })
+    setPlayerSide(side)
+    setPerspective(side)
+    try {
+      const c = await engine.quickStart(storyIndex, side)
+      setCourtCase(c)
+      setFlowState('review')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '快速开庭失败')
+      setFlowState('create')
+    }
   }, [engine, userId])
 
   const handleAnalyzed = useCallback((c: CourtCase) => {
@@ -83,6 +102,7 @@ export default function CourtFlow({
       await engine.confirmCase({
         plaintiffComplaint: docs.plaintiffComplaint || undefined,
         defendantAnswer: docs.defendantAnswer || undefined,
+        playerSide: playerSide ?? undefined,
       })
       setFlowState('live')
     } catch (e) {
@@ -90,13 +110,16 @@ export default function CourtFlow({
     } finally {
       setConfirming(false)
     }
-  }, [engine, userId, perspective, defenderAssignments])
+  }, [engine, userId, perspective, defenderAssignments, playerSide])
 
   const handleVerdict = useCallback((v: CourtVerdict, caseId?: string) => {
     setVerdict(v)
     setBackendCaseId(caseId)
+    // 把最终局势优势条挂到案件上，供判决页展示「你的表现」。
+    const m = engine.getMomentum()
+    setCourtCase((prev) => prev ? { ...prev, momentum: m } : prev)
     setFlowState('verdict')
-  }, [])
+  }, [engine])
 
   // 发布到广场:直连 POST /api/court/cases/:id/publish
   const handlePublish = useCallback(async () => {
@@ -123,6 +146,7 @@ export default function CourtFlow({
         <CreateCase
           character={character}
           onSubmit={handleCreate}
+          onQuickStart={handleQuickStart}
           onExit={onExit}
           onOpenArchive={onOpenArchive}
           onSwitchToBench={onSwitchToBench}

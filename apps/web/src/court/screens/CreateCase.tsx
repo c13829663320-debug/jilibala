@@ -1,27 +1,39 @@
-import { useState } from 'react'
-import { ChevronRight, Upload, FileText, X, Sparkles, WandSparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ChevronRight, Upload, FileText, X, Sparkles, WandSparkles, Scale, Shield } from 'lucide-react'
 import { CourtroomShell } from '../shared'
 import type { Celebrity } from '@balabala/shared'
 
 export type RawEvidence = { name: string; size: number; type: string }
+export type PlayerSide = 'plaintiff' | 'defendant'
 
 type Props = {
   character?: Celebrity | null
   initialInput?: string
   initialEvidenceOpen?: boolean
-  onSubmit: (input: { description: string; stance?: string; evidence: RawEvidence[] }) => void
+  onSubmit: (input: { description: string; stance?: string; evidence: RawEvidence[]; playerSide: PlayerSide }) => void
+  onQuickStart: (storyIndex: number, playerSide: PlayerSide) => void
   onExit: () => void
   onOpenArchive: () => void
   onSwitchToBench?: () => void
 }
 
-export default function CreateCase({ character: _character, initialInput, initialEvidenceOpen, onSubmit, onExit, onOpenArchive, onSwitchToBench }: Props) {
+export default function CreateCase({ character: _character, initialInput, initialEvidenceOpen, onSubmit, onQuickStart, onExit, onOpenArchive, onSwitchToBench }: Props) {
   const [description, setDescription] = useState(initialInput ?? '')
   const [stance, setStance] = useState('')
   const [evidenceOpen, setEvidenceOpen] = useState(initialEvidenceOpen ?? false)
   const [evidence, setEvidence] = useState<RawEvidence[]>([])
   const [drafting, setDrafting] = useState(false)
   const [draftError, setDraftError] = useState('')
+  // 玩家身份：必选，无默认（玩家当原告/被告，亲自上庭）
+  const [playerSide, setPlayerSide] = useState<PlayerSide | null>(null)
+  const [presets, setPresets] = useState<Array<{ description: string; stance: string }>>([])
+
+  // 拉取 3 个预置生活小案（快速开庭卡片）
+  useEffect(() => {
+    fetch('/api/court/presets').then((r) => r.json()).then((d: { presets?: Array<{ description: string; stance: string }> }) => {
+      if (Array.isArray(d.presets)) setPresets(d.presets)
+    }).catch(() => { /* 拉取失败则不显示快速开庭卡片 */ })
+  }, [])
 
   const aiDraft = async () => {
     if (drafting) return
@@ -58,8 +70,54 @@ export default function CreateCase({ character: _character, initialInput, initia
           <p>客观描述发生了什么,AI 会帮你分析事实、提取争议点,并生成双方立场。</p>
         </div>
 
+        {/* 选择你的身份：玩家亲自当原告/被告上庭 */}
         <div className="live-create__field">
-          <label className="live-create__label" htmlFor="desc">案件描述 · 客观叙述</label>
+          <label className="live-create__label">选择你的身份（必选）</label>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              type="button"
+              className={`court-btn court-btn--lg ${playerSide === 'plaintiff' ? 'court-btn--primary' : 'court-btn--secondary'}`}
+              onClick={() => setPlayerSide('plaintiff')}
+              style={{ flex: 1, borderColor: playerSide === 'plaintiff' ? '#FFD60A' : undefined }}
+            >
+              <Scale size={18} /> 我要当原告 ⚖️
+            </button>
+            <button
+              type="button"
+              className={`court-btn court-btn--lg ${playerSide === 'defendant' ? 'court-btn--primary' : 'court-btn--secondary'}`}
+              onClick={() => setPlayerSide('defendant')}
+              style={{ flex: 1, borderColor: playerSide === 'defendant' ? '#4fb3a5' : undefined }}
+            >
+              <Shield size={18} /> 我要当被告 🛡️
+            </button>
+          </div>
+        </div>
+
+        {/* 快速开庭：3 个预置生活小案，跳过 analyze 等待 */}
+        {presets.length > 0 && (
+          <div className="live-create__field">
+            <label className="live-create__label">⚡ 快速开庭（一键进入，跳过分析等待）</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {presets.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="court-btn court-btn--secondary"
+                  disabled={!playerSide}
+                  onClick={() => onQuickStart(i, playerSide!)}
+                  style={{ textAlign: 'left', opacity: playerSide ? 1 : 0.5 }}
+                >
+                  <span style={{ fontWeight: 700 }}>{p.stance || `小案 ${i + 1}`}</span>
+                  <span style={{ display: 'block', fontSize: 12, opacity: 0.8, marginTop: 2 }}>{p.description}</span>
+                </button>
+              ))}
+            </div>
+            {!playerSide && <span style={{ color: '#888', fontSize: 12 }}>↑ 先选身份，再点卡片一键开庭</span>}
+          </div>
+        )}
+
+        <div className="live-create__field">
+          <label className="live-create__label" htmlFor="desc">或者自己写案情 · 客观叙述</label>
           <textarea id="desc" className="live-create__textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="例如:泡泡借走了阿布的彩虹伞,但下雨后伞变成了会唱歌的蘑菇。" maxLength={500} />
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <button type="button" className="court-btn court-btn--secondary court-btn--sm" onClick={() => void aiDraft()} disabled={drafting}>
@@ -100,7 +158,7 @@ export default function CreateCase({ character: _character, initialInput, initia
           )}
         </div>
 
-        <button className="live-create__submit" disabled={!description.trim()} onClick={() => onSubmit({ description: description.trim(), stance: stance.trim() || undefined, evidence })}>
+        <button className="live-create__submit" disabled={!description.trim() || !playerSide} onClick={() => onSubmit({ description: description.trim(), stance: stance.trim() || undefined, evidence, playerSide: playerSide! })}>
           <Sparkles size={16} /> 生成法庭 <ChevronRight size={16} />
         </button>
 

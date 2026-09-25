@@ -7,6 +7,7 @@ const ROLE_META: Record<CourtTurn['speaker'], { label: string; cls: string; init
   plaintiff: { label: '原告', cls: 'plaintiff', initial: '原' },
   defendant: { label: '被告', cls: 'defendant', initial: '被' },
   defender: { label: '辩护人', cls: 'defender', initial: '辩' },
+  player: { label: '你', cls: 'player', initial: '我' },
 }
 
 export type TrialSubmitInput = {

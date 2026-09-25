@@ -87,6 +87,8 @@ export function backendCaseToUi(b: BackendCourtCase): CourtCase {
     backendCaseId: b.id,
     complaint: (b as unknown as Record<string, unknown>).plaintiff_complaint as string | undefined,
     answer: (b as unknown as Record<string, unknown>).defendant_answer as string | undefined,
+    player_side: (b as unknown as Record<string, unknown>).player_side as 'plaintiff' | 'defendant' | undefined,
+    momentum: (b as unknown as Record<string, unknown>).momentum as { plaintiff: number; defendant: number } | undefined,
   }
 }
 
@@ -171,6 +173,21 @@ export class HttpCourtEngine implements CourtEngineClient {
   private verdict: BackendVerdict | null = null
   private verdictWaiters: ((v: BackendVerdict) => void)[] = []
 
+  // ---- 实时事件订阅（玩家驱动庭审：player_turn_request / momentum_update 等）----
+  private liveListeners = new Set<(ev: CourtTrialEvent) => void>()
+  /** 订阅 SSE 实时事件（不等待轮次缓冲）。返回取消订阅函数。 */
+  subscribe(listener: (ev: CourtTrialEvent) => void): () => void {
+    this.liveListeners.add(listener)
+    return () => { this.liveListeners.delete(listener) }
+  }
+  private emitLive(ev: CourtTrialEvent): void {
+    this.liveListeners.forEach((fn) => { try { fn(ev) } catch { /* 忽略订阅者异常 */ } })
+  }
+
+  /** 最新局势优势条（原告:被告），初始 50:50。 */
+  private latestMomentum = { plaintiff: 50, defendant: 50 }
+  getMomentum(): { plaintiff: number; defendant: number } { return { ...this.latestMomentum } }
+
   configure(patch: Partial<EngineConfig>): void {
     this.cfg = { ...this.cfg, ...patch }
   }
@@ -209,7 +226,22 @@ export class HttpCourtEngine implements CourtEngineClient {
     return backendCaseToUi(an.case)
   }
 
-  async confirmCase(docs?: { plaintiffComplaint?: string; defendantAnswer?: string }): Promise<void> {
+  /** 快速开庭：用预置故事 + 玩家身份，本地分析跳过 38 秒等待。 */
+  async quickStart(storyIndex: number, playerSide: 'plaintiff' | 'defendant'): Promise<CourtCase> {
+    if (!this.cfg.userId) throw new Error('身份未就绪,请先完成登录')
+    const res = await fetch('/api/court/cases/quick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: this.cfg.userId, storyIndex, playerSide }),
+    })
+    const data = await res.json().catch(() => ({})) as { case?: BackendCourtCase; message?: string }
+    if (!res.ok || !data.case) throw new Error(data.message ?? '快速开庭失败')
+    this.caseId = data.case.id
+    this.backendCase = data.case
+    return backendCaseToUi(data.case)
+  }
+
+  async confirmCase(docs?: { plaintiffComplaint?: string; defendantAnswer?: string; playerSide?: 'plaintiff' | 'defendant' }): Promise<void> {
     if (!this.caseId) throw new Error('案件尚未创建')
     const res = await fetch(`/api/court/cases/${encodeURIComponent(this.caseId)}/confirm`, {
       method: 'POST',
@@ -310,6 +342,8 @@ export class HttpCourtEngine implements CourtEngineClient {
   }
 
   private dispatch(ev: CourtTrialEvent): void {
+    // 所有事件先转发给实时订阅者（玩家驱动庭审 UI 靠 player_turn_request / momentum_update 驱动）。
+    this.emitLive(ev)
     switch (ev.type) {
       case 'court_turn': {
         const arr = this.byRound.get(ev.turn.round) ?? []
@@ -341,6 +375,14 @@ export class HttpCourtEngine implements CourtEngineClient {
           const cbs = this.verdictWaiters; this.verdictWaiters = []
           cbs.forEach((w) => w(ev.verdict))
         }
+        break
+      case 'momentum_update':
+        this.latestMomentum = { ...ev.momentum }
+        break
+      case 'player_turn_request':
+      case 'player_turn':
+      case 'player_input_ack':
+        // 实时事件：已通过 emitLive 转发给 UI，无需缓冲。
         break
       case 'error':
         this.failStream(new Error(ev.message))

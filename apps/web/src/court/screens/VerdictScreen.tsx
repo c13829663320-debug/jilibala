@@ -92,6 +92,41 @@ export default function VerdictScreen({
           </section>
         </div>
 
+        {/* 你的表现：最终局势优势 + 玩家归因 */}
+        {courtCase.player_side && (
+          <div className="verdict-doc" style={{ marginTop: 12 }}>
+            <header className="verdict-doc__head">
+              <h3>🌟 你的表现</h3>
+              <p>你以「{courtCase.player_side === 'plaintiff' ? '原告' : '被告'}」身份亲自出庭。</p>
+            </header>
+            <section className="verdict-doc__section">
+              <h4>⚖️ 庭审局势（原告 : 被告）</h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: '#FFD60A', fontWeight: 700 }}>{courtCase.momentum?.plaintiff ?? 50}</span>
+                <div style={{ flex: 1, height: 10, borderRadius: 999, background: '#4fb3a5', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${courtCase.momentum?.plaintiff ?? 50}%`, background: '#FFD60A', transition: 'width .6s' }} />
+                </div>
+                <span style={{ color: '#4fb3a5', fontWeight: 700 }}>{courtCase.momentum?.defendant ?? 50}</span>
+              </div>
+              <p style={{ marginTop: 8, fontSize: 13 }}>
+                {(() => {
+                  const p = courtCase.momentum?.plaintiff ?? 50
+                  const d = courtCase.momentum?.defendant ?? 50
+                  const you = courtCase.player_side === 'plaintiff' ? p : d
+                  const rival = courtCase.player_side === 'plaintiff' ? d : p
+                  if (you - rival > 20) return `你在庭上表现强势（优势 ${you}:${rival}），判决明显倾向你这一方。`
+                  if (rival - you > 20) return `对方庭上更占上风（劣势 ${you}:${rival}），下次多出示证据、多质问对方。`
+                  return `双方势均力敌（${you}:${rival}），法官按事实与证据作出了裁决。`
+                })()}
+              </p>
+            </section>
+            <section className="verdict-doc__section">
+              <h4>📝 法官怎么说你</h4>
+              <p>{(verdict as { reasoning?: string }).reasoning || verdict.judgeNote || '（判决理由未记录）'}</p>
+            </section>
+          </div>
+        )}
+
         <div className="verdict-actions">
           <button className="court-btn court-btn--secondary" onClick={onSaveArchive}>归档案卷</button>
           <button className="court-btn court-btn--secondary" onClick={onNewTrial}>再来一场</button>

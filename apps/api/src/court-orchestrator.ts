@@ -319,6 +319,10 @@ export interface RunCourtTrialOpts {
   perspective: Perspective;
   /** 玩家扮演的一方：该方当事人席位由玩家本人当庭发言（玩家驱动庭审）。 */
   playerSide?: "plaintiff" | "defendant";
+  /** 测试可调：等待玩家输入的总时长（默认 60s）。 */
+  playerInputTimeoutMs?: number;
+  /** 测试可调：轮询玩家输入的间隔（默认 500ms）。 */
+  playerInputPollMs?: number;
 }
 
 const MAX_ROUNDS = 5;
@@ -557,8 +561,8 @@ export async function runCourtTrial(opts: RunCourtTrialOpts): Promise<{ verdict:
     // 通知前端：轮到玩家发言，展开输入面板、聚焦。
     onEvent({ type: "player_turn_request", round, side });
 
-    const POLL_INTERVAL = 500;
-    const MAX_WAIT = 60_000;
+    const POLL_INTERVAL = opts.playerInputPollMs ?? 500;
+    const MAX_WAIT = opts.playerInputTimeoutMs ?? 60_000;
     let waited = 0;
     let input: CourtPlayerInput | null = null;
     while (waited < MAX_WAIT) {
