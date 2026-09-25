@@ -14,6 +14,7 @@ import {
 import { useIdentity } from './identity'
 import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSocket'
 import { TtsPlayButton } from './TtsPlayButton'
+import { RhythmWorkout } from './RhythmWorkout'
 import type { GymPlayer, GymCheer } from './GymView'
 import './gym.css'
 
@@ -115,6 +116,10 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
 
   // ===== 训练进行中 =====
   const [session, setSession] = useState<WorkoutSession | null>(null)
+
+  // ===== P0：节奏带练 overlay（?preview=gym-coaches | gym-workout 用于截图）=====
+  const previewMode = new URLSearchParams(window.location.search).get('preview')
+  const [rhythmOpen, setRhythmOpen] = useState(previewMode === 'gym-coaches' || previewMode === 'gym-workout')
 
   // ===== 记录 =====
   const [stats, setStats] = useState<GymStats | null>(null)
@@ -467,6 +472,17 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
           {/* ===== 功能1：AI 健身教练 ===== */}
           {tab === 'coach' && (
             <div>
+              <div className="gym-card" style={{ border: '1px solid #FFD60A', background: 'rgba(255,214,10,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ color: '#FFD60A', fontWeight: 700, fontSize: 15 }}>🔥 AI 教练节奏带练</div>
+                    <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.55)', marginTop: 3 }}>选教练，跟节拍按空格做动作，实时语音鼓励，完赛评 S/A/B/C</div>
+                  </div>
+                  <button style={{ ...primaryBtn, marginTop: 0, background: '#FFD60A', color: '#000' }} onClick={() => setRhythmOpen(true)}>
+                    <Play size={13} /> 开始
+                  </button>
+                </div>
+              </div>
               <div className="gym-card">
                 <div style={labelText}>选择训练目标</div>
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -682,6 +698,15 @@ export default function GymShell({ onBack, onPlaza }: { onBack: () => void; onPl
           {toast && <div className="gym-toast">{toast}</div>}
         </main>
       </div>
+
+      {/* P0：AI 教练节奏带练全屏 overlay */}
+      {rhythmOpen && (
+        <RhythmWorkout
+          userId={userId}
+          preview={previewMode === 'gym-workout' ? 'workout' : previewMode === 'gym-coaches' ? 'coaches' : null}
+          onExit={() => setRhythmOpen(false)}
+        />
+      )}
     </div>
   )
 }

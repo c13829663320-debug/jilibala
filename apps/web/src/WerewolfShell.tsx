@@ -11,6 +11,44 @@ const WerewolfView = lazy(() => import('./WerewolfView'))
 
 const WOLF_RED = '#ff2a3a'
 const GOOD_GOLD = '#4fb3a5'
+const BRAND_YELLOW = '#FFD60A'
+
+/** 本局表现评分（与后端 werewolf-orchestrator 对齐，本地定义避免改 shared）。 */
+interface WerewolfPerformance {
+  score: number
+  survivedDays: number
+  voteAccuracy: number
+  correctVotes: number
+  totalVotes: number
+  won: boolean
+  side: 'wolf' | 'good'
+  keyActions: string[]
+}
+
+/** 截图/演示预览模式：?preview=werewolf-speech | werewolf-night，无需后端即可渲染新面板。 */
+function buildPreviewSnapshot(kind: string): WerewolfPlayerSnapshot {
+  const players: WerewolfPublicPlayer[] = Array.from({ length: 9 }, (_, i) => ({
+    seat: i, userId: `u-${i}`, nickname: i === 0 ? '我' : `玩家${i + 1}`,
+    avatarType: 'capsule', avatarRef: '', alive: true, isAI: i !== 0,
+  }))
+  const isNight = kind === 'werewolf-night'
+  return {
+    gameId: 'preview',
+    phase: isNight ? 'night' : 'speech',
+    day: 2,
+    players,
+    winner: null,
+    lastNightDeaths: [],
+    log: [
+      { id: 'p1', day: 2, phase: 'night', text: '第 2 天夜晚降临，狼人请睁眼。', timestamp: '' },
+      { id: 'p2', day: 2, phase: 'speech', text: '玩家2 发言：我觉得 5 号有点可疑。', speakerSeat: 1, timestamp: '' },
+    ],
+    mySeat: 0,
+    myRole: isNight ? 'villager' : 'seer',
+    currentSpeakerSeat: isNight ? undefined : 0,
+    pendingAction: isNight ? null : 'speak',
+  }
+}
 
 const ROLE_INFO: Record<WerewolfRole, { label: string; emoji: string; desc: string }> = {
   werewolf: { label: '狼人', emoji: '🐺', desc: '夜晚与队友商议刀人目标，白天伪装成好人搅浑局势。' },
@@ -31,18 +69,31 @@ const PHASE_LABEL: Record<string, { emoji: string; text: string }> = {
 
 export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
   const { user } = useIdentity()
+  const previewKind = new URLSearchParams(window.location.search).get('preview') ?? ''
+  const isPreview = previewKind.startsWith('werewolf-')
 
   // ===== 游戏状态 =====
   const [gameId, setGameId] = useState<string | null>(() => {
+    if (isPreview) return 'preview'
     return new URLSearchParams(window.location.search).get('werewolf')
   })
-  const [snapshot, setSnapshot] = useState<WerewolfPlayerSnapshot | null>(null)
+  const [snapshot, setSnapshot] = useState<WerewolfPlayerSnapshot | null>(() => {
+    if (isPreview) return buildPreviewSnapshot(previewKind)
+    return null
+  })
   const [onlineCount, setOnlineCount] = useState(1)
   const [report, setReport] = useState<WerewolfReportData | null>(null)
   const [creating, setCreating] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [publishMsg, setPublishMsg] = useState('')
+
+  // ===== P0：表现评分 / 夜晚便签 / 加速 / 快捷动作选目标 =====
+  const [perf, setPerf] = useState<WerewolfPerformance | null>(null)
+  const [nightNotes, setNightNotes] = useState<string[]>([])
+  const [fastMode, setFastMode] = useState(false)
+  const [qaPickTarget, setQaPickTarget] = useState<'accuse' | 'rally' | null>(null)
+  const [microDone, setMicroDone] = useState(false)
 
   // ===== 本地 UI 状态 =====
   const [speechText, setSpeechText] = useState('')
@@ -60,7 +111,7 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
       return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(user.userId)}&room=werewolf:${encodeURIComponent(gameId)}`
     },
-    enabled: Boolean(gameId && user?.userId),
+    enabled: Boolean(gameId && user?.userId) && !isPreview,
     onOpen: () => {
       // 重连成功后拉一次最新快照，恢复房间状态
       if (gameId && user?.userId) void fetchSnapshot(gameId, user.userId)
@@ -101,6 +152,27 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
       setSnapshot(data)
     } catch { /* ignore */ }
   }, [])
+
+  // ===== P0：拉取私密便签（偷听/观察线索）=====
+  const fetchNotes = useCallback(async (gid: string, uid: string) => {
+    if (!gid || !uid || isPreview) return
+    try {
+      const res = await fetch(`/api/werewolf/${encodeURIComponent(gid)}/notes?userId=${encodeURIComponent(uid)}`)
+      if (!res.ok) return
+      const data = await res.json() as { notes: string[] }
+      if (data.notes?.length) setNightNotes((prev) => [...prev, ...data.notes!])
+    } catch { /* ignore */ }
+  }, [isPreview])
+
+  // ===== P0：拉取表现评分 =====
+  const fetchPerformance = useCallback(async (gid: string, uid: string) => {
+    if (!gid || !uid || isPreview) return
+    try {
+      const res = await fetch(`/api/werewolf/${encodeURIComponent(gid)}/performance?userId=${encodeURIComponent(uid)}`)
+      if (!res.ok) return
+      setPerf(await res.json() as WerewolfPerformance)
+    } catch { /* ignore */ }
+  }, [isPreview])
 
   // ===== 创建 + 加入房间 =====
   const createAndJoin = useCallback(async () => {
@@ -154,12 +226,16 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
     switch (event.type) {
       case 'game_end':
         if (event.report) setReport(event.report)
+        if (gameId && user?.userId) void fetchPerformance(gameId, user.userId)
+        break
+      case 'phase_change':
+        if (gameId && user?.userId && event.phase === 'day_announce') void fetchNotes(gameId, user.userId)
         break
       default:
         // 其他事件由 snapshot 自动推送更新，这里无需额外处理
         break
     }
-  }, [])
+  }, [gameId, user?.userId, fetchPerformance, fetchNotes])
 
   // ===== 开始游戏（房主） =====
   const startGame = async () => {
@@ -209,6 +285,60 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
     setSelHunterTarget(null)
   }
 
+  // ===== P0：白天快捷动作牌 =====
+  const callQuickAction = async (type: 'claim_seer' | 'accuse' | 'rally' | 'defend', targetSeat?: number) => {
+    if (!gameId || !user?.userId) return
+    try {
+      const res = await fetch(`/api/werewolf/${encodeURIComponent(gameId)}/quick-action`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.userId, actionType: type, targetSeat }),
+      })
+      const data = await res.json() as { ok: boolean; text?: string; message?: string }
+      if (data.ok && data.text) setSpeechText((prev) => prev ? prev : data.text!)
+      else if (!data.ok) setErrorMsg(data.message ?? '快捷动作失败')
+    } catch { setErrorMsg('快捷动作失败') }
+    setQaPickTarget(null)
+  }
+  const onQuickButton = (type: 'claim_seer' | 'accuse' | 'rally' | 'defend') => {
+    if (type === 'accuse' || type === 'rally') { setQaPickTarget(type); return }
+    void callQuickAction(type)
+  }
+  const onPickQaTarget = (seat: number) => {
+    if (!qaPickTarget) return
+    void callQuickAction(qaPickTarget, seat)
+  }
+
+  // ===== P0：夜晚好人微操作 =====
+  const callNightMicro = async (action: 'eavesdrop' | 'observe', targetSeat?: number) => {
+    if (!gameId || !user?.userId) return
+    try {
+      const res = await fetch(`/api/werewolf/${encodeURIComponent(gameId)}/night-micro`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.userId, action, targetSeat }),
+      })
+      const data = await res.json() as { ok: boolean; result?: string; message?: string }
+      if (data.ok) {
+        setMicroDone(true)
+        if (data.result) setNightNotes((prev) => [...prev, data.result!])
+      } else setErrorMsg(data.message ?? '微操作失败')
+    } catch { setErrorMsg('微操作失败') }
+  }
+
+  // ===== P0：拉取私密便签（偷听/观察线索）=====
+  // ===== P0：拉取表现评分 =====
+  // ===== P0：加速 2x =====
+  const toggleFast = async () => {
+    const next = !fastMode
+    setFastMode(next)
+    if (!gameId || !user?.userId || isPreview) return
+    try {
+      await fetch(`/api/werewolf/${encodeURIComponent(gameId)}/fast-mode`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ on: next }),
+      })
+    } catch { /* ignore */ }
+  }
+
   // ===== 发布战报到广场 =====
   const publishToPlaza = async () => {
     if (!gameId || !user?.userId || publishing) return
@@ -255,6 +385,8 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
   const myPlayer = players.find((p) => p.seat === mySeat)
   const isMyTurnSpeak = phase === 'speech' && snapshot?.currentSpeakerSeat === mySeat && myPlayer?.alive
   const hunterPending = myRole === 'hunter' && snapshot?.pendingAction === 'hunter_shot'
+  // P0：夜晚好人（非狼）可进行微操作
+  const canNightMicro = phase === 'night' && myPlayer?.alive && myRole !== 'werewolf' && !microDone
 
   const panel: React.CSSProperties = {
     background: '#141414', border: '1px solid rgba(255,255,255,0.08)',
@@ -299,6 +431,32 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
             </h2>
             <p style={{ color: 'rgba(237,237,240,0.48)', fontSize: 13 }}>共进行了 {report?.totalDays ?? day} 天</p>
           </div>
+
+          {/* P0：本局表现 */}
+          {perf && (
+            <div style={{ marginBottom: 14, padding: 12, background: 'rgba(255,214,10,0.08)', borderRadius: 10, border: '1px solid rgba(255,214,10,0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: BRAND_YELLOW }}>🏅 本局表现</span>
+                <span style={{ fontSize: 24, fontWeight: 800, color: BRAND_YELLOW }}>{perf.score}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'rgba(237,237,240,0.7)' }}>
+                <span>生存 {perf.survivedDays} 天</span>
+                <span>投票正确率 {Math.round(perf.voteAccuracy * 100)}%（{perf.correctVotes}/{perf.totalVotes}）</span>
+                <span style={{ color: perf.won ? GOOD_GOLD : WOLF_RED }}>{perf.won ? '阵营胜利' : '阵营惜败'}</span>
+              </div>
+              {perf.keyActions.length > 0 && (
+                <div style={{ marginTop: 8, fontSize: 11.5, color: 'rgba(237,237,240,0.5)' }}>
+                  关键操作：{perf.keyActions.join('、')}
+                </div>
+              )}
+            </div>
+          )}
+          {isPreview && (
+            <div style={{ marginBottom: 14, padding: 12, background: 'rgba(255,214,10,0.08)', borderRadius: 10, border: '1px solid rgba(255,214,10,0.3)' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: BRAND_YELLOW }}>🏅 本局表现</div>
+              <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.7)', marginTop: 4 }}>生存 3 天 · 投票正确率 50% · 阵营胜利</div>
+            </div>
+          )}
 
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '12px 0' }} />
 
@@ -494,10 +652,50 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
             </ActionBlock>
           )}
 
+          {/* P0：夜晚好人微操作 */}
+          {canNightMicro && (
+            <ActionBlock title="🌙 夜晚行动" hint="好人也不是干等：悄悄做点小动作">
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                <button onClick={() => void callNightMicro('eavesdrop')} style={{ ...btn, flex: 1, justifyContent: 'center', background: BRAND_YELLOW, color: '#000', fontWeight: 700 }}>
+                  👂 偷听
+                </button>
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)', margin: '4px 0 6px' }}>👁️ 观察某人（天亮后给线索）：</div>
+              {alivePlayers.filter((p) => p.seat !== mySeat).map((p) => (
+                <TargetButton key={p.seat} seat={p.seat} nickname={p.nickname} selected={false} onClick={() => void callNightMicro('observe', p.seat)} />
+              ))}
+            </ActionBlock>
+          )}
+
+          {/* P0：夜晚收到的私密便签 */}
+          {nightNotes.length > 0 && (
+            <ActionBlock title="🔎 你的夜观笔记" hint="">
+              {nightNotes.map((n, i) => (
+                <div key={i} style={{ fontSize: 12, color: BRAND_YELLOW, marginBottom: 6, lineHeight: 1.5 }}>· {n}</div>
+              ))}
+            </ActionBlock>
+          )}
+
           {/* 白天发言 */}
           {phase === 'speech' && (
             isMyTurnSpeak ? (
-              <ActionBlock title="🗣️ 你的发言" hint="陈述你的推理，然后提交">
+              <ActionBlock title="🗣️ 你的发言" hint="点快捷动作可自动套话术，再编辑发送">
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <QuickBtn label="🔮 跳预言家" color={BRAND_YELLOW} onClick={() => onQuickButton('claim_seer')} />
+                  <QuickBtn label="🔪 查杀" color={WOLF_RED} onClick={() => onQuickButton('accuse')} />
+                  <QuickBtn label="📢 带人上票" color={GOOD_GOLD} onClick={() => onQuickButton('rally')} />
+                  <QuickBtn label="🛡️ 辩解" color="#8a90a6" onClick={() => onQuickButton('defend')} />
+                </div>
+                {qaPickTarget && (
+                  <div style={{ marginBottom: 8, padding: 8, background: '#1a1a1a', borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.6)', marginBottom: 6 }}>
+                      {qaPickTarget === 'accuse' ? '选择要查杀的玩家：' : '选择要带票的玩家：'}
+                    </div>
+                    {alivePlayers.filter((p) => p.seat !== mySeat).map((p) => (
+                      <TargetButton key={p.seat} seat={p.seat} nickname={p.nickname} selected={false} onClick={() => onPickQaTarget(p.seat)} />
+                    ))}
+                  </div>
+                )}
                 <textarea
                   value={speechText}
                   onChange={(e) => setSpeechText(e.target.value)}
@@ -548,7 +746,12 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
       {/* 右侧面板：日志 + 玩家状态 */}
       {phase !== 'lobby' && (
         <div style={{ position: 'absolute', right: 16, top: 64, bottom: 16, width: 340, display: 'flex', flexDirection: 'column', zIndex: 10, ...panel }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: WOLF_RED, marginBottom: 8 }}>📜 游戏日志</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: WOLF_RED }}>📜 游戏日志</span>
+            <button onClick={() => void toggleFast()} style={{ ...btn, padding: '3px 9px', fontSize: 11, background: fastMode ? BRAND_YELLOW : '#1a1a1a', color: fastMode ? '#000' : 'rgba(237,237,240,0.6)' }}>
+              {fastMode ? '⏩ 2x 加速中' : '▶️ 正常速度'}
+            </button>
+          </div>
           <div style={{ flex: 1, overflowY: 'auto', marginBottom: 8 }}>
             {(!snapshot?.log || snapshot.log.length === 0) && <p style={{ fontSize: 12, color: 'rgba(237,237,240,0.3)' }}>游戏即将开始…</p>}
             {snapshot?.log?.slice().reverse().map((entry) => (
@@ -594,9 +797,18 @@ function ActionBlock({ title, hint, children }: { title: string; hint: string; c
   )
 }
 
-/** 目标选择按钮。 */
-function TargetButton({ seat, nickname, selected, onClick }: { seat: number; nickname: string; selected: boolean; onClick: () => void }) {
+/** 快捷动作小按钮。 */
+function QuickBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
   return (
+    <button onClick={onClick} style={{
+      padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12,
+      border: 'none', background: color, color: '#000', fontWeight: 600,
+    }}>{label}</button>
+  )
+}
+
+/** 目标选择按钮。 */
+function TargetButton({ seat, nickname, selected, onClick }: { seat: number; nickname: string; selected: boolean; onClick: () => void }) {  return (
     <button
       onClick={onClick}
       style={{

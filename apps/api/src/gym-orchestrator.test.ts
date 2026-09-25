@@ -148,3 +148,89 @@ describe("generatePlan", () => {
     expect(muscle.title).not.toBe(stretch.title);
   });
 });
+
+// ===== P0：AI 教练 + 节奏带练 =====
+import {
+  getCoaches,
+  getWorkoutPresets,
+  startWorkout,
+  recordRhythm,
+  coachSpeak,
+  finishWorkout,
+  setGymChat,
+} from "./gym-orchestrator.js";
+
+describe("P0: AI 教练与节奏带练", () => {
+  it("getCoaches：返回 3 位风格各异的教练", () => {
+    const coaches = getCoaches();
+    expect(coaches.length).toBe(3);
+    expect(coaches.every((c) => c.name && c.persona && c.style)).toBe(true);
+  });
+
+  it("getWorkoutPresets：返回俯卧撑/深蹲/平板支撑", () => {
+    const presets = getWorkoutPresets();
+    expect(presets.map((p) => p.name).sort()).toEqual(["平板支撑", "俯卧撑", "深蹲"].sort());
+    expect(presets.every((p) => p.targetReps > 0)).toBe(true);
+  });
+
+  it("startWorkout：初始化会话，reps/命中/未命中归零", () => {
+    const s = startWorkout("u1", "pushup", "rock") as ReturnType<typeof startWorkout> & { sessionId: string };
+    expect("error" in s).toBe(false);
+    expect(s.plan.name).toBe("俯卧撑");
+    expect(s.coach.id).toBe("rock");
+    expect(s.reps).toBe(0);
+    expect(s.rhythmHits).toBe(0);
+    expect(s.status).toBe("active");
+  });
+
+  it("startWorkout：非法 planId/coachId 返回 error", () => {
+    expect("error" in startWorkout("u1", "nope", "rock")).toBe(true);
+    expect("error" in startWorkout("u1", "pushup", "nope")).toBe(true);
+  });
+
+  it("recordRhythm：命中 reps+1，未命中 reps 不变", () => {
+    const s = startWorkout("u2", "squat", "yogi") as { sessionId: string };
+    recordRhythm(s.sessionId, true);
+    recordRhythm(s.sessionId, true);
+    const afterMiss = recordRhythm(s.sessionId, false) as { reps: number; rhythmMisses: number };
+    expect(afterMiss.reps).toBe(2);
+    expect(afterMiss.rhythmMisses).toBe(1);
+  });
+
+  it("coachSpeak：注入 mock chat，各事件类型都返回非空文本", async () => {
+    setGymChat(async (msgs) => `[mock:${msgs[msgs.length - 1].content.slice(0, 6)}]`);
+    const s = startWorkout("u3", "pushup", "rock") as { sessionId: string };
+    for (const ev of ["start", "rep_good", "rep_miss", "halfway", "finish"] as const) {
+      const { text } = await coachSpeak(s.sessionId, ev);
+      expect(text.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("coachSpeak：无 chat 时回退 canned 文案不报错", async () => {
+    setGymChat(null as unknown as Parameters<typeof setGymChat>[0]);
+    const s = startWorkout("u4", "pushup", "rock") as { sessionId: string };
+    const { text } = await coachSpeak(s.sessionId, "rep_good");
+    expect(text.length).toBeGreaterThan(0);
+  });
+
+  it("finishWorkout：评分=命中率×100+完成度×50，等级分档正确", () => {
+    const s = startWorkout("u5", "pushup", "pal") as { sessionId: string };
+    // 10 hits / 10 attempts = 1.0 命中；完成 20/20 = 1.0 -> 100 + 50 = 150? 用上限逻辑单独验
+    for (let i = 0; i < 20; i++) recordRhythm(s.sessionId, true);
+    const r = finishWorkout(s.sessionId) as { score: number; grade: string; rhythmHitRate: number; coachComment: string };
+    expect(r.rhythmHitRate).toBe(1);
+    expect(r.score).toBe(150);
+    expect(r.grade).toBe("S");
+    expect(r.coachComment.length).toBeGreaterThan(0);
+  });
+
+  it("finishWorkout：低命中低完成 -> C 档", () => {
+    const s = startWorkout("u6", "pushup", "pal") as { sessionId: string };
+    // 完成 5/20=0.25，命中 1/5=0.2 -> 20 + 12.5 = 32.5 -> C
+    recordRhythm(s.sessionId, true);
+    for (let i = 0; i < 4; i++) recordRhythm(s.sessionId, false);
+    const r = finishWorkout(s.sessionId) as { score: number; grade: string };
+    expect(r.grade).toBe("C");
+    expect(r.score).toBeLessThan(60);
+  });
+});

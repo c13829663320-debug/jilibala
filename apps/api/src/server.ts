@@ -16,6 +16,7 @@ import { registerTalkshowRoutes } from './talkshow-routes.js';
 import { registerLibraryRoutes } from './library-routes.js';
 import { registerWerewolfRoutes } from './werewolf-routes.js';
 import { registerGymRoutes } from './gym-routes.js';
+import { setGymChat } from './gym-orchestrator.js';
 import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { registerCourtRoutes } from './court-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
@@ -900,6 +901,7 @@ setChatProvider(chatWithProviders);
 registerWerewolfRoutes(app, { chat: chatWithProviders, contents });
 
 // ===== M11: 健身房 =====
+setGymChat(chatWithProviders);
 registerGymRoutes(app, { chat: chatWithProviders, contents });
 
 // ===== M12: 自定义人物 =====

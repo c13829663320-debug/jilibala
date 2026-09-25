@@ -59,6 +59,8 @@ function AppInner() {
   const [view, setView] = useState<View>(() => {
     if (parseRoomParam()) return 'court'
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
+    const scene = new URLSearchParams(window.location.search).get('scene')
+    if (scene === 'werewolf' || scene === 'gym') return scene
     return 'entry'
   })
   const [roomId] = useState<string | null>(() => parseRoomParam())

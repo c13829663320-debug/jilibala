@@ -13,7 +13,7 @@ import {
 } from "@balabala/shared";
 import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
-import { generatePlan, checkAchievements } from "./gym-orchestrator.js";
+import { generatePlan, checkAchievements, getCoaches, getWorkoutPresets, startWorkout, recordRhythm, coachSpeak, finishWorkout } from "./gym-orchestrator.js";
 import { broadcastToRoom } from "./ws.js";
 import * as db from "./db.js";
 import type { StoredContent } from "./db.js";
@@ -34,6 +34,42 @@ export function registerGymRoutes(
   deps: { chat: ChatFn; contents: StoredContent[] },
 ): void {
   const { chat, contents } = deps;
+
+  // ===== P0：AI 教练 + 节奏带练 =====
+  app.get("/api/gym/coaches", async () => {
+    return { coaches: getCoaches(), presets: getWorkoutPresets() };
+  });
+
+  app.post("/api/gym/workout/start", async (req, reply) => {
+    const body = (req.body ?? {}) as { userId?: string; planId?: string; coachId?: string };
+    const userId = (body.userId ?? "").trim();
+    if (!userId) return reply.code(400).send({ message: "缺少 userId。" });
+    const result = startWorkout(userId, body.planId ?? "", body.coachId ?? "");
+    if ("error" in result) return reply.code(400).send(result);
+    return result;
+  });
+
+  app.post("/api/gym/workout/:sessionId/hit", async (req, reply) => {
+    const { sessionId } = req.params as { sessionId: string };
+    const body = (req.body ?? {}) as { hit?: boolean };
+    const result = recordRhythm(sessionId, body.hit === true);
+    if ("error" in result) return reply.code(404).send(result);
+    return result;
+  });
+
+  app.post("/api/gym/workout/:sessionId/speak", async (req, reply) => {
+    const { sessionId } = req.params as { sessionId: string };
+    const body = (req.body ?? {}) as { eventType?: string };
+    const result = await coachSpeak(sessionId, (body.eventType ?? "start") as "start" | "rep_good" | "rep_miss" | "halfway" | "finish");
+    return result;
+  });
+
+  app.post("/api/gym/workout/:sessionId/finish", async (req, reply) => {
+    const { sessionId } = req.params as { sessionId: string };
+    const result = finishWorkout(sessionId);
+    if ("error" in result) return reply.code(404).send(result);
+    return result;
+  });
 
   // ---- 生成训练计划 ----
   app.post("/api/gym/plans", async (req) => {
