@@ -12,6 +12,23 @@ import CourtroomShell, { type EvidenceMeta } from './CourtroomShell'
 import { IdentityProvider, useIdentity } from './identity'
 import ErrorBoundary from './ErrorBoundary'
 import LoadingFallback from './LoadingFallback'
+import InterestPicker from './onboarding/InterestPicker'
+import QuickStartCard from './onboarding/QuickStartCard'
+import FirstTimeGuide from './onboarding/FirstTimeGuide'
+import './onboarding/onboarding.css'
+import {
+  FIRST_TIME_STEPS,
+  INTEREST_SCENE_MAP,
+  SCENE_LABELS,
+  getRecommendedScene,
+  hasPlayedScene,
+  needsInterestSelection,
+  recordInterest,
+  recordInterestSkipped,
+  recordScenePlayed,
+  type InterestId,
+  type SceneId,
+} from './onboarding/onboardingProgress'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const CustomCharacterStudio = lazy(() => import('./CustomCharacterStudio'))
@@ -27,6 +44,7 @@ const ScenePlay = lazy(() => import('./scene-studio/ScenePlay'))
 
 type HearingMode = 'quick' | 'evidence'
 type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play'
+  | 'onboarding-interest' | 'onboarding-quickstart'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -54,6 +72,20 @@ function parseRoomParam(): string | null {
   return null
 }
 
+/**
+ * 场景首次进入的 3 步引导浮层：玩过的场景不再弹；
+ * 用户走完或跳过后把该场景记为「已玩过」，老用户下次进入不再被打扰。
+ */
+function SceneFirstTimeGuide({ scene }: { scene: SceneId }) {
+  const [dismissed, setDismissed] = useState(false)
+  if (dismissed || hasPlayedScene(scene)) return null
+  return <FirstTimeGuide
+    steps={FIRST_TIME_STEPS[scene]}
+    sceneLabel={SCENE_LABELS[scene]}
+    onDone={() => { recordScenePlayed(scene); setDismissed(true) }}
+  />
+}
+
 function AppInner() {
   const { phase } = useIdentity()
   const [view, setView] = useState<View>(() => {
@@ -61,8 +93,12 @@ function AppInner() {
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
     const scene = new URLSearchParams(window.location.search).get('scene')
     if (scene === 'werewolf' || scene === 'gym') return scene
+    // 新用户（localStorage 无引导记录）：开屏后先选兴趣，再直达推荐场景
+    if (needsInterestSelection()) return 'onboarding-interest'
     return 'entry'
   })
+  // 新手引导：兴趣选择后推荐的那个兴趣（用于渲染 QuickStartCard）
+  const [quickStartInterest, setQuickStartInterest] = useState<InterestId | null>(null)
   const [roomId] = useState<string | null>(() => parseRoomParam())
   // 场景工作室：正在编辑的场景 id（undefined = 新建）；正在播放的场景 id
   const [sceneStudioId, setSceneStudioId] = useState<string | undefined>(undefined)
@@ -121,6 +157,24 @@ function AppInner() {
         <article className="shared-verdict"><h1>分享内容不存在</h1><p className="shared-disclaimer">这份案卷可能已被删除，或者分享链接已经失效。</p><a href="/" className="shared-cta">进入趣味法庭</a></article>
       )}
     </main>
+  }
+
+  // ===== 新手引导：选兴趣（新用户第一步，直接覆盖全屏） =====
+  if (view === 'onboarding-interest') {
+    return <InterestPicker
+      onPick={(interest) => { recordInterest(interest); setQuickStartInterest(interest); setView('onboarding-quickstart') }}
+      onSkip={() => { recordInterestSkipped(); setView('entry') }}
+    />
+  }
+
+  // ===== 新手引导：推荐卡片 → 一个大按钮直达场景（跳过广场） =====
+  if (view === 'onboarding-quickstart') {
+    const interest = quickStartInterest ?? 'debate'
+    return <QuickStartCard
+      interest={interest}
+      onStart={() => setView(INTEREST_SCENE_MAP[interest] as View)}
+      onSkip={() => setView('entry')}
+    />
   }
 
   // ===== 入口页（房间大厅，自带导航） =====
@@ -202,6 +256,7 @@ function AppInner() {
           onEnterBar: () => setView('bar'),
           onEnterLibrary: () => setView('library'),
           onEnterGym: () => setView('gym'),
+          recommendedScene: getRecommendedScene() ?? undefined,
         }} />
     </>
   }
@@ -212,6 +267,7 @@ function AppInner() {
       <TopNav {...navProps} currentView="talkshow" />
       <LazyScene component={TalkshowShell} label="脱口秀剧场"
         props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
+      <SceneFirstTimeGuide scene="talkshow" />
     </>
   }
 
@@ -221,6 +277,7 @@ function AppInner() {
       <TopNav {...navProps} currentView="werewolf" />
       <LazyScene component={WerewolfShell} label="狼人杀馆"
         props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
+      <SceneFirstTimeGuide scene="werewolf" />
     </>
   }
 
@@ -230,6 +287,7 @@ function AppInner() {
       <TopNav {...navProps} currentView="bar" />
       <LazyScene component={BarShell} label="酒吧辩论"
         props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
+      <SceneFirstTimeGuide scene="bar" />
     </>
   }
 
@@ -239,6 +297,7 @@ function AppInner() {
       <TopNav {...navProps} currentView="library" />
       <LazyScene component={LibraryShell} label="图书馆"
         props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
+      <SceneFirstTimeGuide scene="library" />
     </>
   }
 
@@ -248,6 +307,7 @@ function AppInner() {
       <TopNav {...navProps} currentView="gym" />
       <LazyScene component={GymShell} label="健身房"
         props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
+      <SceneFirstTimeGuide scene="gym" />
     </>
   }
 
@@ -314,6 +374,7 @@ function AppInner() {
         onExitToEntry={() => setView('entry')}
         onOpenArchive={() => openArchives('court')}
       />
+      <SceneFirstTimeGuide scene="court" />
     </main>
   )
 }

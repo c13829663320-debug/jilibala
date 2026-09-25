@@ -15,14 +15,16 @@ import Interaction from './world/Interaction'
 import Minimap from './world/Minimap'
 import MobileControls, { isTouchDevice } from './world/MobileControls'
 import SceneSelect from './world/SceneSelect'
+import { SCENE_LABELS } from './onboarding/onboardingProgress'
 import './plaza-3d.css'
+import './onboarding/onboarding.css'
 
 function buildWsUrl(room: string, userId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
 }
 
-export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym }: {
+export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, recommendedScene }: {
   onBack: () => void
   onEnterCourt: () => void
   onEnterTalkshow?: () => void
@@ -30,6 +32,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   onEnterBar?: () => void
   onEnterLibrary?: () => void
   onEnterGym?: () => void
+  /** 新手引导推荐的场景建筑 id；有则在广场上显示「新手推荐」角标。 */
+  recommendedScene?: BuildingId
 }) {
   const { user } = useIdentity()
   const [showDiscuss, setShowDiscuss] = useState(false)
@@ -217,6 +221,17 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       <div className="plaza-3d-online">
         <Users size={13} /> 在线 {onlineCount} 人
       </div>
+
+      {/* 新手推荐角标：指向兴趣选择后推荐的那栋建筑，点一下直接进 */}
+      {recommendedScene && (
+        <button
+          type="button"
+          className="ob-recommend-badge"
+          onClick={() => enterHandlers(recommendedScene)}
+        >
+          ⭐ 新手推荐：{SCENE_LABELS[recommendedScene]} ↗
+        </button>
+      )}
 
       {/* 交互提示（走近建筑/NPC/水晶时显示） */}
       {prompt && <div className="plaza-3d-prompt">{prompt}</div>}
