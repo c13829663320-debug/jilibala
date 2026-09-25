@@ -6,6 +6,13 @@ import { randomUUID } from "node:crypto";
 import {
   type LibraryNoteData,
   type SceneId,
+  type QuizDomain,
+  QUIZ_DOMAIN_LABEL,
+  QUIZ_OPPONENT_IDS,
+  QUIZ_QUESTION_COUNT,
+  QUIZ_QUESTION_TIME_LIMIT_MS,
+  celebBuzzAccuracy,
+  isQuizDomain,
 } from "@balabala/shared";
 import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
@@ -14,6 +21,7 @@ import {
   bookRecommendation,
   bookClubOpening,
   librarianAnswer,
+  generateQuizQuestions,
   LIBRARY_TOPICS,
 } from "./library-orchestrator.js";
 import { broadcastSceneEvent } from "./ws.js";
@@ -38,6 +46,58 @@ export function registerLibraryRoutes(app: FastifyInstance, deps: { chat: ChatFn
   // ---- 知识主题列表 ----
   app.get("/api/library/topics", async () => {
     return { topics: LIBRARY_TOPICS };
+  });
+
+  // ---- 知识擂台：开局一次出题 ----
+  // POST /api/library/quiz/start { domain, count?, userId? }
+  // 一次 LLM 调用生成题目，失败走本地兜底；返回题目 + 3 位 AI 对手信息。
+  app.post("/api/library/quiz/start", async (req, reply) => {
+    const body = (req.body ?? {}) as { domain?: string; count?: number; userId?: string };
+    const rawDomain = body.domain ?? "";
+    if (!isQuizDomain(rawDomain)) {
+      return reply.code(400).send({ message: "领域无效，可选：科学/文学/哲学/历史/艺术。" });
+    }
+    const domain: QuizDomain = rawDomain;
+    const count = Math.min(Math.max(1, Math.floor(body.count ?? QUIZ_QUESTION_COUNT)), QUIZ_QUESTION_COUNT);
+
+    try {
+      const { questions, source } = await generateQuizQuestions(domain, count, chat);
+      const opponents = QUIZ_OPPONENT_IDS[domain].map((id) => {
+        const c = resolveCharacter(id);
+        return {
+          id,
+          name: c?.name ?? id,
+          title: c?.title ?? "",
+          portrait: c?.portrait ?? "",
+          field: c?.field ?? "",
+          accuracy: celebBuzzAccuracy(c?.field, domain),
+        };
+      });
+      db.addSceneRecord({
+        userId: body.userId,
+        scene: SCENE,
+        sessionId: SESSION_ID,
+        title: `知识擂台 · ${QUIZ_DOMAIN_LABEL[domain]}`,
+        payload: { domain, questionCount: questions.length, source },
+      });
+      broadcastSceneEvent(SCENE, SESSION_ID, {
+        type: "quiz_started",
+        domain,
+        questionCount: questions.length,
+        source,
+      });
+      return {
+        domain,
+        domainLabel: QUIZ_DOMAIN_LABEL[domain],
+        questions,
+        source,
+        opponents,
+        questionTimeLimitMs: QUIZ_QUESTION_TIME_LIMIT_MS,
+      };
+    } catch (error) {
+      req.log.error(error, "library quiz start failed");
+      return reply.code(502).send({ message: "出题失败，请稍后再试。" });
+    }
   });
 
   // ---- 名人深度问答 ----

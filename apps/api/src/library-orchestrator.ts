@@ -3,6 +3,13 @@
 // 所有 LLM 调用串行、失败兜底；不持有 HTTP/WS 状态，便于单测与复用。
 import type { ResolvedCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
+import {
+  type QuizDomain,
+  type QuizQuestion,
+  QUIZ_DOMAIN_LABEL,
+  validateQuizQuestion,
+} from "@balabala/shared";
+import { QUIZ_FALLBACK_BANK } from "./library-quiz-fallback.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -158,4 +165,61 @@ export const librarianAnswer = async (
     fallback,
   );
   return raw.trim() || fallback;
+};
+
+// ===== 5. 知识擂台 · 开局一次生成题目 =====
+/** Fisher–Yates 洗牌（返回新数组）。 */
+const shuffled = <T>(arr: readonly T[]): T[] => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+export interface QuizQuestionsResult {
+  questions: QuizQuestion[];
+  /** "llm" 表示模型出题成功；"fallback" 表示本地兜底题库生效。 */
+  source: "llm" | "fallback";
+}
+
+/**
+ * 开局一次 LLM 调用生成 count 道单选题（4 选项 + 正确答案 + 解析）。
+ * 模型失败 / 返回非法 JSON / 题目不足时，用本地硬编码题库兜底。
+ * 题目一旦生成，整局不再调 LLM。
+ */
+export const generateQuizQuestions = async (
+  domain: QuizDomain,
+  count: number,
+  chat: ChatFn,
+): Promise<QuizQuestionsResult> => {
+  const label = QUIZ_DOMAIN_LABEL[domain] ?? "综合";
+  const system =
+    "你是知识擂台赛的出题官。请围绕指定领域出单选题，难度面向普通玩家，避免争议题。" +
+    "只返回 JSON，不要 Markdown、不要解释：" +
+    `{"questions":[{"prompt":"题干","options":["选项A","选项B","选项C","选项D"],` +
+    '"correctIndex":0到3的整数,"explanation":"一句话解析(30字内)"}]}。' +
+    "必须恰好 4 个选项，correctIndex 指向唯一正确项。";
+  const user = `领域：${label}。请出 ${count} 道单选题。`;
+
+  try {
+    const raw = await chat([
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ], 1800);
+    const parsed = extractJsonObject(raw);
+    const list = Array.isArray(parsed.questions) ? parsed.questions : [];
+    const valid = list
+      .map((q) => validateQuizQuestion(q))
+      .filter((q): q is QuizQuestion => Boolean(q));
+    if (valid.length >= count) {
+      return { questions: valid.slice(0, count), source: "llm" };
+    }
+    throw new Error(`LLM 题目不足：${valid.length}/${count}`);
+  } catch {
+    // 本地兜底题库：洗牌后取 count 题。
+    const bank = QUIZ_FALLBACK_BANK[domain] ?? QUIZ_FALLBACK_BANK.science;
+    return { questions: shuffled(bank).slice(0, count), source: "fallback" };
+  }
 };

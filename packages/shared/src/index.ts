@@ -203,6 +203,9 @@ export interface GymCheckinData {
   createdAt: string;
 }
 
+// ===== M14: 健身房 90 秒三关电路（纯计分逻辑，前后端共用）=====
+export * from "./gym-circuit.js";
+
 // ===== M9: 狼人杀 Werewolf =====
 export type WerewolfRole = "werewolf" | "seer" | "witch" | "hunter" | "villager";
 export type WerewolfPhase = "lobby" | "night" | "day_announce" | "speech" | "vote" | "ended";
@@ -560,6 +563,30 @@ export interface CourtPlayerInput {
   createdAt: string;
 }
 
+/** 预制牌类型：攻击论点 / 出示证据 / 嘲讽对方 / 要求记录。 */
+export type CourtCardType = 'attack' | 'evidence' | 'mock' | 'request_record';
+
+/** 玩家打出的一张牌（用于高光时刻回放）。 */
+export interface CourtPlayerMove {
+  round: number;
+  card: CourtCardType;
+  targetEvidenceId?: string;
+  freeText?: string;
+  /** 实际对玩家方天平产生的增量（正=玩家方）。 */
+  delta: number;
+  /** 是否命中 unresolved 争议点。 */
+  hit: boolean;
+  judgeComment?: string;
+}
+
+/** 客户端通过 play-card 动作提交的一次出牌请求。 */
+export interface CourtCardPlay {
+  id: string;
+  card: CourtCardType;
+  targetEvidenceId?: string;
+  freeText?: string;
+}
+
 /** 结构化判决 */
 export interface CourtVerdict {
   id: string;
@@ -574,6 +601,12 @@ export interface CourtVerdict {
   verdict: 'plaintiff' | 'defendant' | 'mixed' | 'dismissed';
   conclusion: string;
   createdAt: string;
+  /** LLM 写的高光时刻（服务端仅写文案，不决定胜方）。 */
+  key_moments?: string[];
+  /** 玩家全程打出的牌（前端据此回放高光时刻）。 */
+  player_moves?: CourtPlayerMove[];
+  /** 终局天平（原告:被告），由天平决定胜方。 */
+  final_balance?: { plaintiff: number; defendant: number };
 }
 
 /** 完整案件对象（聚合） */
@@ -614,12 +647,23 @@ export type CourtTrialEvent =
   | { type: 'momentum_update'; momentum: { plaintiff: number; defendant: number } }
   /** 玩家发言已上屏确认（speaker='player' 的 CourtTurn）。 */
   | { type: 'player_turn'; turn: CourtTurn }
+  /** 天平滑动：balance 互补 0-100，lastDelta 最近一次增量（带方向），reason 口播。 */
+  | { type: 'court_balance_update'; balance: { plaintiff: number; defendant: number }; lastDelta: number; reason: string }
+  /** 轮到玩家出牌：推送本回合弹药、手牌、当前 unresolved，前端展开牌面。 */
+  | { type: 'court_player_turn'; round: number; ammo: number; handCards: CourtCardType[]; unresolved: string[] }
+  /** 一张牌结算完成：命中/未命中、delta、法官口播。 */
+  | { type: 'court_card_resolved'; card: CourtCardType; hit: boolean; delta: number; judgeComment: string }
+  /** 一回合结束小结：剩余 unresolved、当前天平。 */
+  | { type: 'court_round_recap'; round: number; unresolved: string[]; balance: { plaintiff: number; defendant: number } }
   | { type: 'error'; message: string };
 
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";
 export * from "./character-voices.js";
 export * from "./skill.js";
+
+// ===== 图书馆 · 知识擂台赛 =====
+export * from "./library-quiz.js";
 
 // ===== 自定义场景工作室 =====
 export * from "./scene-studio.js";
