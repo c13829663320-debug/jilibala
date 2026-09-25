@@ -1,6 +1,8 @@
 // 结算：排名 + 段位 + 败者名人金句 + 再来一局
+import { useEffect, useRef } from "react";
 import { rankPlayers, tierForRank, type QuizPlayer } from "@balabala/shared";
 import { BRAND } from "./DomainSelector";
+import { submitGameResult } from "../profile";
 import type { ScoreboardPlayer } from "./OpponentScoreboard";
 
 /** 败者（输给你的名人）的 canned 金句——整局不再调 LLM，预置数条轮换。 */
@@ -35,6 +37,19 @@ export default function QuizResults({
   const quip = LOSER_QUIPS[Math.floor(Math.random() * LOSER_QUIPS.length)];
   const won = me.rank === 1;
   const tierColor = tier === "宗师" ? BRAND.yellow : tier === "学霸" ? BRAND.teal : BRAND.dim;
+
+  // 全局档案上报一次：第 1 名视为获胜，答对题数用于「图书馆宗师」成就。
+  const reportedRef = useRef(false);
+  useEffect(() => {
+    if (reportedRef.current) return;
+    reportedRef.current = true;
+    submitGameResult("library", {
+      won,
+      score: me.score,
+      detail: { correctCount, totalQuestions },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", textAlign: "center" }}>

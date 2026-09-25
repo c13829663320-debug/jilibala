@@ -5,6 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } 
 import { ArrowLeft, Beer, Users, Send, Scale, RotateCcw, Gavel, Coins, Vote } from 'lucide-react'
 import { getCelebrity, type Celebrity } from '@balabala/shared'
 import { useIdentity } from './identity'
+import { submitGameResult } from './profile'
 import AngleChooser from './bar/AngleChooser'
 import TendencyMeter from './bar/TendencyMeter'
 import CounterPopup, { type PopupData } from './bar/CounterPopup'
@@ -143,6 +144,10 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
       if (betSide && data.verdict.winner === betSide) setCoins((c) => c * 2)
       else if (betSide) setCoins(0)
       setStage('verdict')
+      // 全局档案上报：押注命中即胜，双方强度差作为本局分数。
+      const s = data.state?.argumentStrength ?? strength
+      const won = data.verdict.winner !== 'tie' && betSide != null && data.verdict.winner === betSide
+      submitGameResult('bar', { won, score: Math.round(Math.abs(s.pro - s.con)) })
     } catch (e) {
       window.alert(e instanceof Error ? e.message : '裁决失败')
     } finally {

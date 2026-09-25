@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Users, Moon, Sun, Vote, Skull, Crown, Send, Upload, Timer } from 'lucide-react'
 import { useIdentity } from './identity'
+import { submitGameResult } from './profile'
 import { useReconnectingWebSocket, wsStatusLabel } from './useReconnectingWebSocket'
 import type {
   WerewolfPlayerSnapshot, WerewolfBroadcastEvent, WerewolfClientAction,
@@ -104,6 +105,20 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
   const [dayActions, setDayActions] = useState<WerewolfDayActionRecord[]>([])
   const [personalReport, setPersonalReport] = useState<WerewolfPersonalReport | null>(null)
   const [nowTs, setNowTs] = useState(Date.now())
+
+  // 全局档案上报：终局快照 + 私人复盘 + 表现分三者齐备后上报一次。
+  const reportedRef = useRef(false)
+  useEffect(() => {
+    const winner = snapshot?.winner
+    if (!winner) { reportedRef.current = false; return }
+    if (reportedRef.current || !personalReport || !perf) return
+    reportedRef.current = true
+    submitGameResult('werewolf', {
+      won: perf.won,
+      score: personalReport.reasoningScore,
+      detail: { reasoningScore: personalReport.reasoningScore },
+    })
+  }, [snapshot?.winner, personalReport, perf])
 
   // ===== 本地 UI 状态 =====
   const [speechText, setSpeechText] = useState('')

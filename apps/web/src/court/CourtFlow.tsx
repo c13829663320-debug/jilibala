@@ -5,6 +5,7 @@ import './court.css'
 import type { Celebrity } from '@balabala/shared'
 import { useIdentity } from '../identity'
 import { HttpCourtEngine } from './http-engine'
+import { submitGameResult } from '../profile'
 import { EMPTY_ASSIGNMENTS, type DefenderAssignments } from './DefenderPicker'
 import type {
   AnalyzeCaseInput, CourtCase, CourtVerdict, EvidenceItem, Perspective,
@@ -119,7 +120,13 @@ export default function CourtFlow({
     const m = engine.getMomentum()
     setCourtCase((prev) => prev ? { ...prev, momentum: m } : prev)
     setFlowState('verdict')
-  }, [engine])
+    // 全局档案上报：玩家方胜诉则胜，天平差值作为本局分数。
+    const won = playerSide != null && v.outcome === playerSide
+    submitGameResult('court', {
+      won,
+      score: m ? Math.round(Math.abs(m.plaintiff - m.defendant)) : 0,
+    })
+  }, [engine, playerSide])
 
   // 发布到广场:直连 POST /api/court/cases/:id/publish
   const handlePublish = useCallback(async () => {

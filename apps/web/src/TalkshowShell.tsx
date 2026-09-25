@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSPrope
 import { ArrowLeft, Mic, Send, RefreshCw, Crown, Users, Sparkles } from 'lucide-react'
 import { getCelebrity, type Celebrity } from '@balabala/shared'
 import { useIdentity } from './identity'
+import { submitGameResult } from './profile'
 import TopicPicker from './talkshow/TopicPicker'
 import JokeScoreRadar from './talkshow/JokeScoreRadar'
 import AudienceWave from './talkshow/AudienceWave'
@@ -194,6 +195,13 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
       setVerdict(data.verdict ?? '')
       setGoldJoke(data.goldJoke ?? null)
       setStage('results')
+      // 全局档案上报：炸场/今日之星视为获胜。
+      const t = data.tier ?? '冷场'
+      submitGameResult('talkshow', {
+        won: t === '炸场' || t === '今日之星',
+        score: data.average ?? 0,
+        detail: { tier: t, goldJoke: Boolean(data.goldJoke) },
+      })
     } catch (e) {
       window.alert(e instanceof Error ? e.message : '结算失败')
     } finally {

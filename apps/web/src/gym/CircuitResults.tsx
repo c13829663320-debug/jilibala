@@ -1,5 +1,7 @@
 // ===== M14：三关结算 · 总分 + 段位 + 打卡 =====
+import { useEffect, useRef } from 'react'
 import { CIRCUIT_TIER_META, CIRCUIT_STATIONS, type CircuitTier, type StationResult } from '@balabala/shared'
+import { submitGameResult } from '../profile'
 
 interface Props {
   results: StationResult[]
@@ -15,6 +17,13 @@ const STATION_NAME = Object.fromEntries(CIRCUIT_STATIONS.map((s) => [s.kind, s.t
 
 export default function CircuitResults({ results, total, tier, checking, checked, onCheckin, onExit }: Props) {
   const meta = CIRCUIT_TIER_META[tier]
+  // 全局档案上报一次：金/爆杆段位视为获胜，总分作为 bestScore。
+  const reportedRef = useRef(false)
+  useEffect(() => {
+    if (reportedRef.current) return
+    reportedRef.current = true
+    submitGameResult('gym', { won: tier === 'gold' || tier === 'explosive', score: total })
+  }, [total, tier])
   return (
     <div className="cc-center">
       <div className="cc-station-label">三关完成</div>

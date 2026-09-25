@@ -7,6 +7,10 @@ import {
 import type { CertRecord as ApiCertRecord, MsgRecord as ApiMsgRecord, GymStats, GymAchievement } from '@balabala/shared'
 import { useIdentity } from './identity'
 import { useVoiceEnabled } from './voice-settings'
+import {
+  usePlayerProfile, PlayerProfileCard, StatsOverview, SceneStatsGrid,
+  AchievementWall, DailyChallengeCard,
+} from './profile'
 import './profile.css'
 
 /* ---------- types ---------- */
@@ -163,6 +167,7 @@ function CertificateSvg({ cert }: { cert: CertRecord }) {
 export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, onCustomCharacter, onAvatarStudio, onArchive }: MyPageProps) {
   const { user, updateProfile } = useIdentity()
   const userId = user?.userId ?? ''
+  const myProfile = usePlayerProfile()
   const [tab, setTab] = useState<'cases' | 'posts' | 'certs' | 'msgs' | 'settings'>('cases')
   const username = user?.nickname ?? '我'
   const [sound, setSound] = useState(() => (readJSON(LS_SOUND, 'on') as string) === 'on')
@@ -390,6 +395,23 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, 
             <div><strong>{certs.length}</strong><span>获得证书</span></div>
           </div>
         </div>
+
+        {/* ---------- 全局玩家档案：等级 / XP / 战绩 / 成就 / 每日挑战 ---------- */}
+        {myProfile && (
+          <section className="profile-section" style={{ marginTop: 16 }}>
+            <div className="profile-section-head">
+              <h2>玩家档案</h2>
+              <span className="profile-section-count">XP 全局沉淀 · 刷新不丢失</span>
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <PlayerProfileCard profile={myProfile} />
+              <DailyChallengeCard profile={myProfile} />
+              <StatsOverview profile={myProfile} />
+              <SceneStatsGrid profile={myProfile} />
+              <AchievementWall profile={myProfile} />
+            </div>
+          </section>
+        )}
 
         {/* ---------- 功能入口网格（solid 卡片） ---------- */}
         <div className="profile-actions">
