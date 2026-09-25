@@ -104,6 +104,7 @@ export const FIELD_COLORS: Record<string, string> = {
   文学: '#e06ab8',
   艺术: '#ff7a59',
   哲学: '#9b7bff',
+  政治: '#ffd600',
 }
 
 /** 自定义人物的领域色（品牌青绿 accent）。 */

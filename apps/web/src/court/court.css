@@ -549,3 +549,41 @@
 .ev-picker__item { display: flex; flex-direction: column; gap: 4px; text-align: left; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 10px; padding: 10px; cursor: pointer; }
 .ev-picker__item:hover { border-color: #FFD600; }
 .ev-picker__content { font-size: 12px; color: #9a9c92; }
+
+/* 名人发言视频小窗：辩护人/证人是预置名人时弹出，与 TTS 同步 */
+.live-speaker-video {
+  position: absolute;
+  top: 64px;
+  right: 18px;
+  width: 220px;
+  z-index: 12;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 214, 0, 0.55);
+  background: #0a0a0a;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+.live-speaker-video video {
+  width: 100%;
+  display: block;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  background: #000;
+}
+.live-speaker-video__tag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #0a0a0a;
+  background: rgba(255, 214, 0, 0.92);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 720px) {
+  .live-speaker-video { width: 140px; top: 56px; right: 10px; }
+}

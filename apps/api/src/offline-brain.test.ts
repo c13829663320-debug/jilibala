@@ -1,6 +1,8 @@
 // ===== 离线知识包 + 双 LLM 兜底 单测 =====
 import { describe, expect, it } from "vitest";
-import { CELEBRITIES } from "@balabala/shared";
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { CELEBRITIES, getCelebrity } from "@balabala/shared";
 import {
   loadOfflineBrain,
   matchOfflineReply,
@@ -8,12 +10,21 @@ import {
   tokenize,
 } from "./offline-brain.js";
 
+// 离线脑是「双 LLM 全挂」时的可选兜底知识包，并非每位名人都必须手工编写。
+// 这里只校验磁盘上实际存在的 JSON：文件能加载、结构合法、id 与文件名/名人一致。
+const brainsDir = path.join(process.cwd(), "data", "offline-brains");
+const brainFiles = readdirSync(brainsDir).filter((f) => f.endsWith(".json"));
+
 describe("loadOfflineBrain · 加载", () => {
-  it("20 位名人的离线脑 JSON 全部存在且结构合法", () => {
-    for (const celeb of CELEBRITIES) {
-      const brain = loadOfflineBrain(celeb.id);
-      expect(brain, `离线脑缺失：${celeb.id}`).not.toBeNull();
-      expect(brain!.id).toBe(celeb.id);
+  it("磁盘上的离线脑 JSON 全部存在且结构合法", () => {
+    expect(brainFiles.length).toBeGreaterThanOrEqual(20);
+    for (const file of brainFiles) {
+      const id = file.replace(/\.json$/, "");
+      const brain = loadOfflineBrain(id);
+      expect(brain, `离线脑缺失：${id}`).not.toBeNull();
+      expect(brain!.id).toBe(id);
+      // 脑 id 必须对应一位已注册名人
+      expect(getCelebrity(id), `离线脑 ${id} 不在 CELEBRITIES 中`).toBeTruthy();
       expect(brain!.name).toBeTruthy();
       expect(brain!.persona.length).toBeGreaterThan(10);
       expect(Array.isArray(brain!.quotes)).toBe(true);
@@ -27,6 +38,12 @@ describe("loadOfflineBrain · 加载", () => {
         expect(item.a.length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("没有离线脑 JSON 的名人：loadOfflineBrain 返回 null 而非抛错", () => {
+    const noBrain = CELEBRITIES.find((c) => !brainFiles.includes(`${c.id}.json`));
+    expect(noBrain, "应当存在未编写离线脑的名人").toBeTruthy();
+    expect(loadOfflineBrain(noBrain!.id)).toBeNull();
   });
 
   it("未知 id 返回 null 而不是抛错", () => {

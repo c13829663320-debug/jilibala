@@ -75,6 +75,7 @@ const FIELD_GRADIENTS: Record<string, string> = {
   文学: 'linear-gradient(145deg,#7d3b6e,#331229)',
   艺术: 'linear-gradient(145deg,#8f4b3b,#421c14)',
   哲学: 'linear-gradient(145deg,#5b3b8f,#201240)',
+  政治: 'linear-gradient(145deg,#8f7a1e,#3a3008)',
 }
 const CUSTOM_GRADIENT = 'linear-gradient(145deg,#4a3a6a,#1a1430)'
 

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { ArrowLeft, Archive, Mic, Paperclip, Plus, Send } from 'lucide-react'
 import { CourtroomBackdrop, type ActiveSpeaker } from '../CourtroomBackdrop'
-import { resolveCharacterVoice } from '@balabala/shared'
+import { resolveCharacterVoice, getCelebrity } from '@balabala/shared'
 import { playTts, stopTts } from '../../tts'
 import { getVoiceEnabled } from '../../voice-settings'
 import { useReconnectingWebSocket } from '../../useReconnectingWebSocket'
@@ -38,6 +38,30 @@ type Props = {
 }
 
 const ROLE_LABEL: Record<string, string> = { judge: '法官', plaintiff: '原告', defendant: '被告', defender: '辩护人', witness: '证人', player: '你' }
+
+/**
+ * 名人发言小窗：当辩护人/证人是预置名人（speakerId = celebrity id）时，
+ * 在画面角落播放其 /videos/<id>.mp4，与 appendLiveTurn 里触发的 TTS 同步。
+ * 视频缺失（onError）时静默隐藏，不显示破图。
+ */
+function CourtSpeakerVideo({ celebrityId, name }: { celebrityId: string; name: string }) {
+  const [missing, setMissing] = useState(false)
+  useEffect(() => { setMissing(false) }, [celebrityId])
+  if (missing) return null
+  return (
+    <div className="live-speaker-video">
+      <span className="live-speaker-video__tag">🎙 {name} · 正在发言</span>
+      <video
+        src={`/videos/${celebrityId}.mp4`}
+        autoPlay
+        muted
+        loop
+        playsInline
+        onError={() => setMissing(true)}
+      />
+    </div>
+  )
+}
 
 export default function CourtroomLive({ courtCase, engine, initialPerspective, defenderAssignments, onVerdict, onExit, onOpenArchive }: Props) {
   const [perspective, setPerspective] = useState<Perspective>(initialPerspective)
@@ -270,6 +294,12 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
     ? { speaker: currentTurn.speaker, speakerId: currentTurn.speakerId }
     : null
 
+  // 当前发言者若是预置名人（辩护人/证人带 celebrity id），则弹出其人物视频。
+  const speakerCelebrityId: string | null =
+    currentTurn && (currentTurn.speaker === 'defender' || currentTurn.speaker === 'witness') && currentTurn.speakerId && getCelebrity(currentTurn.speakerId)
+      ? currentTurn.speakerId
+      : null
+
   const changePerspective = (p: Perspective) => {
     setPerspective(p)
     wsSend(JSON.stringify({ type: 'court_perspective', perspective: p }))
@@ -309,6 +339,11 @@ export default function CourtroomLive({ courtCase, engine, initialPerspective, d
           <Archive size={15} /> 案卷
         </button>
       </div>
+
+      {/* 名人发言视频小窗：辩护人/证人是预置名人时弹出，与 TTS 同步 */}
+      {phase === 'live' && speakerCelebrityId && currentTurn && (
+        <CourtSpeakerVideo celebrityId={speakerCelebrityId} name={currentTurn.speakerName} />
+      )}
 
       {/* 天平：左=原告(明黄) 右=被告(青绿)，滑动动画 + delta 飘字 */}
       {phase === 'live' && (
