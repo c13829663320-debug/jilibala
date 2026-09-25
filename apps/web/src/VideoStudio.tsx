@@ -64,7 +64,11 @@ export default function VideoStudio({ onBack }: { onBack: () => void }) {
       if (!res.ok || !data.taskId) throw new Error(data.message ?? '提交失败')
       // Poll the task. The running environment injects the final video URL
       // through the local bridge endpoint once generation finishes.
+      // Seedance 暂未接入真实生成：轮询超过阈值即优雅降级为「功能开发中」，
+      // 避免 busy 永久转圈。
       const taskId = data.taskId
+      const startedAt = Date.now()
+      const POLL_TIMEOUT_MS = 90_000
       const poll = async () => {
         try {
           const r = await fetch(`/api/video/tasks/${encodeURIComponent(taskId)}`)
@@ -85,8 +89,18 @@ export default function VideoStudio({ onBack }: { onBack: () => void }) {
             setBusy(false)
             return
           }
+          if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+            setMessage('视频生成服务暂未开放（功能开发中）。你的描述已保留，接入 Seedance 后即可出片。')
+            setBusy(false)
+            return
+          }
           window.setTimeout(poll, 2500)
         } catch {
+          if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+            setMessage('视频生成服务暂时不可用，请稍后再试。')
+            setBusy(false)
+            return
+          }
           window.setTimeout(poll, 3000)
         }
       }

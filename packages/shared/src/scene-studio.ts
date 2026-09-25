@@ -136,7 +136,7 @@ export interface SceneAssetRecord {
 
 /** 生成进度 SSE 事件 */
 export type SceneGenerateEvent =
-  | { type: 'stage'; stage: 'planning' | 'terrain' | 'scatter' | 'structures' | 'npcs' | 'done'; message?: string }
+  | { type: 'stage'; stage: 'planning' | 'terrain' | 'scatter' | 'structures' | 'npcs' | 'done'; message?: string; /** 场景记录 id，首个 stage 事件即下发，供前端持久化/保存/发布 */ sceneId?: string }
   | { type: 'progress'; percent: number; message: string }
   | { type: 'blueprint'; blueprint: SceneBlueprint }
   | { type: 'asset'; structureId: string; status: 'queued' | 'generating' | 'ready' | 'failed'; url?: string; tripoTaskId?: string }

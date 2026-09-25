@@ -82,7 +82,8 @@ export function registerSceneStudioRoutes(
 
     try {
       // 2) LLM 规划
-      send({ type: "stage", stage: "planning", message: "AI 正在规划场景蓝图…" });
+      // 首个 stage 事件即下发 sceneId，前端据此在生成完成后加载记录、保存/发布。
+      send({ type: "stage", stage: "planning", message: "AI 正在规划场景蓝图…", sceneId: scene.id });
       let plan: { blueprint: SceneBlueprint; npcRecommendations: NpcRecommendation[] };
       try {
         plan = await planScene(
@@ -159,7 +160,7 @@ export function registerSceneStudioRoutes(
       // 7) 持久化蓝图 + status=ready
       updateScene(scene.id, { blueprint, status: "ready" });
       send({ type: "blueprint", blueprint });
-      send({ type: "stage", stage: "done", message: "场景生成完成" });
+      send({ type: "stage", stage: "done", message: "场景生成完成", sceneId: scene.id });
     } catch (err) {
       app.log.error({ err }, "scene generate failed");
       updateScene(scene.id, { status: "draft" });

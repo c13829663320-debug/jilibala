@@ -52,6 +52,8 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
   const [prompt, setPrompt] = useState('')
   const [imageData, setImageData] = useState<{ dataUrl: string; contentType: string; filename: string } | null>(null)
   const [task, setTask] = useState<TaskState | null>(null)
+  /** Tripo 云端不可达时，用户选择「先用占位模特保存」。 */
+  const [usingPlaceholder, setUsingPlaceholder] = useState(false)
   const [message, setMessage] = useState('')
   const [formMessage, setFormMessage] = useState('')
   const [polishing, setPolishing] = useState(false)
@@ -141,9 +143,18 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
       setMessage(mode === 'image' ? '照片已上传，正在根据照片雕刻 3D 模型…' : '任务已提交，正在生成 3D 模型…')
       pollTask(data.taskId)
     } catch (error) {
-      setTask(null)
-      setMessage(error instanceof Error ? error.message : '生成失败，请稍后再试')
+      // 保留一个 failed 任务态，以便展示「使用占位模特继续」降级入口。
+      setTask({ taskId: task?.taskId ?? '', status: 'failed' })
+      setMessage(error instanceof Error ? `${error.message} 也可以先用占位模特继续创建。` : '生成失败，请稍后再试')
     }
+  }
+
+  /** Tripo 不可达降级：用本地占位任务号，跳过真实 3D 生成。 */
+  const usePlaceholderModel = () => {
+    const localTaskId = `local-fallback-${Date.now()}`
+    setUsingPlaceholder(true)
+    setTask({ taskId: localTaskId, status: 'success', assetUrl: '' })
+    setMessage('已切换为占位模特（Tripo 暂不可达）。你仍可继续填写人设并保存，之后可在人物馆重新生成。')
   }
 
   const pickImage = (file: File | undefined) => {
@@ -228,6 +239,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
           tripoTaskId: task.taskId,
           portraitDataUrl: mode === 'image' ? (imageData?.dataUrl ?? '') : '',
           visibility: 'private',
+          ...(usingPlaceholder ? { usePlaceholder: true } : {}),
           ...(form.voice ? { voice: form.voice } : {}),
         }),
       })
@@ -254,6 +266,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
     setPrompt('')
     setImageData(null)
     setTask(null)
+    setUsingPlaceholder(false)
     setMessage('')
     setFormMessage('')
     setSaveError('')
@@ -267,7 +280,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
   /* ---------- 派生状态 ---------- */
   const busy = ['submitting', 'queued', 'running', 'processing'].includes(task?.status?.toLowerCase() ?? '')
   const genFailed = ['failed', 'error', 'cancelled', 'canceled'].includes(task?.status?.toLowerCase() ?? '')
-  const modelReady = Boolean(task?.assetUrl)
+  const modelReady = Boolean(task?.assetUrl) || usingPlaceholder
   const progress = task?.progress == null
     ? (busy ? 18 : modelReady ? 100 : 0)
     : Math.max(0, Math.min(100, task.progress))
@@ -386,6 +399,13 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
             <div className={`ccs__message ${genFailed ? 'is-error' : ''}`} role="status">{message}</div>
           )}
 
+          {genFailed && !busy && !usingPlaceholder && (
+            <button className="ccs__ghost" type="button" onClick={usePlaceholderModel}
+              style={{ marginTop: 10 }}>
+              Tripo 连不上？先用占位模特创建人物 →
+            </button>
+          )}
+
           <div className="ccs__progress-wrap">
             <div className="ccs__progress-row">
               <span><i className={busy ? 'is-busy' : modelReady ? 'is-ready' : ''} />
@@ -400,7 +420,7 @@ export default function CustomCharacterStudio({ onBack, onViewCharacter }: Custo
               ? <TripoModelPreview url={task.assetUrl} className="ccs__model" label="生成的 3D 人物" />
               : <div className="ccs__preview-placeholder">
                   <WandSparkles size={28} />
-                  <span>{busy ? '正在雕刻轮廓…' : '你的 3D 人物会出现在这里'}</span>
+                  <span>{usingPlaceholder ? '占位模特（Tripo 暂不可达，保存后用默认人形）' : busy ? '正在雕刻轮廓…' : '你的 3D 人物会出现在这里'}</span>
                 </div>}
           </div>
 

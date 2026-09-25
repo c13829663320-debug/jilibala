@@ -1,6 +1,6 @@
 // ===== 脱口秀剧场：开放麦之星 R2（三维度评分 + callback + 话题选择 + 限时）=====
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ArrowLeft, Mic, Send, RefreshCw, Crown, Users } from 'lucide-react'
+import { ArrowLeft, Mic, Send, RefreshCw, Crown, Users, Sparkles } from 'lucide-react'
 import { getCelebrity, type Celebrity } from '@balabala/shared'
 import { useIdentity } from './identity'
 import TopicPicker from './talkshow/TopicPicker'
@@ -37,6 +37,7 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
 
   const [myJoke, setMyJoke] = useState('')
   const [busy, setBusy] = useState(false)
+  const [aiWriting, setAiWriting] = useState(false)
 
   const [average, setAverage] = useState<number | null>(null)
   const [tier, setTier] = useState<Tier | null>(null)
@@ -144,6 +145,25 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
       window.alert(e instanceof Error ? e.message : '评分失败')
     } finally {
       setBusy(false)
+    }
+  }
+
+  // AI 帮写段子：填入输入框，玩家可再编辑或直接讲出去。
+  const aiWrite = async () => {
+    if (aiWriting || busy) return
+    setAiWriting(true)
+    try {
+      const res = await fetch('/api/talkshow/ai-write', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topic?.label ?? '', style: '' }),
+      })
+      const data = await res.json() as { joke?: string; message?: string }
+      if (!res.ok || !data.joke) throw new Error(data.message ?? 'AI 帮写失败')
+      setMyJoke(data.joke)
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'AI 帮写失败')
+    } finally {
+      setAiWriting(false)
     }
   }
 
@@ -329,6 +349,10 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
                     rows={3}
                     style={textareaStyle}
                   />
+                  <button onClick={() => void aiWrite()} disabled={aiWriting || busy}
+                    style={{ ...ghostBtn, width: '100%', marginBottom: 8, opacity: aiWriting || busy ? 0.5 : 1 }}>
+                    <Sparkles size={14} /> {aiWriting ? 'AI 正在写…' : '✨ AI 帮写一段（可再编辑）'}
+                  </button>
                   <button onClick={() => void tellJoke()} disabled={!myJoke.trim() || busy} style={{ ...primaryBtn, width: '100%', opacity: !myJoke.trim() || busy ? 0.5 : 1 }}>
                     <Send size={14} /> {busy ? '观众反应中…' : '讲出去！'}
                   </button>
@@ -403,4 +427,9 @@ const primaryBtn: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
   padding: '10px 16px', background: YELLOW, border: 'none', borderRadius: 8,
   color: '#0A0A0A', fontSize: 14, fontWeight: 800, cursor: 'pointer', marginTop: 4,
+}
+const ghostBtn: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+  padding: '8px 12px', background: 'rgba(79,179,165,0.12)', border: '1px solid rgba(79,179,165,0.5)',
+  borderRadius: 8, color: TEAL, fontSize: 13, fontWeight: 700, cursor: 'pointer',
 }

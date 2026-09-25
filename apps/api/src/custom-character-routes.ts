@@ -52,6 +52,15 @@ const isSafeSegment = (v: string): boolean =>
   Boolean(v) && !v.includes("..") && !v.includes("/") && !v.includes("\\");
 
 /**
+ * 判定 finalize 是否走「占位模特」降级（不访问 Tripo 云端）。
+ * 触发条件：显式 usePlaceholder，或前端本地降级任务号 local-fallback-*。
+ * 纯函数，便于单测。
+ */
+export function shouldUsePlaceholderFinalize(opts: { usePlaceholder?: boolean; tripoTaskId?: string }): boolean {
+  return opts.usePlaceholder === true || (opts.tripoTaskId ?? "").trim().startsWith("local-fallback-");
+}
+
+/**
  * 从 LLM 返回中解析出建议问题列表。
  * 兼容三种返回形态：JSON 数组 / {questions:[...]} / 编号或项目符号的纯文本行。
  * 去重、过滤过短项、最多取 3 条。纯函数，便于单测。
@@ -170,6 +179,8 @@ export function registerCustomCharacterRoutes(
       portraitDataUrl?: string;
       visibility?: string;
       voice?: string;
+      /** Tripo 云端不可达时的降级：跳过 Tripo 查询/下载，用占位人形保存。 */
+      usePlaceholder?: boolean;
     };
     const userId = (body.userId ?? "").trim();
     const name = (body.name ?? "").trim();
@@ -179,38 +190,45 @@ export function registerCustomCharacterRoutes(
       return reply.code(400).send({ message: "userId、name、persona、tripoTaskId 为必填" });
     }
 
+    // Tripo 降级：显式 usePlaceholder，或前端生成的 local-fallback-* 任务号。
+    const usePlaceholder = shouldUsePlaceholderFinalize({ usePlaceholder: body.usePlaceholder, tripoTaskId });
+
     const id = `custom-${randomUUID()}`;
     const dir = pathResolve(ASSETS_ROOT, id);
     mkdirSync(dir, { recursive: true });
 
-    // 1. 查 Tripo 任务，确认 GLB 已生成。
-    let task;
-    try {
-      task = await getTask(tripoTaskId);
-    } catch (error) {
-      req.log.error(error, "finalize: getTask failed");
-      return reply.code(502).send({ message: "查询 Tripo 任务失败" });
-    }
-    const assetUrl = findAssetUrl(task);
-    if (!assetUrl) {
-      return reply.code(409).send({ message: "Tripo 模型尚未生成完成" });
-    }
-
-    // 2. 下载 GLB，归一化 + 全身判定后落盘。
-    try {
-      const res = await fetch(assetUrl, { signal: AbortSignal.timeout(60000) });
-      if (!res.ok) return reply.code(502).send({ message: `模型文件下载失败（${res.status}）` });
-      const bytes = Buffer.from(await res.arrayBuffer());
-      if (!bytes.length) return reply.code(502).send({ message: "模型文件为空" });
-      const { glb, assessment } = await normalizeCharacterModel(new Uint8Array(bytes));
-      if (assessment.notFullBody) {
-        rmSync(dir, { recursive: true, force: true });
-        return reply.code(422).send({ code: "NOT_FULL_BODY", message: assessment.warning });
+    // 1. 查 Tripo 任务并下载 GLB（降级模式跳过）。
+    let modelPath = "";
+    if (!usePlaceholder) {
+      let task;
+      try {
+        task = await getTask(tripoTaskId);
+      } catch (error) {
+        req.log.error(error, "finalize: getTask failed");
+        return reply.code(502).send({ message: "查询 Tripo 任务失败" });
       }
-      writeFileSync(pathResolve(dir, "model.glb"), Buffer.from(glb));
-    } catch (error) {
-      req.log.error(error, "finalize: download glb failed");
-      return reply.code(502).send({ message: "模型文件下载失败" });
+      const assetUrl = findAssetUrl(task);
+      if (!assetUrl) {
+        return reply.code(409).send({ message: "Tripo 模型尚未生成完成" });
+      }
+
+      // 2. 下载 GLB，归一化 + 全身判定后落盘。
+      try {
+        const res = await fetch(assetUrl, { signal: AbortSignal.timeout(60000) });
+        if (!res.ok) return reply.code(502).send({ message: `模型文件下载失败（${res.status}）` });
+        const bytes = Buffer.from(await res.arrayBuffer());
+        if (!bytes.length) return reply.code(502).send({ message: "模型文件为空" });
+        const { glb, assessment } = await normalizeCharacterModel(new Uint8Array(bytes));
+        if (assessment.notFullBody) {
+          rmSync(dir, { recursive: true, force: true });
+          return reply.code(422).send({ code: "NOT_FULL_BODY", message: assessment.warning });
+        }
+        writeFileSync(pathResolve(dir, "model.glb"), Buffer.from(glb));
+        modelPath = `custom-characters/${id}/model.glb`;
+      } catch (error) {
+        req.log.error(error, "finalize: download glb failed");
+        return reply.code(502).send({ message: "模型文件下载失败" });
+      }
     }
 
     // 3. 可选：解析头像 dataUrl 落盘。
@@ -240,7 +258,7 @@ export function registerCustomCharacterRoutes(
       tags: Array.isArray(body.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean) : [],
       persona,
       greeting: (body.greeting ?? "").trim(),
-      modelPath: `custom-characters/${id}/model.glb`,
+      modelPath,
       portraitPath,
       visibility: body.visibility === "public" ? "public" : "private",
       voice: isValidVoice(body.voice) ? (body.voice as string) : "",
