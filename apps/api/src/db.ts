@@ -94,6 +94,7 @@ function migrateCourtCasesTable(): void {  const cols: Array<[string, string]> =
     ["final_verdict", "TEXT DEFAULT ''"],
     ["plaintiff_complaint", "TEXT DEFAULT ''"],
     ["defendant_answer", "TEXT DEFAULT ''"],
+    ["player_side", 'TEXT DEFAULT ""'],
   ];
   for (const [col, def] of cols) {
     if (!tableHasColumn("cases", col)) {
@@ -1100,6 +1101,7 @@ type CourtCaseRow = {
   perspective: string;
   plaintiff_complaint?: string;
   defendant_answer?: string;
+  player_side?: string;
 };
 
 /** CourtCase + 前端展示用扩展（起诉状/答辩状文书，非 shared 字段）。 */
@@ -1138,6 +1140,7 @@ export function rowToCourtCase(row: CourtCaseRow): CourtCaseWithDocs {
     updatedAt: row.updated_at || row.created_at,
     plaintiff_complaint: row.plaintiff_complaint || "",
     defendant_answer: row.defendant_answer || "",
+    player_side: row.player_side === "plaintiff" || row.player_side === "defendant" ? row.player_side : undefined,
   };
 }
 
@@ -1233,6 +1236,14 @@ export function updateCourtCaseDocs(
   initDb();
   db.prepare("UPDATE cases SET plaintiff_complaint = ?, defendant_answer = ?, updated_at = ? WHERE id = ?").run(
     docs.plaintiffComplaint ?? "", docs.defendantAnswer ?? "", new Date().toISOString(), id,
+  );
+}
+
+/** 保存玩家选择扮演的一方（原告/被告）。 */
+export function updateCourtCasePlayerSide(id: string, playerSide: "plaintiff" | "defendant"): void {
+  initDb();
+  db.prepare("UPDATE cases SET player_side = ?, updated_at = ? WHERE id = ?").run(
+    playerSide, new Date().toISOString(), id,
   );
 }
 
