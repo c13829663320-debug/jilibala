@@ -5,13 +5,18 @@
 
 import type { EmoteType } from '@balabala/shared'
 
-export type AnimState = 'idle' | 'talking' | 'wave' | 'nod' | 'shake' | 'point' | 'clap' | 'laugh' | 'surprised'
+export type AnimState =
+  | 'idle' | 'talking'
+  | 'wave' | 'nod' | 'shake' | 'point' | 'clap' | 'laugh' | 'surprised'
+  | 'walking' | 'running'
 
 /** 状态机事件 */
 export type AnimEvent =
   | { type: 'talk_start' }
   | { type: 'talk_end' }
   | { type: 'emote'; emote: EmoteType; durationMs?: number }
+  | { type: 'move_start'; mode?: 'walk' | 'run' }
+  | { type: 'move_end' }
 
 /** 姿势参数表：取值 0~1 或弧度，由 rig 解释 */
 export type Pose = Record<string, number>
@@ -45,6 +50,10 @@ interface MachineInternal {
   emoteStartAt: number
   /** 当前 emote 总时长 */
   emoteDuration: number
+  /** 是否正在移动（走路/跑步），与视觉状态解耦 */
+  moving: boolean
+  /** 移动模式（moving=true 时生效） */
+  moveMode: 'walk' | 'run'
 }
 
 export interface AnimationMachine {
@@ -69,10 +78,19 @@ export function createAnimationMachine(): AnimationMachine {
     talking: false,
     emoteStartAt: 0,
     emoteDuration: 0,
+    moving: false,
+    moveMode: 'walk',
   }
 
   const inEmote = () => m.state === 'wave' || m.state === 'nod' || m.state === 'shake' ||
     m.state === 'point' || m.state === 'clap' || m.state === 'laugh' || m.state === 'surprised'
+
+  /** emote/移动结束后应回归的「静息」状态：说话 > 移动 > idle */
+  const restingState = (): AnimState => {
+    if (m.talking) return 'talking'
+    if (m.moving) return m.moveMode === 'run' ? 'running' : 'walking'
+    return 'idle'
+  }
 
   return {
     get state() {
@@ -83,17 +101,29 @@ export function createAnimationMachine(): AnimationMachine {
       switch (event.type) {
         case 'talk_start': {
           m.talking = true
-          // emote 播放期间不打断，仅记录意图
-          if (!inEmote()) m.state = 'talking'
+          // emote 播放期间不打断；移动中也保持移动视觉，仅记录说话意图
+          if (!inEmote() && !m.moving) m.state = 'talking'
           break
         }
         case 'talk_end': {
           m.talking = false
-          if (!inEmote()) m.state = 'idle'
+          if (!inEmote() && !m.moving) m.state = 'idle'
+          break
+        }
+        case 'move_start': {
+          m.moving = true
+          m.moveMode = event.mode === 'run' ? 'run' : 'walk'
+          // emote 播放期间不打断（手势优先）；否则进入移动态
+          if (!inEmote()) m.state = m.moveMode === 'run' ? 'running' : 'walking'
+          break
+        }
+        case 'move_end': {
+          m.moving = false
+          if (!inEmote()) m.state = m.talking ? 'talking' : 'idle'
           break
         }
         case 'emote': {
-          // 新 emote 可打断旧 emote，重新计时
+          // 新 emote 可打断旧 emote / 移动，重新计时
           const dur = event.durationMs ?? EMOTE_DEFAULT_DURATION[event.emote]
           m.state = EMOTE_TO_STATE[event.emote]
           m.emoteStartAt = now
@@ -106,7 +136,7 @@ export function createAnimationMachine(): AnimationMachine {
     update(now) {
       if (!inEmote()) return
       if (now - m.emoteStartAt >= m.emoteDuration) {
-        m.state = m.talking ? 'talking' : 'idle'
+        m.state = restingState()
       }
     },
 
@@ -205,6 +235,26 @@ export function getPose(state: AnimState, elapsedMs: number): Pose {
       pose.jawOpen = 0.7
       pose.bodyLean = 0.2
       pose.eyeOpen = 1.1
+      break
+    }
+    case 'walking': {
+      // 走路：身体上下起伏（步频 ~ 550ms/步），双臂反相摆动
+      const t = elapsedMs / 550
+      pose.bounce = Math.abs(Math.sin(t * Math.PI)) * 0.06
+      pose.armSwingL = Math.sin(t * Math.PI * 2) * 0.4
+      pose.armSwingR = -Math.sin(t * Math.PI * 2) * 0.4
+      pose.bodyLean = 0.08
+      break
+    }
+    case 'running': {
+      // 跑步：更快更大的起伏，抬臂前倾
+      const t = elapsedMs / 320
+      pose.bounce = Math.abs(Math.sin(t * Math.PI)) * 0.12
+      pose.armSwingL = Math.sin(t * Math.PI * 2) * 0.8
+      pose.armSwingR = -Math.sin(t * Math.PI * 2) * 0.8
+      pose.armRaiseL = 0.35
+      pose.armRaiseR = 0.35
+      pose.bodyLean = 0.22
       break
     }
   }

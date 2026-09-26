@@ -16,7 +16,6 @@ import InterestPicker from './onboarding/InterestPicker'
 import QuickStartCard from './onboarding/QuickStartCard'
 import FirstTimeGuide from './onboarding/FirstTimeGuide'
 import './onboarding/onboarding.css'
-import PwaUpdatePrompt from './pwa-update'
 import {
   FIRST_TIME_STEPS,
   INTEREST_SCENE_MAP,
@@ -32,6 +31,7 @@ import {
 } from './onboarding/onboardingProgress'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
+const CharacterHallUnified = lazy(() => import('./character/CharacterHallUnified'))
 const CustomCharacterStudio = lazy(() => import('./CustomCharacterStudio'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
 const MultiplayerLobby = lazy(() => import('./MultiplayerLobby'))
@@ -43,10 +43,11 @@ const GymShell = lazy(() => import('./GymShell'))
 const SceneStudio = lazy(() => import('./scene-studio/SceneStudio'))
 const MyScenes = lazy(() => import('./scene-studio/MyScenes'))
 const ScenePlay = lazy(() => import('./scene-studio/ScenePlay'))
+const AvatarStudioV2 = lazy(() => import('./avatar/AvatarStudioV2'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play'
-  | 'onboarding-interest' | 'onboarding-quickstart' | 'multiplayer-lobby'
+type View = TopView | 'entry' | 'avatar' | 'avatar-v2' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play'
+  | 'onboarding-interest' | 'onboarding-quickstart' | 'multiplayer-lobby' | 'characters-unified'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -204,7 +205,20 @@ function AppInner() {
 
   // ===== 3D 分身工坊（全屏子工具，无顶栏） =====
   if (view === 'avatar') {
-    return <AvatarStudio onBack={() => setView('court')} onEnterCourt={() => setView('court')} />
+    return <>
+      <AvatarStudio onBack={() => setView('court')} onEnterCourt={() => setView('court')} />
+      <button
+        onClick={() => setView('avatar-v2')}
+        style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 50, background: '#4fb3a5', color: '#122', border: 'none', borderRadius: 999, padding: '10px 16px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}
+      >
+        换装工坊 ↗
+      </button>
+    </>
+  }
+
+  // ===== 换装/配色/配饰工坊（R3F 实时预览，全屏） =====
+  if (view === 'avatar-v2') {
+    return <LazyScene component={AvatarStudioV2} label="换装工坊" props={{ onBack: () => setView('avatar') }} />
   }
 
   const navProps = {
@@ -237,6 +251,12 @@ function AppInner() {
           },
         }} />
     </>
+  }
+
+  // ===== 统一人物馆（分片6: 名人 + 公开自定义人物混合，纯 DOM 页） =====
+  if (view === 'characters-unified') {
+    return <LazyScene component={CharacterHallUnified} label="人物馆"
+      props={{ onBack: () => setView('characters') }} />
   }
 
   // ===== 自定义人物创建向导（懒加载） =====
@@ -365,7 +385,7 @@ function AppInner() {
   if (view === 'mypage') {
     return <>
       <TopNav {...navProps} currentView="mypage" />
-      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} onEnterGym={() => setView('gym')} onCustomCharacter={() => setView('custom-studio')} onAvatarStudio={() => setView('avatar')} onArchive={() => openArchives('mypage')} />
+      <MyPage onBack={() => setView('entry')} onCourt={(input) => { if (input) setCaseText(input); setView('court') }} onPlaza={() => setView('plaza')} onVideo={() => setView('video')} onEnterGym={() => setView('gym')} onCustomCharacter={() => setView('custom-studio')} onAvatarStudio={() => setView('avatar')} onArchive={() => openArchives('mypage')} onOpenCharactersUnified={() => setView('characters-unified')} />
     </>
   }
 
@@ -435,7 +455,6 @@ function App() {
       <ErrorBoundary>
         <AppInner />
       </ErrorBoundary>
-      <PwaUpdatePrompt />
     </IdentityProvider>
   )
 }

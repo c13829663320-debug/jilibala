@@ -175,7 +175,12 @@ function Booth({ entry, index, angleDist, active, hovered, near, onHover, onPick
       </mesh>
 
       {/* 人物：近处加载真实 GLB，远处/无模型用占位人形；创建入口渲染 + 号门户。
-          本地 rotationY=booth.rotationY 使角色面朝圆心；整圈 group 旋转后居中者正对相机。 */}
+          本地 rotationY=booth.rotationY 使角色面朝圆心；整圈 group 旋转后居中者正对相机。
+          [LOD-INTEGRATION 分片3]：本人物馆相机固定在圈外正面，远端展台天然处于远距离。
+          当前用 LOAD_NEARBY(=±4) 控制是否加载高模 GLB（即 LOD0），圈外展台渲染
+          NeutralMannequin（≈LOD2 胶囊体）。如需按相机距离动态降级，可把下面的
+          <NeutralMannequin/> 替换为 <LodAvatar modelUrl={entry.character.model} .../>，
+          由 avatar-lod.ts 的四级阈值自动切换高模/简化体/裁剪。 */}
       <group ref={modelGroup} rotation={[0, booth.rotationY, 0]}>
         {isCreate ? (
           <CreatePortal active={active} />

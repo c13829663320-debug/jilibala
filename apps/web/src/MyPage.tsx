@@ -7,6 +7,8 @@ import {
 import type { CertRecord as ApiCertRecord, MsgRecord as ApiMsgRecord, GymStats, GymAchievement } from '@balabala/shared'
 import { useIdentity } from './identity'
 import { useVoiceEnabled } from './voice-settings'
+import { fetchFollowing, fetchPlayerProfile } from './character/useUnifiedCharacters'
+import type { CharacterProfile, PlayerPublicProfile } from '@balabala/shared'
 import {
   usePlayerProfile, PlayerProfileCard, StatsOverview, SceneStatsGrid,
   AchievementWall, DailyChallengeCard,
@@ -53,6 +55,8 @@ export type MyPageProps = {
   onAvatarStudio?: () => void
   /** 案卷库（历史庭审记录） */
   onArchive?: () => void
+  /** 分片6: 统一人物馆（名人 + 公开自定义人物） */
+  onOpenCharactersUnified?: () => void
 }
 
 /* ---------- storage helpers ---------- */
@@ -164,7 +168,7 @@ function CertificateSvg({ cert }: { cert: CertRecord }) {
 }
 
 /* ---------- main component ---------- */
-export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, onCustomCharacter, onAvatarStudio, onArchive }: MyPageProps) {
+export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, onCustomCharacter, onAvatarStudio, onArchive, onOpenCharactersUnified }: MyPageProps) {
   const { user, updateProfile } = useIdentity()
   const userId = user?.userId ?? ''
   const myProfile = usePlayerProfile()
@@ -184,6 +188,9 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, 
   const [nameDraft, setNameDraft] = useState(username)
   const [gymStats, setGymStats] = useState<GymStats | null>(null)
   const [gymBadges, setGymBadges] = useState<GymAchievement[]>([])
+  // 分片6: 玩家公开档案统计 + 我关注的人物
+  const [publicProfile, setPublicProfile] = useState<PlayerPublicProfile | null>(null)
+  const [followedChars, setFollowedChars] = useState<CharacterProfile[]>([])
   // 头像上传
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [avatarBusy, setAvatarBusy] = useState(false)
@@ -281,6 +288,24 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, 
         if (cancelled) return
         if (s) setGymStats(s)
         if (a) setGymBadges(a.achievements ?? [])
+      } catch { /* 后端未就绪 */ }
+    })()
+    return () => { cancelled = true }
+  }, [userId])
+
+  // 分片6: 拉取玩家公开档案统计 + 我关注的人物
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [pp, following] = await Promise.all([
+          fetchPlayerProfile(userId),
+          fetchFollowing(userId),
+        ])
+        if (cancelled) return
+        if (pp) setPublicProfile(pp)
+        setFollowedChars(following)
       } catch { /* 后端未就绪 */ }
     })()
     return () => { cancelled = true }
@@ -458,7 +483,40 @@ export default function MyPage({ onBack, onCourt, onPlaza, onVideo, onEnterGym, 
               <ChevronRight size={16} className="profile-action-card__chev" />
             </button>
           )}
+          {onOpenCharactersUnified && (
+            <button type="button" className="profile-action-card" onClick={onOpenCharactersUnified}>
+              <span className="profile-action-card__icon"><Users size={18} /></span>
+              <span className="profile-action-card__text">
+                <b>人物馆</b>
+                <small>{publicProfile ? `${publicProfile.customCharacterCount} 个分身 · 关注 ${publicProfile.followingCount} 人` : '探索名人与公开分身'}</small>
+              </span>
+              <ChevronRight size={16} className="profile-action-card__chev" />
+            </button>
+          )}
         </div>
+
+        {/* ---------- 分片6: 我关注的人物 ---------- */}
+        {followedChars.length > 0 && (
+          <section className="profile-section" style={{ marginTop: 16 }}>
+            <div className="profile-section-head">
+              <h2>我关注的人物</h2>
+              <span className="profile-section-count">{followedChars.length} 位</span>
+            </div>
+            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+              {followedChars.map((c) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#141414', borderRadius: 10, padding: 8 }}>
+                  {c.portrait
+                    ? <img src={c.portrait} alt={c.name} style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
+                    : <span style={{ width: 36, height: 36, borderRadius: 8, display: 'grid', placeItems: 'center', background: '#2d2440', color: '#4fb3a5' }}>{c.name[0]}</span>}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: '#6a6d64' }}>{c.source === 'custom' ? '自定义' : '名人'} · {c.followers} 关注</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ---------- Tabs ---------- */}
         <div className="profile-tabs" role="tablist">

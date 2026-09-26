@@ -12,6 +12,9 @@ import * as THREE from 'three'
 import type { BuildingConfig, RemotePlayer, WorldManifest, WorldRuntime } from './types'
 import { BUILDINGS, FOUNTAIN, WORLD_HALF } from './config'
 import { RemoteAvatar } from '../avatar/RemoteAvatar'
+import { LodAvatar } from '../avatar/LodAvatar'
+import { horizontalDistance, DEFAULT_LOD_CONFIG } from '../avatar/avatar-lod'
+import { hashColor } from '../identity'
 
 // ---------------------------------------------------------------------------
 // 确定性伪随机（让植被布局每次加载一致，不随渲染抖动）
@@ -219,6 +222,30 @@ function Nature() {
 // ---------------------------------------------------------------------------
 // 主场景
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 远端玩家（LOD 分层渲染）
+// ---------------------------------------------------------------------------
+// [LOD-INTEGRATION] 分片3：距离本地玩家近 → 完整 RemoteAvatar（口型/手势/名牌）；
+// 中远距离 → 轻量化 LodAvatar（程序化简化体，阴影/动画抽帧）；
+// 超过 maxRenderDistance → 完全不渲染（distance cull）。
+function LodPresencePlayer({ uid, playersRef }: { uid: string; playersRef: MutableRefObject<Map<string, RemotePlayer>> }) {
+  const rootRef = useRef<THREE.Group>(null)
+  const initial = playersRef.current.get(uid)
+  useFrame(() => {
+    const p = playersRef.current.get(uid)
+    const g = rootRef.current
+    if (!p || !g) return
+    g.position.x = THREE.MathUtils.lerp(g.position.x, p.targetX, 0.12)
+    g.position.z = THREE.MathUtils.lerp(g.position.z, p.targetZ, 0.12)
+  })
+  if (!initial) return null
+  return (
+    <group ref={rootRef} position={[initial.x, 0, initial.z]}>
+      <LodAvatar position={[0, 0, 0]} rotation={initial.rotation} color={hashColor(uid)} />
+    </group>
+  )
+}
+
 interface WorldSceneProps {
   world: WorldRuntime
   manifest: WorldManifest | null
@@ -287,10 +314,19 @@ export default function WorldScene({ world, manifest, playersRef, remoteUserIds 
       {/* 边界山（一圈大锥，视觉上封闭世界） */}
       <BoundaryMountains />
 
-      {/* 远端玩家 */}
-      {remoteUserIds.map((uid) => (
-        <RemoteAvatar key={uid} userId={uid} playersRef={playersRef} />
-      ))}
+      {/* 远端玩家：近距用完整化身，中距用 LOD 简化体，超远距离裁剪不渲染 */}
+      {remoteUserIds.map((uid) => {
+        const p = playersRef.current.get(uid)
+        if (!p) return null
+        const dist = horizontalDistance(world.player.x, world.player.z, p.targetX, p.targetZ)
+        // distance cull：超过最大渲染距离，完全跳过渲染
+        if (dist >= DEFAULT_LOD_CONFIG.maxRenderDistance) return null
+        // 中远距离：轻量化 LodAvatar（省掉口型/手势状态机开销）
+        if (dist >= DEFAULT_LOD_CONFIG.midDistance) {
+          return <LodPresencePlayer key={uid} uid={uid} playersRef={playersRef} />
+        }
+        return <RemoteAvatar key={uid} userId={uid} playersRef={playersRef} />
+      })}
     </>
   )
 }

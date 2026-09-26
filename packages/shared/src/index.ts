@@ -744,3 +744,89 @@ export * from "./library-quiz.js";
 
 // ===== 自定义场景工作室 =====
 export * from "./scene-studio.js";
+
+// ===== 分片5: 屏蔽 / 静音 / 举报 =====
+/** 一条屏蔽关系：blockerId 屏蔽了 targetId。 */
+export interface BlockRelation {
+  id: string;
+  blockerId: string;
+  targetId: string;
+  reason?: string;
+  createdAt: string;
+}
+
+/** 一条静音关系：muterId 静音了 targetId 的语音。 */
+export interface MuteRelation {
+  id: string;
+  muterId: string;
+  targetId: string;
+  reason?: string;
+  createdAt: string;
+}
+
+/** 举报目标类型：用户化身或聊天内容。 */
+export type ReportTargetType = "user" | "content" | "avatar";
+
+/** 举报处理状态。 */
+export type ReportStatus = "pending" | "reviewing" | "resolved" | "dismissed";
+
+/** 一条举报记录。 */
+export interface Report {
+  id: string;
+  reporterId: string;
+  targetType: ReportTargetType;
+  targetId: string;
+  reason: string;
+  detail?: string;
+  status: ReportStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ===== 分片6: 统一人物档案 =====
+/** 人物来源：预置名人 或 用户自定义。 */
+export type CharacterSource = "celebrity" | "custom";
+
+/** 统一人物档案：名人与自定义人物归一后的对外视图（不含 persona）。 */
+export interface CharacterProfile {
+  id: string;
+  name: string;
+  title: string;
+  intro: string;
+  tags: string[];
+  portrait: string;
+  model?: string;
+  voice?: string;
+  source: CharacterSource;
+  /** 自定义人物的创建者 userId；名人为空。 */
+  author?: string;
+  /** 名人领域（科技/商业/...），自定义人物可空。 */
+  field?: string;
+  /** 名人年代·国籍，自定义人物可空。 */
+  era?: string;
+  /** 关注者数量（服务端聚合）。 */
+  followers: number;
+  /** 自定义人物公开时为 public；名人恒为 public。 */
+  visibility?: "private" | "public";
+}
+
+/** 关注关系：userId 关注了 characterId。 */
+export interface FollowRelation {
+  id: string;
+  userId: string;
+  characterId: string;
+  createdAt: string;
+}
+
+/** 玩家公开档案。 */
+export interface PlayerPublicProfile {
+  userId: string;
+  nickname: string;
+  avatarType: string;
+  avatarRef: string;
+  createdAt: string;
+  /** 该玩家创建的公开自定义人物数。 */
+  customCharacterCount: number;
+  /** 该玩家关注的人物数。 */
+  followingCount: number;
+}

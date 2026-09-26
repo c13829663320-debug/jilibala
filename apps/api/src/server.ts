@@ -20,11 +20,12 @@ import { setGymChat } from './gym-orchestrator.js';
 import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { registerCourtRoutes } from './court-routes.js';
 import { registerRoomRoutes } from './room-routes.js';
+import { registerModerationRoutes } from './moderation-routes.js';
+import { registerCharacterProfileRoutes } from './character-profile-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
-import { metrics } from './metrics.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
 for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
@@ -39,63 +40,6 @@ const app = Fastify({ logger: true, bodyLimit: 20 * 1024 * 1024 });
 await app.register(cors, { origin: true });
 await app.register(import('@fastify/websocket'));
 registerWebSocket(app);
-
-// ===== 版本与启动时间（健康检查 /metrics 使用）=====
-const APP_VERSION = process.env.APP_VERSION ?? '0.1.0';
-const STARTED_AT = new Date().toISOString();
-
-// ===== HTTP 指标采集：onRequest 记录起点，onResponse 上报延迟与状态码 =====
-// route 用 request.routeOptions.url（路由模式，如 /api/users/:id），避免高基数。
-app.addHook('onRequest', async (req) => {
-  (req as any)._hrstart = process.hrtime.bigint();
-});
-app.addHook('onResponse', async (req, reply) => {
-  const start = (req as any)._hrstart as bigint | undefined;
-  if (start) {
-    const durationSec = Number(process.hrtime.bigint() - start) / 1e9;
-    const route = (req.routeOptions as { url?: string }).url ?? req.url;
-    metrics.observeHttp(req.method, route, reply.statusCode, durationSec);
-  }
-  if (reply.statusCode >= 500) metrics.tickError();
-});
-
-// ===== /healthz（存活）：进程在跑即可，不探测依赖 =====
-app.get('/healthz', async () => ({
-  status: 'ok',
-  service: 'balabala-api',
-  version: APP_VERSION,
-  uptime: process.uptime(),
-  time: new Date().toISOString(),
-}));
-
-// ===== /readyz（就绪）：必须能连库且可写，否则返回 503 让负载均衡摘流 =====
-app.get('/readyz', async (_req, reply) => {
-  let dbStatus: 'ok' | 'error' = 'ok';
-  let dbError: string | undefined;
-  try {
-    // 写探测：建一张探针表并 INSERT/DELETE，验证 SQLite 文件可写（含磁盘配额/锁）。
-    db.db.exec('CREATE TABLE IF NOT EXISTS _health_probe (id INTEGER PRIMARY KEY, t INTEGER NOT NULL)');
-    db.db.prepare('INSERT OR REPLACE INTO _health_probe (id, t) VALUES (1, ?)').run(Date.now());
-    db.db.prepare('DELETE FROM _health_probe WHERE id = 1').run();
-  } catch (error) {
-    dbStatus = 'error';
-    dbError = (error as Error).message;
-  }
-  const ready = dbStatus === 'ok';
-  if (!ready) reply.code(503);
-  return {
-    status: ready ? 'ok' : 'error',
-    version: APP_VERSION,
-    uptime: process.uptime(),
-    dependencies: { db: dbStatus, ...(dbError ? { dbError } : {}) },
-  };
-});
-
-// ===== /metrics：Prometheus 文本格式（零依赖实现）=====
-app.get('/metrics', async (_req, reply) => {
-  reply.header('content-type', 'text/plain; version=0.0.4; charset=utf-8');
-  return metrics.render();
-});
 
 type CaseRecord = StoredCase & { createdAt: string; shareToken?: string; userId?: string };
 const cases = new Map<string, CaseRecord>();
@@ -137,20 +81,10 @@ async function withLlmSlot<T>(fn: () => Promise<T>): Promise<T> {
     await new Promise<void>((resolve) => { llmQueue.push(resolve); });
   }
   llmActive += 1;
-  metrics.llmActive = llmActive;
-  metrics.llmQueueSize = llmQueue.length;
-  try {
-    const result = await fn();
-    metrics.llmCall(true);
-    return result;
-  } catch (error) {
-    metrics.llmCall(false);
-    throw error;
-  } finally {
+  try { return await fn(); }
+  finally {
     llmActive -= 1;
-    metrics.llmActive = llmActive;
     const next = llmQueue.shift();
-    metrics.llmQueueSize = llmQueue.length;
     if (next) next();
   }
 }
@@ -1065,6 +999,12 @@ registerCourtRoutes(app, { chat: chatWithProviders, contents, saveContents });
 
 // ===== Round3: 真人多人社交房间 REST =====
 registerRoomRoutes(app);
+
+// ===== 分片5: 屏蔽/静音/举报 =====
+registerModerationRoutes(app);
+
+// ===== 分片6: 统一人物档案 + 关注 =====
+registerCharacterProfileRoutes(app);
 
 // ===== 自定义场景工作室 =====
 registerSceneStudioRoutes(app, { chat: chatWithProviders });

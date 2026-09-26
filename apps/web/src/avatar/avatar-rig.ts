@@ -23,6 +23,13 @@ export interface AvatarRig {
   armL?: THREE.Object3D
   armR?: THREE.Object3D
   body?: THREE.Object3D
+  /** 程序化眉/眼/手节点（缺失时自动创建），供表情/眨眼/手势驱动 */
+  browL?: THREE.Object3D
+  browR?: THREE.Object3D
+  eyeL?: THREE.Object3D
+  eyeR?: THREE.Object3D
+  handL?: THREE.Object3D
+  handR?: THREE.Object3D
 }
 
 /** 常见 blendshape 名（大小写不敏感匹配） */
@@ -142,6 +149,54 @@ export function createRig(group: THREE.Group): AvatarRig {
   }
   rig.body = rig.bones.get('body') ?? group
 
+  // 4) 程序化眉/眼/手节点：缺失即建（procedural 与 skeleton 模式都补，便于表情/眨眼/手势）
+  if (rig.head) {
+    if (!rig.head.getObjectByName('__rig_browL')) {
+      const browL = new THREE.Object3D()
+      browL.name = '__rig_browL'
+      browL.position.set(-0.08, 0.12, 0.18)
+      browL.userData.baseY = browL.position.y
+      rig.head.add(browL)
+      rig.browL = browL
+    }
+    if (!rig.head.getObjectByName('__rig_browR')) {
+      const browR = new THREE.Object3D()
+      browR.name = '__rig_browR'
+      browR.position.set(0.08, 0.12, 0.18)
+      browR.userData.baseY = browR.position.y
+      rig.head.add(browR)
+      rig.browR = browR
+    }
+    if (!rig.head.getObjectByName('__rig_eyeL')) {
+      const eyeL = new THREE.Object3D()
+      eyeL.name = '__rig_eyeL'
+      eyeL.position.set(-0.08, 0.02, 0.2)
+      rig.head.add(eyeL)
+      rig.eyeL = eyeL
+    }
+    if (!rig.head.getObjectByName('__rig_eyeR')) {
+      const eyeR = new THREE.Object3D()
+      eyeR.name = '__rig_eyeR'
+      eyeR.position.set(0.08, 0.02, 0.2)
+      rig.head.add(eyeR)
+      rig.eyeR = eyeR
+    }
+  }
+  if (rig.armL && !rig.armL.getObjectByName('__rig_handL')) {
+    const handL = new THREE.Object3D()
+    handL.name = '__rig_handL'
+    handL.position.set(0, -0.35, 0)
+    rig.armL.add(handL)
+    rig.handL = handL
+  }
+  if (rig.armR && !rig.armR.getObjectByName('__rig_handR')) {
+    const handR = new THREE.Object3D()
+    handR.name = '__rig_handR'
+    handR.position.set(0, -0.35, 0)
+    rig.armR.add(handR)
+    rig.handR = handR
+  }
+
   return rig
 }
 
@@ -180,13 +235,49 @@ export function applyPose(rig: AvatarRig, pose: Record<string, number>): void {
 
   // —— 手臂 ——
   if (armL) {
-    // armRaise 抬起（绕 z 轴外展），armSwing 前后摆（绕 x 轴）
+    // armRaise 抬起（绕 z 轴外展），armSwing 前后摆（绕 x 轴），armTwist 扭转（绕 y 轴）
     if (pose.armRaiseL !== undefined) armL.rotation.z = pose.armRaiseL * -Math.PI * 0.7
     if (pose.armSwingL !== undefined) armL.rotation.x = pose.armSwingL
+    if (pose.armTwistL !== undefined) armL.rotation.y = pose.armTwistL
   }
   if (armR) {
     if (pose.armRaiseR !== undefined) armR.rotation.z = pose.armRaiseR * Math.PI * 0.7
     if (pose.armSwingR !== undefined) armR.rotation.x = pose.armSwingR
+    if (pose.armTwistR !== undefined) armR.rotation.y = pose.armTwistR
+  }
+
+  // —— 手（程序化握拳/手腕）——
+  if (rig.handL && pose.handGripL !== undefined) {
+    rig.handL.rotation.x = pose.handGripL * 1.2 // 握拳时屈腕
+  }
+  if (rig.handR && pose.handGripR !== undefined) {
+    rig.handR.rotation.x = pose.handGripR * 1.2
+  }
+  if (rig.handL && pose.handPitchL !== undefined) rig.handL.rotation.z = pose.handPitchL
+  if (rig.handR && pose.handPitchR !== undefined) rig.handR.rotation.z = -pose.handPitchR
+
+  // —— 眉：blendshape 优先；否则程序化上下平移 ——
+  if (pose.browRaise !== undefined) {
+    setBlendShape(rig, 'browUpLeft', pose.browRaise)
+    setBlendShape(rig, 'browUpRight', pose.browRaise)
+    if (rig.browL && rig.browR) {
+      const baseL = (rig.browL.userData.baseY as number) ?? rig.browL.position.y
+      const baseR = (rig.browR.userData.baseY as number) ?? rig.browR.position.y
+      const d = pose.browRaise * 0.06
+      rig.browL.position.y = baseL + d
+      rig.browR.position.y = baseR + d
+    }
+  }
+
+  // —— 眼：眨眼（程序化缩放 y）；blendshape 眨眼写 eyeBlink ——
+  if (pose.eyeOpen !== undefined) {
+    const open = Math.min(1.4, Math.max(0, pose.eyeOpen))
+    if (rig.eyeL) rig.eyeL.scale.y = open
+    if (rig.eyeR) rig.eyeR.scale.y = open
+    // 1 - open 作为眨眼权重写到 blendshape（open=1 时权重 0）
+    const blink = Math.min(1, Math.max(0, 1 - open))
+    if (rig.blendshapes.has('eyeBlinkLeft')) setBlendShape(rig, 'eyeBlinkLeft', blink)
+    if (rig.blendshapes.has('eyeBlinkRight')) setBlendShape(rig, 'eyeBlinkRight', blink)
   }
 
   // —— 身体 ——

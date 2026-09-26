@@ -125,3 +125,54 @@ describe('getPose', () => {
     expect(getPose('surprised', 0).browRaise).toBeGreaterThan(0.5)
   })
 })
+
+describe('动画状态机：走路/跑步', () => {
+  it('idle → move_start → walking', () => {
+    const m = createAnimationMachine()
+    m.transition({ type: 'move_start' }, 0)
+    expect(m.state).toBe('walking')
+  })
+
+  it('move_start mode=run → running', () => {
+    const m = createAnimationMachine()
+    m.transition({ type: 'move_start', mode: 'run' }, 0)
+    expect(m.state).toBe('running')
+  })
+
+  it('move_end 回归 idle', () => {
+    const m = createAnimationMachine()
+    m.transition({ type: 'move_start' }, 0)
+    m.transition({ type: 'move_end' }, 100)
+    expect(m.state).toBe('idle')
+  })
+
+  it('移动中 talk_start 不打断移动，talk_end 后仍回移动态', () => {
+    const m = createAnimationMachine()
+    m.transition({ type: 'move_start', mode: 'run' }, 0)
+    expect(m.state).toBe('running')
+    m.transition({ type: 'talk_start' }, 50)
+    expect(m.state).toBe('running') // 视觉不切走
+    m.transition({ type: 'talk_end' }, 100)
+    expect(m.state).toBe('running') // 仍在移动
+    m.transition({ type: 'move_end' }, 150)
+    expect(m.state).toBe('idle')
+  })
+
+  it('移动中 emote 打断，结束后回到移动态', () => {
+    const m = createAnimationMachine()
+    m.transition({ type: 'move_start', mode: 'run' }, 0)
+    m.transition({ type: 'emote', emote: 'wave', durationMs: 800 }, 50)
+    expect(m.state).toBe('wave')
+    m.update(900)
+    expect(m.state).toBe('running') // 仍在移动 → 回 running
+  })
+
+  it('走路姿势有起伏与摆臂，跑步幅度更大', () => {
+    const walk = getPose('walking', 200)
+    expect(walk.bounce).not.toBe(0)
+    expect(walk.armSwingL).not.toBe(walk.armSwingR) // 双臂反相
+    const run = getPose('running', 200)
+    expect(run.bounce).toBeGreaterThan(walk.bounce)
+    expect(run.bodyLean).toBeGreaterThan(walk.bodyLean)
+  })
+})

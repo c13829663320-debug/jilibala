@@ -23,6 +23,7 @@ import {
 import { resolveCharacter } from "./character-resolver.js";
 import { loadCharacterSkill, buildSystemPrompt } from "./character-skill.js";
 import { normalizeCharacterModel } from "./normalize-character-model.js";
+import { validateGlb } from "./glb-validator.js";
 
 /** 运行时自定义人物文件根目录：.data/custom-characters/<id>/<filename>。 */
 const ASSETS_ROOT = pathResolve(process.cwd(), ".data", "custom-characters");
@@ -218,6 +219,20 @@ export function registerCustomCharacterRoutes(
         if (!res.ok) return reply.code(502).send({ message: `模型文件下载失败（${res.status}）` });
         const bytes = Buffer.from(await res.arrayBuffer());
         if (!bytes.length) return reply.code(502).send({ message: "模型文件为空" });
+
+        // 2a. GLB 导入校验：容器结构 / 骨骼 / PBR / 贴图引用 / 三角面数。
+        // 校验失败（含 error）一律不落盘，返回 422，避免脏模型进 .data。
+        const validation = validateGlb(new Uint8Array(bytes));
+        if (!validation.valid) {
+          req.log.warn({ issues: validation.issues }, "finalize: GLB validation failed");
+          rmSync(dir, { recursive: true, force: true });
+          return reply.code(422).send({
+            code: "INVALID_GLB",
+            message: "模型文件未通过导入校验",
+            issues: validation.issues.map((i) => ({ code: i.code, message: i.message })),
+          });
+        }
+
         const { glb, assessment } = await normalizeCharacterModel(new Uint8Array(bytes));
         if (assessment.notFullBody) {
           rmSync(dir, { recursive: true, force: true });

@@ -17,6 +17,8 @@ import MobileControls, { isTouchDevice } from './world/MobileControls'
 import SceneSelect from './world/SceneSelect'
 import { SCENE_LABELS } from './onboarding/onboardingProgress'
 import { useSpatialVoice } from './voice/useSpatialVoice'
+import { useModeration } from './moderation/useModeration'
+import { AvatarContextMenu, type MenuTarget } from './moderation/AvatarContextMenu'
 import './plaza-3d.css'
 import './onboarding/onboarding.css'
 
@@ -160,7 +162,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             break
           }
           case 'chat':
-            toast(`${msg.nickname}: ${msg.text}`)
+            // 分片5: 屏蔽用户的聊天消息本地过滤
+            if (!blockedIdsRef.current.has(msg.userId)) toast(`${msg.nickname}: ${msg.text}`)
             break
           case 'error':
             break
@@ -263,6 +266,20 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
     enabled: true,
   })
 
+  // ===== 分片5: 屏蔽 / 静音 / 举报 =====
+  // 屏蔽：被屏蔽用户的化身不渲染（见下方 visibleUserIds），聊天消息被过滤；
+  // 静音：被静音用户的语音在空间音频图里应被 gain=0（见 useSpatialVoice 接入点注释）。
+  const moderation = useModeration(user?.userId ?? '')
+  const [menu, setMenu] = useState<{ open: boolean; target: MenuTarget | null; x: number; y: number }>({
+    open: false, target: null, x: 0, y: 0,
+  })
+  // blockedIds 在 WS onmessage 闭包里用，用 ref 保持最新，避免重连
+  const blockedIdsRef = useRef(moderation.blockedIds)
+  blockedIdsRef.current = moderation.blockedIds
+
+  // 被屏蔽的远端化身从渲染列表中剔除（等价于「半透明隐藏」的彻底版）
+  const visibleUserIds = remoteUserIds.filter((id) => !moderation.blockedIds.has(id))
+
   // 本地说话强度 → 节流广播给远端（驱动远端口型）
   useEffect(() => {
     localTalkingLevelRef.current = voice.isSpeaking ? 0.4 : 0
@@ -360,7 +377,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             world={world}
             manifest={manifest}
             playersRef={playersRef}
-            remoteUserIds={remoteUserIds}
+            remoteUserIds={visibleUserIds}
           />
           <PlayerController world={world} colliders={colliders} onSync={handleSync} />
           <CameraRig world={world} colliders={colliders} />
@@ -469,6 +486,43 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
 
       {/* toast */}
       {toastMsg && <div className="plaza-3d-toast">{toastMsg}</div>}
+
+      {/* ===== 分片5: 化身操作菜单（屏蔽/静音/举报）=====
+          接入点：在 3D 场景中对远端化身做右键/长按 raycast 命中后，调用：
+            setMenu({ open: true, target: { userId, nickname }, x: clientX, y: clientY })
+          RemoteAvatar 当前未暴露 onClick；后续可在 WorldScene 的 mesh 上挂
+          onContextMenu / onPointerDown(长按计时) 命中 userId 后触发 setMenu。
+          这里先把浮层与处理逻辑接好，命中事件接通后即可用。 */}
+      <AvatarContextMenu
+        open={menu.open}
+        target={menu.target}
+        x={menu.x}
+        y={menu.y}
+        blocked={menu.target ? moderation.isBlocked(menu.target.userId) : false}
+        muted={menu.target ? moderation.isMuted(menu.target.userId) : false}
+        onClose={() => setMenu((m) => ({ ...m, open: false }))}
+        onToggleBlock={async () => {
+          if (!menu.target) return
+          if (moderation.isBlocked(menu.target.userId)) await moderation.unblock(menu.target.userId)
+          else await moderation.block(menu.target.userId)
+        }}
+        onToggleMute={async () => {
+          if (!menu.target) return
+          // 静音语音：调用 useSpatialVoice 的 per-peer gain 接口（见 useSpatialVoice 接入点）
+          if (moderation.isMuted(menu.target.userId)) await moderation.unmute(menu.target.userId)
+          else await moderation.mute(menu.target.userId)
+        }}
+        onReportSubmit={async ({ reason, detail }) => {
+          if (!menu.target) return
+          await moderation.report({
+            targetType: 'user',
+            targetId: menu.target.userId,
+            reason,
+            detail,
+          })
+          toast('举报已提交')
+        }}
+      />
 
       {/* 讨论区覆盖层 */}
       {showDiscuss && (
