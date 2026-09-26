@@ -35,6 +35,9 @@ import {
 } from './error-boundary/ws-error-handler'
 import './plaza-3d.css'
 import './onboarding/onboarding.css'
+import { detectDeviceTier, preloadAssets, PLAZA_PRIORITY_ASSETS } from './performance/asset-preloader'
+import { getModelUnloadManager } from './performance/model-unload-manager'
+import { maxPixelRatio, shadowQualityFor } from './performance/use-cleanup'
 
 /** 数字键 1-7 → 手势 */
 const KEY_EMOTES: Record<string, EmoteType> = {
@@ -103,6 +106,46 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const [colliders] = useState(() => buildColliders())
   const [manifest, setManifest] = useState<WorldManifest | null>(null)
   const [prompt, setPrompt] = useState<string | null>(null)
+
+  // ===== R4-06 性能治理：设备分级 / 像素比上限 / 阴影降级 =====
+  // 高配置设备保持原画质；低配设备（<4 核 / <4GB）压像素比、降阴影、跳过高分辨率纹理。
+  const deviceTier = useMemo(() => detectDeviceTier(), [])
+  const dprCap = useMemo(
+    () => maxPixelRatio(deviceTier, typeof window !== 'undefined' ? window.devicePixelRatio : 1),
+    [deviceTier],
+  )
+  const shadowQ = useMemo(() => shadowQualityFor(deviceTier), [deviceTier])
+
+  // R4-06 泄漏治理 #1：WS onmessage 里 setTimeout(气泡/emote 复位) 在组件卸载后仍会
+  // setState → 注册到统一集合，effect 清理时全部 clearTimeout。
+  const pendingTimers = useRef<Set<number>>(new Set())
+  const trackTimer = useCallback((fn: () => void, ms: number): number => {
+    const id = window.setTimeout(() => {
+      pendingTimers.current.delete(id)
+      fn()
+    }, ms)
+    pendingTimers.current.add(id)
+    return id
+  }, [])
+
+  // R4-06 性能治理：进入广场前预加载核心模型/纹理/字体；卸载时统一 dispose 3D 资源。
+  useEffect(() => {
+    let alive = true
+    const mgr = getModelUnloadManager()
+    // 预加载（失败静默，运行时按需兜底）
+    void preloadAssets(PLAZA_PRIORITY_ASSETS, {
+      device: typeof navigator !== 'undefined' ? navigator : undefined,
+      onProgress: (p) => { if (!alive) return void 0; void p },
+    }).catch(() => { /* noop */ })
+    return () => {
+      alive = false
+      // 清掉所有在途气泡/emote 定时器（泄漏治理 #1）
+      pendingTimers.current.forEach((id) => window.clearTimeout(id))
+      pendingTimers.current.clear()
+      // 释放本广场加载的几何体/材质/纹理（共享资源引用计数保护）
+      try { mgr.disposeAll() } catch { /* noop */ }
+    }
+  }, [])
 
   // ===== WS 远端玩家存储 =====
   const playersRef = useRef(new Map<string, RemotePlayer>())
@@ -275,7 +318,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             })
             return next
           })
-          window.setTimeout(() => {
+          trackTimer(() => {
             setShouts((prev) => {
               const cur = prev.get(m.userId!)
               if (!cur || cur.id !== id) return prev
@@ -290,7 +333,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             p.emote = m.emote
             // 由动画机按默认时长自动回归；超时后清掉标记以便同手势可重复触发
             const dur = m.durationMs ?? 1500
-            window.setTimeout(() => {
+            trackTimer(() => {
               if (playersRef.current.get(m.userId!)?.emote === m.emote) {
                 playersRef.current.get(m.userId!)!.emote = undefined
               }
@@ -331,7 +374,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [user?.userId, showDiscuss, roomId, upsertPlayer, removePlayer, toast, dispatchWs, reconnectTick])
+  }, [user?.userId, showDiscuss, roomId, upsertPlayer, removePlayer, toast, dispatchWs, reconnectTick, trackTimer])
 
   // R4-04: 手动重连（离线横幅按钮）——重置失败计数并重跑连接 effect
   const manualReconnect = useCallback(() => {
@@ -504,7 +547,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
 
   return (
     <div className="plaza-3d-root">
-      <SafeCanvas shadows camera={{ position: [0, 10, 22], fov: 60, near: 0.1, far: 500 }} dpr={[1, 1.5]}>
+      <SafeCanvas shadows={shadowQ.enabled} camera={{ position: [0, 10, 22], fov: 60, near: 0.1, far: 500 }} dpr={[1, dprCap]}>
         <Suspense fallback={null}>
           <WorldScene
             world={world}

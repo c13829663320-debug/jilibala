@@ -1456,3 +1456,120 @@ export function getCourtPlayerInputs(caseId: string): CourtPlayerInput[] {
     createdAt: r.created_at,
   }));
 }
+
+// ===== R4-06: 服务端会话持久化（玩家 XP/段位/成就/每日挑战 → JSON 文件） =====
+//
+// 这些成长型数据量小、按 userId 独立读写，直接落 JSON 文件
+// apps/api/.data/profiles/<userId>.json，服务重启不丢失；
+// PROFILES_DIR 环境变量可覆盖（测试指向临时目录）。
+import { readFileSync, writeFileSync } from "node:fs";
+import type { ServerProfile } from "@balabala/shared";
+
+const PROFILES_DIR =
+  process.env.PROFILES_DIR || resolve(process.cwd(), ".data", "profiles");
+mkdirSync(PROFILES_DIR, { recursive: true });
+
+function defaultServerProfile(userId: string): ServerProfile {
+  return {
+    userId,
+    xp: 0,
+    rank: "rookie",
+    achievements: [],
+    dailyChallenge: {},
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function profilePath(userId: string): string {
+  // 防目录穿越：只允许安全字符
+  const safe = userId.replace(/[^a-zA-Z0-9_\-]/g, "_");
+  return resolve(PROFILES_DIR, `${safe}.json`);
+}
+
+/** 读取服务端档案；不存在/损坏时返回默认档案（绝不抛错）。 */
+export function loadServerProfile(userId: string): ServerProfile {
+  if (!userId) return defaultServerProfile("");
+  const fallback = defaultServerProfile(userId);
+  try {
+    const raw = readFileSync(profilePath(userId), "utf8");
+    const parsed = JSON.parse(raw) as Partial<ServerProfile>;
+    return {
+      userId,
+      xp: typeof parsed.xp === "number" && parsed.xp >= 0 ? Math.floor(parsed.xp) : 0,
+      rank: ["rookie", "bronze", "silver", "gold", "platinum"].includes(
+        parsed.rank as ServerProfile["rank"],
+      )
+        ? (parsed.rank as ServerProfile["rank"])
+        : "rookie",
+      achievements: Array.isArray(parsed.achievements)
+        ? parsed.achievements.filter((a): a is string => typeof a === "string")
+        : [],
+      dailyChallenge:
+        parsed.dailyChallenge && typeof parsed.dailyChallenge === "object"
+          ? (parsed.dailyChallenge as Record<string, number>)
+          : {},
+      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+/** 写入服务端档案（整覆盖）。返回写入后的档案。 */
+export function saveServerProfile(profile: ServerProfile): ServerProfile {
+  const userId = profile.userId || "anonymous";
+  const next: ServerProfile = {
+    ...defaultServerProfile(userId),
+    ...profile,
+    userId,
+    achievements: Array.isArray(profile.achievements) ? profile.achievements : [],
+    dailyChallenge:
+      profile.dailyChallenge && typeof profile.dailyChallenge === "object"
+        ? profile.dailyChallenge
+        : {},
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    writeFileSync(profilePath(userId), JSON.stringify(next, null, 2), "utf8");
+  } catch {
+    /* 磁盘不可写时静默降级（内存态仍返回） */
+  }
+  return next;
+}
+
+/** 给玩家加 XP，并按阈值自动升段。返回更新后的档案。 */
+export function addXp(userId: string, amount: number): ServerProfile {
+  const p = loadServerProfile(userId);
+  p.xp = Math.max(0, p.xp + Math.floor(amount));
+  p.rank = xpToRank(p.xp);
+  return saveServerProfile(p);
+}
+
+/** XP → 段位阈值：0/100/300/800/1500。 */
+export function xpToRank(xp: number): ServerProfile["rank"] {
+  if (xp >= 1500) return "platinum";
+  if (xp >= 800) return "gold";
+  if (xp >= 300) return "silver";
+  if (xp >= 100) return "bronze";
+  return "rookie";
+}
+
+/** 解锁成就（幂等）。返回是否新解锁。 */
+export function unlockAchievement(userId: string, achievementId: string): boolean {
+  const p = loadServerProfile(userId);
+  if (p.achievements.includes(achievementId)) return false;
+  p.achievements = [...p.achievements, achievementId];
+  saveServerProfile(p);
+  return true;
+}
+
+/** 更新每日挑战进度（0~100 截断）。 */
+export function updateDailyChallenge(
+  userId: string,
+  challengeId: string,
+  progress: number,
+): ServerProfile {
+  const p = loadServerProfile(userId);
+  p.dailyChallenge[challengeId] = Math.min(100, Math.max(0, Math.floor(progress)));
+  return saveServerProfile(p);
+}

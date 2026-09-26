@@ -280,3 +280,91 @@ describe("db DAO", () => {
     ctx.mod = reopened;
   });
 });
+
+// ===== R4-06: 服务端玩家档案（JSON 文件持久化） =====
+describe("server profile (R4-06)", () => {
+  async function loadWithProfiles() {
+    const dir = mkdtempSync(join(tmpdir(), "balabala-prof-"));
+    process.env.DB_PATH = join(dir, "test.db");
+    process.env.PROFILES_DIR = join(dir, "profiles");
+    vi.resetModules();
+    const mod = await import("./db.js");
+    return { mod, dir };
+  }
+
+  it("loadServerProfile：不存在的 userId 返回默认档案", async () => {
+    const { mod } = await loadWithProfiles();
+    const p = mod.loadServerProfile("user-new");
+    expect(p.xp).toBe(0);
+    expect(p.rank).toBe("rookie");
+    expect(p.achievements).toEqual([]);
+    expect(p.dailyChallenge).toEqual({});
+  });
+
+  it("saveProfile → loadProfile 往返一致", async () => {
+    const { mod } = await loadWithProfiles();
+    mod.saveServerProfile({
+      userId: "u1", xp: 120, rank: "bronze",
+      achievements: ["first_checkin"], dailyChallenge: { pushup: 50 },
+      updatedAt: new Date().toISOString(),
+    });
+    const back = mod.loadServerProfile("u1");
+    expect(back.xp).toBe(120);
+    expect(back.rank).toBe("bronze");
+    expect(back.achievements).toEqual(["first_checkin"]);
+    expect(back.dailyChallenge.pushup).toBe(50);
+  });
+
+  it("服务重启（重新 import）后档案不丢失", async () => {
+    const { dir } = await loadWithProfiles();
+    process.env.DB_PATH = join(dir, "test.db");
+    process.env.PROFILES_DIR = join(dir, "profiles");
+    vi.resetModules();
+    const first = await import("./db.js");
+    first.saveServerProfile({ userId: "persist", xp: 999, rank: "gold", achievements: [], dailyChallenge: {}, updatedAt: new Date().toISOString() });
+    first.db.close();
+    // 模拟重启：重新 import
+    vi.resetModules();
+    const second = await import("./db.js");
+    const back = second.loadServerProfile("persist");
+    expect(back.xp).toBe(999);
+    expect(back.rank).toBe("gold");
+  });
+
+  it("addXp 自动升段：1500+ → platinum", async () => {
+    const { mod } = await loadWithProfiles();
+    let p = mod.addXp("ranker", 99);
+    expect(p.rank).toBe("rookie");
+    p = mod.addXp("ranker", 20); // 119
+    expect(p.rank).toBe("bronze");
+    p = mod.addXp("ranker", 1400); // 1519
+    expect(p.rank).toBe("platinum");
+  });
+
+  it("unlockAchievement 幂等", async () => {
+    const { mod } = await loadWithProfiles();
+    expect(mod.unlockAchievement("u2", "win_first")).toBe(true);
+    expect(mod.unlockAchievement("u2", "win_first")).toBe(false);
+    expect(mod.loadServerProfile("u2").achievements).toEqual(["win_first"]);
+  });
+
+  it("updateDailyChallenge 进度截断到 0~100", async () => {
+    const { mod } = await loadWithProfiles();
+    const p = mod.updateDailyChallenge("u3", "pushup", 150);
+    expect(p.dailyChallenge.pushup).toBe(100);
+    const p2 = mod.updateDailyChallenge("u3", "pushup", -5);
+    expect(p2.dailyChallenge.pushup).toBe(0);
+  });
+
+  it("损坏 JSON 文件回退默认档案，不抛错", async () => {
+    const { dir } = await loadWithProfiles();
+    // 手写一个坏文件
+    const fs = await import("node:fs");
+    fs.mkdirSync(join(dir, "profiles"), { recursive: true });
+    fs.writeFileSync(join(dir, "profiles", "bad.json"), "{{{bad", "utf8");
+    const mod = await import("./db.js");
+    const p = mod.loadServerProfile("bad");
+    expect(p.xp).toBe(0);
+    expect(p.rank).toBe("rookie");
+  });
+});
