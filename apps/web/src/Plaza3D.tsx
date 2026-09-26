@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, MessagesSquare, Users, Mic, MicOff, Copy, Check, LogOut, Hand } from 'lucide-react'
 import { Plaza } from './Plaza'
 import { useIdentity } from './identity'
-import type { EmoteType, SocialRoom, WSMessage, WSUser } from '@balabala/shared'
+import type { EmoteType, IceServerConfig, SocialRoom, WSMessage, WSUser } from '@balabala/shared'
 import SafeCanvas from './SafeCanvas'
 import {
   createWorldRuntime, buildColliders,
@@ -56,6 +56,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const [onlineCount, setOnlineCount] = useState(1)
   const [roomInfo, setRoomInfo] = useState<SocialRoom | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
+  /** 服务端下发的 ICE 服务器配置（STUN + TURN），welcome 后随 rtc_config 到达 */
+  const [rtcIceServers, setRtcIceServers] = useState<IceServerConfig[]>([])
 
   // ===== 开放世界运行时（mutable ref，高频读写不走 React state） =====
   const [world] = useState<WorldRuntime>(() => createWorldRuntime())
@@ -194,6 +196,9 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         } else if (m.type === 'room_info' && m.room) {
           setRoomInfo(m.room)
           setOnlineCount(m.room.playerCount)
+        } else if (m.type === 'rtc_config' && Array.isArray((m as { iceServers?: unknown }).iceServers)) {
+          // 服务端下发 ICE 服务器配置（含 TURN），交给空间语音 hook
+          setRtcIceServers((m as unknown as { iceServers: IceServerConfig[] }).iceServers)
         } else if (m.type === 'room_player_update' && typeof m.playerCount === 'number') {
           setOnlineCount(m.playerCount)
         }
@@ -261,6 +266,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
     playersRef,
     localPosRef,
     enabled: true,
+    rtcIceServers,
   })
 
   // 本地说话强度 → 节流广播给远端（驱动远端口型）
@@ -427,6 +433,16 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       <button className="plaza-3d-discuss" onClick={() => setShowDiscuss(true)}>
         <MessagesSquare size={16} /> 讨论区
       </button>
+
+      {/* 语音降级提示：语音不可用时切文字聊天，用户可手动重试 */}
+      {voice.fallbackNotice && (
+        <div className="voice-fallback-banner">
+          <span>{voice.fallbackNotice}</span>
+          <button type="button" className="voice-fallback-retry" onClick={() => { voice.retryVoice() }}>
+            重试语音
+          </button>
+        </div>
+      )}
 
       {/* 语音控制浮层（右下角，讨论区按钮上方） */}
       <div className="voice-overlay">
