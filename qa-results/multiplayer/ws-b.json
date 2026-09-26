@@ -1,0 +1,1079 @@
+[
+  {
+    "ts": 1790387682292,
+    "dir": "in",
+    "type": "connected",
+    "raw": {
+      "type": "connected"
+    }
+  },
+  {
+    "ts": 1790387689651,
+    "dir": "sys",
+    "type": "close-called",
+    "raw": "    at HookedWS.ws.close (<anonymous>:25:84) |     at http://localhost:5173/src/Plaza3D.tsx:209:22 |     at safelyCallDestroy (http://localhost:5173/node_modules/.vite/deps/chunk-W7R6VYNR.js?v=07af028b:16748:13) |     at commitHookEffectListUnmount (http://localhost:5173/node_modules/.vite/deps/chunk-W7R6VYNR.js?v=07af028b:16875:19) |     at invokePassiveEffectUnmountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-W7R6VYNR.js?v=07af028b:18363:19)"
+  },
+  {
+    "ts": 1790387689684,
+    "dir": "sys",
+    "type": "error"
+  },
+  {
+    "ts": 1790387689684,
+    "dir": "sys",
+    "type": "close-called",
+    "raw": "    at HookedWS.ws.close (<anonymous>:25:84) |     at ws.onerror (http://localhost:5173/src/Plaza3D.tsx:202:12)"
+  },
+  {
+    "ts": 1790387689684,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1006,
+      "reason": "",
+      "wasClean": false
+    }
+  },
+  {
+    "ts": 1790387689697,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 5.830316041396948,
+          "z": -0.5779386595442837,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 0.028273114962082957,
+          "z": 2.313484288122689,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387689703,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387689703,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 0.028273114962082957,
+        "z": 2.313484288122689,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387689703,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387690060,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 8.553972102158596,
+        "z": 8.918894555250162,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387690459,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387694065,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -4.351565026734385,
+        "z": -6.974204509785169,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387694081,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387694831,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387695654,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -4.351565026734385,
+          "z": -6.974204509785169,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -2.693123338349821,
+          "z": 1.7826913103807875,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387695847,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387695847,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -2.693123338349821,
+        "z": 1.7826913103807875,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387695847,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387697118,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -5.827114598378986,
+        "z": 4.984638956004201,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387697300,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387698428,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387698652,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -5.827114598378986,
+          "z": 4.984638956004201,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -2.793670086178812,
+          "z": 6.650279079905495,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387698840,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387698840,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -2.793670086178812,
+        "z": 6.650279079905495,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387698840,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387700701,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -9.043394279549602,
+        "z": -6.9494629076993375,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387700893,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387702038,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387702226,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -9.043394279549602,
+          "z": -6.9494629076993375,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 9.373993545660092,
+          "z": 9.183915010471292,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387702417,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387702417,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 9.373993545660092,
+        "z": 9.183915010471292,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387702417,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387704143,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -4.900643199617543,
+        "z": 5.354550930272858,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387704330,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387705660,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387705856,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -4.900643199617543,
+          "z": 5.354550930272858,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -2.5180271823423084,
+          "z": -6.959188602584789,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387706052,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387706052,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -2.5180271823423084,
+        "z": -6.959188602584789,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387706052,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387707763,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -3.0859801048364854,
+        "z": 0.9875582365119584,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387707965,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387709325,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387709521,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -3.0859801048364854,
+          "z": 0.9875582365119584,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 1.3770705972210884,
+          "z": 4.467395880880147,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387709721,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387709721,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 1.3770705972210884,
+        "z": 4.467395880880147,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387709722,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387711500,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -3.8635292088552298,
+        "z": -4.864106866587128,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387711704,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387712499,
+    "dir": "out",
+    "type": "ping",
+    "raw": {
+      "type": "ping"
+    }
+  },
+  {
+    "ts": 1790387713116,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387713310,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -3.8635292088552298,
+          "z": -4.864106866587128,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 8.330409280884776,
+          "z": -1.522741842843999,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387713528,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387713528,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 8.330409280884776,
+        "z": -1.522741842843999,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387713531,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387715265,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -6.198764531693239,
+        "z": 6.267308109572394,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387715464,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387716805,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387716996,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -6.198764531693239,
+          "z": 6.267308109572394,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 2.5064832022363994,
+          "z": -9.994095710611468,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387717189,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387717189,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 2.5064832022363994,
+        "z": -9.994095710611468,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387717189,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387718904,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 4.209048951961488,
+        "z": 4.181551937550708,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387719096,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387720444,
+    "dir": "sys",
+    "type": "close",
+    "raw": {
+      "code": 1005,
+      "reason": "",
+      "wasClean": true
+    }
+  },
+  {
+    "ts": 1790387720640,
+    "dir": "in",
+    "type": "welcome",
+    "raw": {
+      "type": "welcome",
+      "roomId": "social:JGC6RY",
+      "users": [
+        {
+          "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+          "nickname": "玩家A",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 4.209048951961488,
+          "z": 4.181551937550708,
+          "rotation": 0
+        },
+        {
+          "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+          "nickname": "玩家B",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -2.843765355659329,
+          "z": -0.23454290929002397,
+          "rotation": 0
+        }
+      ]
+    }
+  },
+  {
+    "ts": 1790387720845,
+    "dir": "in",
+    "type": "room_info",
+    "raw": {
+      "type": "room_info",
+      "room": {
+        "id": "social:JGC6RY",
+        "code": "JGC6RY",
+        "name": "联调测试房",
+        "creatorId": "",
+        "creatorName": "匿名房主",
+        "scene": "plaza",
+        "maxPlayers": 8,
+        "isPublic": true,
+        "createdAt": "2026-09-26T01:54:40.239Z",
+        "playerCount": 2
+      }
+    }
+  },
+  {
+    "ts": 1790387720846,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "acd5943f-7c8d-4d76-8cfd-78cc7bc7dd9d",
+        "nickname": "玩家B",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": -2.843765355659329,
+        "z": -0.23454290929002397,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387720846,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  },
+  {
+    "ts": 1790387722589,
+    "dir": "in",
+    "type": "user_joined",
+    "raw": {
+      "type": "user_joined",
+      "user": {
+        "userId": "e91a717e-6fe0-469e-83a2-b13877b32fe0",
+        "nickname": "玩家A",
+        "avatarType": "capsule",
+        "avatarRef": "",
+        "x": 5.020751721643242,
+        "z": -9.919038436288194,
+        "rotation": 0
+      }
+    }
+  },
+  {
+    "ts": 1790387722810,
+    "dir": "in",
+    "type": "room_player_update",
+    "raw": {
+      "type": "room_player_update",
+      "roomId": "social:JGC6RY",
+      "playerCount": 2
+    }
+  }
+]

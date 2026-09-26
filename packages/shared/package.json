@@ -1,0 +1,9 @@
+{
+  "name": "@balabala/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": { "build": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck src/index.ts" },
+  "devDependencies": { "typescript": "^5.7.0" }
+}

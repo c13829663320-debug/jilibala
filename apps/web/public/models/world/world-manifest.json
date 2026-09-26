@@ -1,0 +1,3891 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-09-25T03:04:32.735Z",
+  "totalCredits": 13580,
+  "startingBalance": 11590,
+  "endingBalance": 10,
+  "assets": [
+    {
+      "id": "plaza-stall-goods",
+      "category": "plaza",
+      "name": "杂货摊",
+      "path": "plaza/plaza-stall-goods.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2342096,
+      "dimensions": {
+        "width": 1.5245696460921652,
+        "height": 2.5,
+        "depth": 3.155996697648847
+      },
+      "inLibrary": false,
+      "taskId": "43e19f63-5474-431e-9134-270af5c17215",
+      "prompt": "A market goods stall with wooden canopy, crates, displayed merchandise, game-ready 3D model",
+      "tags": [
+        "plaza",
+        "repeatable"
+      ]
+    },
+    {
+      "id": "prop-portal-arch",
+      "category": "props",
+      "name": "传送门",
+      "path": "props/prop-portal-arch.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2737432,
+      "dimensions": {
+        "width": 2.3461360678107672,
+        "height": 4,
+        "depth": 4.688864819118328
+      },
+      "inLibrary": false,
+      "taskId": "489f9f57-8519-46d1-a19e-81949a0fe64c",
+      "prompt": "A magical portal archway with swirling energy field, stone frame, glowing runes, game-ready 3D model",
+      "tags": [
+        "interactive",
+        "teleport"
+      ]
+    },
+    {
+      "id": "city-bridge-suspension",
+      "category": "buildings",
+      "name": "吊桥",
+      "path": "buildings/city-bridge-suspension.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2510804,
+      "dimensions": {
+        "width": 3.195980612667298,
+        "height": 2,
+        "depth": 1.1090993706527232
+      },
+      "inLibrary": false,
+      "taskId": "a715a30b-312f-4d94-92a6-84eb727268fc",
+      "prompt": "A wooden rope suspension bridge, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-bench-modern",
+      "category": "plaza",
+      "name": "现代长椅",
+      "path": "plaza/plaza-bench-modern.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2127420,
+      "dimensions": {
+        "width": 0.7989440305469925,
+        "height": 0.8,
+        "depth": 2.14188471237659
+      },
+      "inLibrary": false,
+      "taskId": "40bedd8a-d6cd-4596-a13a-62cafa25ff6f",
+      "prompt": "A modern minimalist concrete and wood bench, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-lamp-solar",
+      "category": "plaza",
+      "name": "太阳能路灯",
+      "path": "plaza/plaza-lamp-solar.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2233760,
+      "dimensions": {
+        "width": 3.4903915006308956,
+        "height": 5,
+        "depth": 5.816937494888156
+      },
+      "inLibrary": false,
+      "taskId": "95a22123-302b-49cb-8e96-10eb8f126ac4",
+      "prompt": "A modern solar-powered LED street lamp, sleek, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-trash-recycle",
+      "category": "plaza",
+      "name": "分类垃圾桶",
+      "path": "plaza/plaza-trash-recycle.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2145184,
+      "dimensions": {
+        "width": 1.2178093677950734,
+        "height": 1,
+        "depth": 1.057233629060932
+      },
+      "inLibrary": false,
+      "taskId": "ec8c9d89-ebc8-425b-a67b-42c0cc0d2306",
+      "prompt": "A set of recycling bins color-coded, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-bike-rack",
+      "category": "plaza",
+      "name": "自行车架",
+      "path": "plaza/plaza-bike-rack.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2430092,
+      "dimensions": {
+        "width": 1.970589576408525,
+        "height": 1.2,
+        "depth": 0.6413391761543985
+      },
+      "inLibrary": false,
+      "taskId": "469f1ae3-150d-4368-baa9-820cde73eb8d",
+      "prompt": "A metal bike rack with a bicycle parked, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-news-stand",
+      "category": "plaza",
+      "name": "报刊亭",
+      "path": "plaza/plaza-news-stand.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2310640,
+      "dimensions": {
+        "width": 1.7561300987455795,
+        "height": 2.5,
+        "depth": 2.273908612115373
+      },
+      "inLibrary": false,
+      "taskId": "dcf22830-513e-4fe6-8de9-5fadd0edf3e4",
+      "prompt": "A vintage newsstand kiosk with magazines displayed, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-vending-machine",
+      "category": "props",
+      "name": "自动售货机",
+      "path": "props/prop-vending-machine.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2136988,
+      "dimensions": {
+        "width": 0.9446311684998671,
+        "height": 2,
+        "depth": 1.0977997422751076
+      },
+      "inLibrary": false,
+      "taskId": "f4cec0bc-ee4a-475e-9708-c1855f86a4a7",
+      "prompt": "A Japanese-style vending machine with drinks, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-jukebox",
+      "category": "props",
+      "name": "点唱机",
+      "path": "props/prop-jukebox.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2027092,
+      "dimensions": {
+        "width": 0.7203588613811608,
+        "height": 1.8,
+        "depth": 1.1675098734504366
+      },
+      "inLibrary": false,
+      "taskId": "108d254a-53b8-44a7-8ca4-17472845bb68",
+      "prompt": "A vintage jukebox with glowing lights, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-pinball",
+      "category": "props",
+      "name": "弹珠机",
+      "path": "props/prop-pinball.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2483832,
+      "dimensions": {
+        "width": 1.0913411623799398,
+        "height": 1.8,
+        "depth": 2.39230132264429
+      },
+      "inLibrary": false,
+      "taskId": "b7e949cf-6029-4310-9b9b-5c912df1ed2a",
+      "prompt": "A retro pinball machine, colorful, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-arcade-cabinet",
+      "category": "props",
+      "name": "街机",
+      "path": "props/prop-arcade-cabinet.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2007940,
+      "dimensions": {
+        "width": 0.9768773484625152,
+        "height": 2,
+        "depth": 1.0535943270574948
+      },
+      "inLibrary": false,
+      "taskId": "50d9efe0-cc98-4855-a47c-14085c237f60",
+      "prompt": "A retro arcade game cabinet with screen, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-gumball-machine",
+      "category": "props",
+      "name": "扭蛋机",
+      "path": "props/prop-gumball-machine.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1899568,
+      "dimensions": {
+        "width": 0.6865714499006722,
+        "height": 1.5,
+        "depth": 0.7127288519272824
+      },
+      "inLibrary": false,
+      "taskId": "a36885b0-eef9-461e-bbcd-fd84cb3fffa3",
+      "prompt": "A gumball vending machine, glass globe, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-claw-machine",
+      "category": "props",
+      "name": "抓娃娃机",
+      "path": "props/prop-claw-machine.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2070568,
+      "dimensions": {
+        "width": 1.074601651338815,
+        "height": 2,
+        "depth": 1.0778347590098596
+      },
+      "inLibrary": false,
+      "taskId": "3296b977-0a9d-4c07-b3cb-8a3b6d93ffd0",
+      "prompt": "A claw machine arcade game with plush toys inside, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-photo-booth",
+      "category": "props",
+      "name": "拍照亭",
+      "path": "props/prop-photo-booth.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2283208,
+      "dimensions": {
+        "width": 1.260039320644587,
+        "height": 2.5,
+        "depth": 1.9177544922394116
+      },
+      "inLibrary": false,
+      "taskId": "1a48894b-4601-471b-929e-ec85168e6dc5",
+      "prompt": "A vintage photo booth curtained, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-popcorn-machine",
+      "category": "props",
+      "name": "爆米花机",
+      "path": "props/prop-popcorn-machine.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2144188,
+      "dimensions": {
+        "width": 0.6295621506683393,
+        "height": 1.5,
+        "depth": 0.7145210352235907
+      },
+      "inLibrary": false,
+      "taskId": "e9b04124-8525-46e6-9e49-36d962b9f9d3",
+      "prompt": "A commercial popcorn machine with red and white stripes, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-cotton-candy",
+      "category": "props",
+      "name": "棉花糖机",
+      "path": "props/prop-cotton-candy.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1910144,
+      "dimensions": {
+        "width": 0.8123857059159053,
+        "height": 1.5,
+        "depth": 1.0801952736889222
+      },
+      "inLibrary": false,
+      "taskId": "0ec189b1-491d-470d-a817-f822b882d27b",
+      "prompt": "A cotton candy machine with pink cotton candy, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-snow-cone",
+      "category": "props",
+      "name": "刨冰机",
+      "path": "props/prop-snow-cone.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1866288,
+      "dimensions": {
+        "width": 0.7061376140666882,
+        "height": 1.2,
+        "depth": 0.8882002487375729
+      },
+      "inLibrary": false,
+      "taskId": "8c5a476d-03fd-4bc3-a80f-634cd9b54075",
+      "prompt": "A shaved ice machine with colorful syrups, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-cinema",
+      "category": "buildings",
+      "name": "电影院",
+      "path": "buildings/building-cinema.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2342284,
+      "dimensions": {
+        "width": 9.989275372350445,
+        "height": 10,
+        "depth": 9.675715125963922
+      },
+      "inLibrary": false,
+      "taskId": "94ba02fd-1833-4076-9d54-834a213ae0cf",
+      "prompt": "An art deco cinema building with neon marquee and ticket booth, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-bowling",
+      "category": "buildings",
+      "name": "保龄球馆",
+      "path": "buildings/building-bowling.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2436244,
+      "dimensions": {
+        "width": 14.397533424683207,
+        "height": 7,
+        "depth": 11.1604073673449
+      },
+      "inLibrary": false,
+      "taskId": "26457b2e-0c71-4c2c-b09b-09775537efc6",
+      "prompt": "A bowling alley building with retro signage, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-karaoke",
+      "category": "buildings",
+      "name": "KTV",
+      "path": "buildings/building-karaoke.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2122340,
+      "dimensions": {
+        "width": 5.959146593248771,
+        "height": 8,
+        "depth": 5.553437935398227
+      },
+      "inLibrary": false,
+      "taskId": "a85298b6-16e2-4ea4-9a04-4aea921987cc",
+      "prompt": "A karaoke box building with neon lights, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-casino",
+      "category": "buildings",
+      "name": "娱乐场",
+      "path": "buildings/building-casino.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2532284,
+      "dimensions": {
+        "width": 9.248147929675055,
+        "height": 12,
+        "depth": 9.043341678155464
+      },
+      "inLibrary": false,
+      "taskId": "90661c57-8fd0-489b-95d4-b7c8a9025dff",
+      "prompt": "A casino building with flashing lights and grand entrance, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-bathhouse",
+      "category": "buildings",
+      "name": "澡堂",
+      "path": "buildings/building-bathhouse.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2693200,
+      "dimensions": {
+        "width": 6.622748286759524,
+        "height": 6,
+        "depth": 8.543030432106125
+      },
+      "inLibrary": false,
+      "taskId": "021a9d78-d13c-42f9-968b-1d6a44ce9dd5",
+      "prompt": "A traditional public bathhouse building with steam, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-laundromat",
+      "category": "buildings",
+      "name": "自助洗衣店",
+      "path": "buildings/building-laundromat.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2413952,
+      "dimensions": {
+        "width": 1.9747803034040143,
+        "height": 5,
+        "depth": 5.547110583749937
+      },
+      "inLibrary": false,
+      "taskId": "de2c8a7e-51b2-4e16-aabd-76a88b541719",
+      "prompt": "A laundromat with washing machines visible through window, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-pawn-shop",
+      "category": "buildings",
+      "name": "当铺",
+      "path": "buildings/building-pawn-shop.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1700332,
+      "dimensions": {
+        "width": 3.497081521292716,
+        "height": 5,
+        "depth": 3.5514832733932806
+      },
+      "inLibrary": false,
+      "taskId": "16fbbafa-4105-4588-9b88-7eadb8675545",
+      "prompt": "A pawn shop with barred window and gold ball sign, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-pet-shop",
+      "category": "buildings",
+      "name": "宠物店",
+      "path": "buildings/building-pet-shop.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1825572,
+      "dimensions": {
+        "width": 3.1258712554011354,
+        "height": 5,
+        "depth": 4.51148929083424
+      },
+      "inLibrary": false,
+      "taskId": "55ee3109-92f3-4a18-9557-8f5c34f7d447",
+      "prompt": "A pet shop with cute animals in window, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-cave-entrance",
+      "category": "nature",
+      "name": "洞穴入口",
+      "path": "nature/nature-cave-entrance.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1892340,
+      "dimensions": {
+        "width": 6.330038649749843,
+        "height": 6,
+        "depth": 8.970128061554394
+      },
+      "inLibrary": false,
+      "taskId": "9c2ad350-b88d-461a-8352-7af2b5c6a2ab",
+      "prompt": "A cave entrance in a rocky hillside, dark interior, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-cliff",
+      "category": "nature",
+      "name": "悬崖",
+      "path": "nature/nature-cliff.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2153412,
+      "dimensions": {
+        "width": 15.173138656884039,
+        "height": 15,
+        "depth": 16.708231257543627
+      },
+      "inLibrary": false,
+      "taskId": "f185afff-a4c4-42f1-a74c-0db346344639",
+      "prompt": "A tall cliff face with layered rock, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-hill",
+      "category": "nature",
+      "name": "山丘",
+      "path": "nature/nature-hill.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2804392,
+      "dimensions": {
+        "width": 24.241130542578414,
+        "height": 8,
+        "depth": 25.54384446637955
+      },
+      "inLibrary": false,
+      "taskId": "7e5251e2-b7fc-4e0e-8b83-5b6a59e179f3",
+      "prompt": "A rolling grassy hill mound, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-sand-dune",
+      "category": "nature",
+      "name": "沙丘",
+      "path": "nature/nature-sand-dune.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1635964,
+      "dimensions": {
+        "width": 12.133643904746108,
+        "height": 5,
+        "depth": 12.062661612292802
+      },
+      "inLibrary": false,
+      "taskId": "f7d1f623-ce9b-4c1a-b2bf-287f4cb383b2",
+      "prompt": "A sand dune formation, desert, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-hot-spring",
+      "category": "nature",
+      "name": "温泉",
+      "path": "nature/nature-hot-spring.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2418100,
+      "dimensions": {
+        "width": 2.046687861947201,
+        "height": 1,
+        "depth": 2.0138196905988517
+      },
+      "inLibrary": false,
+      "taskId": "c4ae3e4a-01af-46bd-a3d1-3c1e707b878b",
+      "prompt": "A natural hot spring with steaming water and rocks, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-geyser",
+      "category": "nature",
+      "name": "间歇泉",
+      "path": "nature/nature-geyser.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1851420,
+      "dimensions": {
+        "width": 4.4740086914582395,
+        "height": 5,
+        "depth": 4.414254841548063
+      },
+      "inLibrary": false,
+      "taskId": "88dab710-5b13-4f33-92cc-29e2fe0293e7",
+      "prompt": "A geyser erupting with steam and water, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-volcano-small",
+      "category": "nature",
+      "name": "小火山",
+      "path": "nature/nature-volcano-small.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1957392,
+      "dimensions": {
+        "width": 22.659699739911037,
+        "height": 12,
+        "depth": 23.284780502780844
+      },
+      "inLibrary": false,
+      "taskId": "6b3f3967-a5c2-4537-992e-5bc6fdc400ee",
+      "prompt": "A small volcano with smoking crater, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-mangrove",
+      "category": "nature",
+      "name": "红树林",
+      "path": "nature/nature-mangrove.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2484296,
+      "dimensions": {
+        "width": 4.819122815033747,
+        "height": 5,
+        "depth": 6.351896367162422
+      },
+      "inLibrary": false,
+      "taskId": "c2ebff35-198e-4aad-9134-ff8554899989",
+      "prompt": "Mangrove trees with exposed roots in water, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-sequoia",
+      "category": "nature",
+      "name": "红杉",
+      "path": "nature/nature-sequoia.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2615568,
+      "dimensions": {
+        "width": 14.928950395331292,
+        "height": 20,
+        "depth": 14.251250508565779
+      },
+      "inLibrary": false,
+      "taskId": "09678577-cf9c-43f0-a287-ed31f01a4250",
+      "prompt": "A giant sequoia tree with massive trunk, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-baobab",
+      "category": "nature",
+      "name": "猴面包树",
+      "path": "nature/nature-baobab.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2361644,
+      "dimensions": {
+        "width": 10.926664031816781,
+        "height": 12,
+        "depth": 12.38169027250395
+      },
+      "inLibrary": false,
+      "taskId": "c8459701-5184-4195-b508-a0327e1b8133",
+      "prompt": "A baobab tree with thick trunk and sparse branches, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-mansion",
+      "category": "buildings",
+      "name": "大庄园",
+      "path": "buildings/building-mansion.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2353376,
+      "dimensions": {
+        "width": 17.838479601904417,
+        "height": 14,
+        "depth": 24.062934161981953
+      },
+      "inLibrary": false,
+      "taskId": "c518a9e4-8eb0-4747-9649-548a3f3eaea0",
+      "prompt": "A grand mansion estate with columns, balcony, landscaped grounds, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-castle-keep",
+      "category": "buildings",
+      "name": "城堡主楼",
+      "path": "buildings/building-castle-keep.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2606016,
+      "dimensions": {
+        "width": 28.191964037527317,
+        "height": 18,
+        "depth": 26.599053148917243
+      },
+      "inLibrary": false,
+      "taskId": "94e444b9-28f1-43f7-af38-03972a11a96c",
+      "prompt": "A medieval castle keep with towers and battlements, stone, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-mosque",
+      "category": "buildings",
+      "name": "清真寺",
+      "path": "buildings/building-mosque.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2712412,
+      "dimensions": {
+        "width": 15.157945697918354,
+        "height": 16,
+        "depth": 12.551361395763408
+      },
+      "inLibrary": false,
+      "taskId": "536f0037-1e44-436b-a849-832eb7c7cbad",
+      "prompt": "A mosque with dome and minaret, geometric patterns, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-pagoda",
+      "category": "buildings",
+      "name": "宝塔",
+      "path": "buildings/building-pagoda.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2649132,
+      "dimensions": {
+        "width": 17.155838834406314,
+        "height": 18,
+        "depth": 17.779964850321765
+      },
+      "inLibrary": false,
+      "taskId": "e7d7edfc-cde6-459c-b2c9-079b38a166d7",
+      "prompt": "A multi-tiered Chinese pagoda with curved roofs, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-stupa",
+      "category": "buildings",
+      "name": "佛塔",
+      "path": "buildings/building-stupa.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2247240,
+      "dimensions": {
+        "width": 15.386733630764226,
+        "height": 12,
+        "depth": 15.326749229880535
+      },
+      "inLibrary": false,
+      "taskId": "8e9390c0-405c-450c-a67d-49e37a2f926b",
+      "prompt": "A Buddhist stupa with golden dome, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-obelisk-tall",
+      "category": "buildings",
+      "name": "方尖碑",
+      "path": "buildings/building-obelisk-tall.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2338900,
+      "dimensions": {
+        "width": 4.840002086166111,
+        "height": 20,
+        "depth": 4.898712761003595
+      },
+      "inLibrary": false,
+      "taskId": "3242c0da-3e11-4e7c-a729-fa3bbe9c106a",
+      "prompt": "A tall Egyptian obelisk with hieroglyphs, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-colosseum",
+      "category": "buildings",
+      "name": "角斗场",
+      "path": "buildings/building-colosseum.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2640420,
+      "dimensions": {
+        "width": 17.131799318254945,
+        "height": 12,
+        "depth": 16.564162959557464
+      },
+      "inLibrary": false,
+      "taskId": "c1cb425e-aca4-4b3b-aa9c-2ce5d5e3ad2a",
+      "prompt": "A miniature colosseum amphitheater, weathered stone, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-pyramid",
+      "category": "buildings",
+      "name": "金字塔",
+      "path": "buildings/building-pyramid.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2283604,
+      "dimensions": {
+        "width": 15.564114926071944,
+        "height": 10,
+        "depth": 15.534947670963048
+      },
+      "inLibrary": false,
+      "taskId": "597bad26-a970-4f45-859a-a5699c39c066",
+      "prompt": "A small step pyramid, Mayan style, with stairs, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-sphinx",
+      "category": "buildings",
+      "name": "狮身人面像",
+      "path": "buildings/building-sphinx.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1863672,
+      "dimensions": {
+        "width": 13.689484437056187,
+        "height": 8,
+        "depth": 5.7776784381567765
+      },
+      "inLibrary": false,
+      "taskId": "51b3d5a6-c5e5-4da1-bcf0-b54959837b95",
+      "prompt": "A sphinx statue with lion body and human head, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-observatory",
+      "category": "buildings",
+      "name": "天文台",
+      "path": "buildings/building-observatory.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2587520,
+      "dimensions": {
+        "width": 8.133942000504224,
+        "height": 10,
+        "depth": 11.334599713998541
+      },
+      "inLibrary": false,
+      "taskId": "cb5925bf-02ca-4599-a337-61b9c9abdd0d",
+      "prompt": "An observatory with a domed roof and telescope, stone building, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-zoo-entrance",
+      "category": "buildings",
+      "name": "动物园入口",
+      "path": "buildings/building-zoo-entrance.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2548416,
+      "dimensions": {
+        "width": 7.709846916129733,
+        "height": 8,
+        "depth": 17.654051318531753
+      },
+      "inLibrary": false,
+      "taskId": "19302a98-618a-4eee-89dc-bcb3538ec010",
+      "prompt": "A zoo entrance gate with animal motifs and ticket booths, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-amusement-park",
+      "category": "buildings",
+      "name": "游乐园入口",
+      "path": "buildings/building-amusement-park.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2174144,
+      "dimensions": {
+        "width": 7.618991253621302,
+        "height": 10,
+        "depth": 12.492982663998417
+      },
+      "inLibrary": false,
+      "taskId": "c9d14ef5-a07c-4f6d-b6c3-1cbbfa47bf5b",
+      "prompt": "An amusement park entrance with colorful arches and ticket booths, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-ferris-wheel",
+      "category": "buildings",
+      "name": "摩天轮",
+      "path": "buildings/building-ferris-wheel.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2758672,
+      "dimensions": {
+        "width": 8.383223345315727,
+        "height": 25,
+        "depth": 26.625341547709862
+      },
+      "inLibrary": false,
+      "taskId": "3b885bca-2a33-4df2-9a2b-dc135bc65424",
+      "prompt": "A Ferris wheel with colorful gondolas, amusement park, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-carousel",
+      "category": "buildings",
+      "name": "旋转木马",
+      "path": "buildings/building-carousel.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2719788,
+      "dimensions": {
+        "width": 4.653818525963841,
+        "height": 6,
+        "depth": 4.593483523056562
+      },
+      "inLibrary": false,
+      "taskId": "fa655f39-8c77-4617-a6b8-fd4b9219bbcc",
+      "prompt": "A classic carousel with painted horses and canopy, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-roller-coaster",
+      "category": "buildings",
+      "name": "过山车",
+      "path": "buildings/building-roller-coaster.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2377232,
+      "dimensions": {
+        "width": 38.54118999333134,
+        "height": 15,
+        "depth": 14.452875900995153
+      },
+      "inLibrary": false,
+      "taskId": "f77aff5c-3b13-4b66-9698-223a9dac7ace",
+      "prompt": "A roller coaster track section with support structure, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-bumper-cars",
+      "category": "buildings",
+      "name": "碰碰车",
+      "path": "buildings/building-bumper-cars.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1875276,
+      "dimensions": {
+        "width": 4.309051990924679,
+        "height": 5,
+        "depth": 2.2864577770137653
+      },
+      "inLibrary": false,
+      "taskId": "c6c79c1b-b7ad-4846-aa90-182a35be3444",
+      "prompt": "A bumper car arena with cars and electrified ceiling, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-mirror-maze",
+      "category": "buildings",
+      "name": "镜子迷宫",
+      "path": "buildings/building-mirror-maze.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2081188,
+      "dimensions": {
+        "width": 4.70362417857157,
+        "height": 5,
+        "depth": 5.21713968312697
+      },
+      "inLibrary": false,
+      "taskId": "640f2b21-ca27-40b7-ad73-eab592449de7",
+      "prompt": "A mirror maze attraction with glass walls and neon lights, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-arcade-outdoor",
+      "category": "buildings",
+      "name": "户外街机",
+      "path": "buildings/building-arcade-outdoor.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2467244,
+      "dimensions": {
+        "width": 3.1161698603845527,
+        "height": 4,
+        "depth": 7.4059556721286
+      },
+      "inLibrary": false,
+      "taskId": "788834f4-73e6-4a60-a5e1-73a0441fbb5a",
+      "prompt": "An outdoor arcade area with multiple game cabinets, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-mini-golf",
+      "category": "buildings",
+      "name": "迷你高尔夫",
+      "path": "buildings/building-mini-golf.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2324424,
+      "dimensions": {
+        "width": 10.38506313493126,
+        "height": 4,
+        "depth": 3.304755978994265
+      },
+      "inLibrary": false,
+      "taskId": "545a34d5-d606-4632-bc57-ef3e771d5866",
+      "prompt": "A mini golf course hole with obstacles and windmill, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-go-kart",
+      "category": "buildings",
+      "name": "卡丁车赛道",
+      "path": "buildings/building-go-kart.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2411572,
+      "dimensions": {
+        "width": 1.9551348641904198,
+        "height": 3,
+        "depth": 4.008134772279739
+      },
+      "inLibrary": false,
+      "taskId": "7ae05874-945c-4769-a868-151d96e7188b",
+      "prompt": "A go-kart track with barriers and a kart, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-mini-bowling",
+      "category": "buildings",
+      "name": "迷你保龄球",
+      "path": "buildings/building-mini-bowling.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1764184,
+      "dimensions": {
+        "width": 10.681752968549473,
+        "height": 3,
+        "depth": 4.383688561069805
+      },
+      "inLibrary": false,
+      "taskId": "9d9f07a2-52f7-446d-a6fa-d936feaa1118",
+      "prompt": "A mini bowling alley lane with pins and ball, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-batting-cage",
+      "category": "buildings",
+      "name": "击球笼",
+      "path": "buildings/building-batting-cage.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 3363104,
+      "dimensions": {
+        "width": 7.679290074729,
+        "height": 5,
+        "depth": 3.561223019518098
+      },
+      "inLibrary": false,
+      "taskId": "aaf1a649-cd53-4bae-b111-514e81bb8e13",
+      "prompt": "A batting cage with netting and pitching machine, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-shooting-gallery",
+      "category": "buildings",
+      "name": "射击场",
+      "path": "buildings/building-shooting-gallery.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2182444,
+      "dimensions": {
+        "width": 5.72771064980746,
+        "height": 4,
+        "depth": 3.903139379725091
+      },
+      "inLibrary": false,
+      "taskId": "b57f5caf-884a-4c74-9d44-d924b6e4eac8",
+      "prompt": "A shooting gallery with targets and gallery front, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-ring-toss",
+      "category": "buildings",
+      "name": "套圈摊位",
+      "path": "buildings/building-ring-toss.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2254676,
+      "dimensions": {
+        "width": 2.1798314731695876,
+        "height": 3,
+        "depth": 2.219338586990726
+      },
+      "inLibrary": false,
+      "taskId": "3bd203f2-3d1e-4e14-b4ae-5f3b6ad76c27",
+      "prompt": "A ring toss carnival game booth with prizes, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-dunk-tank",
+      "category": "buildings",
+      "name": "投球落水",
+      "path": "buildings/building-dunk-tank.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2264964,
+      "dimensions": {
+        "width": 3.878832236466125,
+        "height": 4,
+        "depth": 6.612922341171027
+      },
+      "inLibrary": false,
+      "taskId": "763850b4-5596-4eed-a909-f0828fda9e62",
+      "prompt": "A dunk tank carnival attraction with seat and water tank, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-cotton-candy-stand",
+      "category": "buildings",
+      "name": "棉花糖摊",
+      "path": "buildings/building-cotton-candy-stand.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1702104,
+      "dimensions": {
+        "width": 1.1337225287478074,
+        "height": 2.5,
+        "depth": 1.4291690792001757
+      },
+      "inLibrary": false,
+      "taskId": "91504a4a-74f6-4637-9ddb-e9e1d6ad0037",
+      "prompt": "A cotton candy stand with pink cotton candy and machine, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-fountain-horse",
+      "category": "plaza",
+      "name": "马形喷泉",
+      "path": "plaza/plaza-fountain-horse.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2218552,
+      "dimensions": {
+        "width": 5.500839884613165,
+        "height": 5,
+        "depth": 5.519367583237208
+      },
+      "inLibrary": false,
+      "taskId": "78cf9498-d200-4d1f-b120-d876d6eefedd",
+      "prompt": "A fountain with horse statues spraying water, baroque style, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-fountain-turtle",
+      "category": "plaza",
+      "name": "龟形喷泉",
+      "path": "plaza/plaza-fountain-turtle.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2161188,
+      "dimensions": {
+        "width": 3.176290581528703,
+        "height": 3,
+        "depth": 3.305383637521323
+      },
+      "inLibrary": false,
+      "taskId": "3c25bd3e-2fe6-4684-aa45-e7b88d6108b7",
+      "prompt": "A fountain with turtle statues, whimsical, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-fountain-geometric",
+      "category": "plaza",
+      "name": "几何喷泉",
+      "path": "plaza/plaza-fountain-geometric.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1560868,
+      "dimensions": {
+        "width": 4.7334120597533245,
+        "height": 4,
+        "depth": 4.741550875618286
+      },
+      "inLibrary": false,
+      "taskId": "80c7c9d1-a9fd-41e0-be65-419cab7c70a1",
+      "prompt": "A modern geometric fountain with stacked cubes and water, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-statue-warrior",
+      "category": "plaza",
+      "name": "战士雕像",
+      "path": "plaza/plaza-statue-warrior.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1961072,
+      "dimensions": {
+        "width": 4.565714777115589,
+        "height": 5,
+        "depth": 5.679802615698919
+      },
+      "inLibrary": false,
+      "taskId": "1cd59003-9dff-422c-9ddc-a36a990e3cfc",
+      "prompt": "A warrior statue with sword and shield, heroic pose, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-statue-dancer",
+      "category": "plaza",
+      "name": "舞者雕像",
+      "path": "plaza/plaza-statue-dancer.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1869848,
+      "dimensions": {
+        "width": 2.893075636827135,
+        "height": 3.5,
+        "depth": 2.7184798766973803
+      },
+      "inLibrary": false,
+      "taskId": "df1af948-30a9-4437-8541-8a438d909c06",
+      "prompt": "A statue of a dancer in dynamic pose, bronze, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-statue-thinker",
+      "category": "plaza",
+      "name": "思想者雕像",
+      "path": "plaza/plaza-statue-thinker.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1960736,
+      "dimensions": {
+        "width": 1.995598481746687,
+        "height": 3,
+        "depth": 1.4484504643881184
+      },
+      "inLibrary": false,
+      "taskId": "dcee66dc-5456-4179-ba7a-bac05bae8162",
+      "prompt": "A thinker statue in contemplative pose, bronze, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-statue-horse",
+      "category": "plaza",
+      "name": "马雕像",
+      "path": "plaza/plaza-statue-horse.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2021628,
+      "dimensions": {
+        "width": 4.712052596655763,
+        "height": 5,
+        "depth": 1.9544561515830952
+      },
+      "inLibrary": false,
+      "taskId": "c4df3d1a-e930-4c95-937f-c45c246a97be",
+      "prompt": "A rearing horse statue on pedestal, bronze, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-statue-dragon-east",
+      "category": "plaza",
+      "name": "东方龙雕像",
+      "path": "plaza/plaza-statue-dragon-east.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2176672,
+      "dimensions": {
+        "width": 2.951900716431014,
+        "height": 6,
+        "depth": 4.7202346455933695
+      },
+      "inLibrary": false,
+      "taskId": "e6ec1cc1-694a-4de4-911c-db1c37be1561",
+      "prompt": "An Eastern dragon statue coiled around pillar, golden, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-clock-sundial-stone",
+      "category": "plaza",
+      "name": "石日晷",
+      "path": "plaza/plaza-clock-sundial-stone.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1758824,
+      "dimensions": {
+        "width": 1.6142659210309247,
+        "height": 1.5,
+        "depth": 1.8909626450379353
+      },
+      "inLibrary": false,
+      "taskId": "71e4023a-360b-47d0-801a-b3ac7b04fdd5",
+      "prompt": "A stone sundial with Roman numerals, garden, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-globe-metal",
+      "category": "plaza",
+      "name": "金属地球仪",
+      "path": "plaza/plaza-globe-metal.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2138348,
+      "dimensions": {
+        "width": 3.713814412117784,
+        "height": 4,
+        "depth": 3.76906301081058
+      },
+      "inLibrary": false,
+      "taskId": "35030461-d476-4949-a710-1b4562597c2e",
+      "prompt": "A large metal globe sculpture with axis, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-infinity-fountain",
+      "category": "plaza",
+      "name": "无边喷泉",
+      "path": "plaza/plaza-infinity-fountain.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1927100,
+      "dimensions": {
+        "width": 3.5009669452319656,
+        "height": 2,
+        "depth": 1.91518824221309
+      },
+      "inLibrary": false,
+      "taskId": "f4189168-c166-42c4-aa56-2af509c7294c",
+      "prompt": "An infinity edge fountain with water flowing over edge, modern, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-mosaic-floor",
+      "category": "plaza",
+      "name": "马赛克地面",
+      "path": "plaza/plaza-mosaic-floor.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 3224612,
+      "dimensions": {
+        "width": 0.020370253583365756,
+        "height": 0.1,
+        "depth": 0.10749760007153984
+      },
+      "inLibrary": false,
+      "taskId": "2ab7fe76-7fc5-43e8-b8a9-0de06caedfb8",
+      "prompt": "A circular mosaic floor medallion with intricate pattern, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-kiosk-information",
+      "category": "plaza",
+      "name": "信息亭",
+      "path": "plaza/plaza-kiosk-information.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1747772,
+      "dimensions": {
+        "width": 1.3982378277695517,
+        "height": 2.5,
+        "depth": 2.3448935754781965
+      },
+      "inLibrary": false,
+      "taskId": "d73c05cf-dbb6-4308-84a9-d6d1ee35ed42",
+      "prompt": "A modern information kiosk with digital screen, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-kiosk-ticket",
+      "category": "plaza",
+      "name": "售票亭",
+      "path": "plaza/plaza-kiosk-ticket.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1924792,
+      "dimensions": {
+        "width": 1.4586412416029828,
+        "height": 2.5,
+        "depth": 1.3929889342887067
+      },
+      "inLibrary": false,
+      "taskId": "67e951a3-67be-4805-a4ee-8c1d300f0a03",
+      "prompt": "A ticket booth kiosk with window and signage, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-kiosk-photo",
+      "category": "plaza",
+      "name": "拍照亭",
+      "path": "plaza/plaza-kiosk-photo.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1777176,
+      "dimensions": {
+        "width": 1.6309400975772586,
+        "height": 2.5,
+        "depth": 1.6936524115650213
+      },
+      "inLibrary": false,
+      "taskId": "fd2fe729-ab46-480f-8cdb-706294f4b215",
+      "prompt": "A photo booth kiosk with curtain and flash, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-seat-wavy",
+      "category": "plaza",
+      "name": "波浪座椅",
+      "path": "plaza/plaza-seat-wavy.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2330756,
+      "dimensions": {
+        "width": 2.6264908185847764,
+        "height": 1,
+        "depth": 1.220269290836318
+      },
+      "inLibrary": false,
+      "taskId": "2dd97202-2837-4475-b896-45c7fb840e27",
+      "prompt": "A modern wavy public bench sculpture, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-seat-circle",
+      "category": "plaza",
+      "name": "环形座椅",
+      "path": "plaza/plaza-seat-circle.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2881952,
+      "dimensions": {
+        "width": 0.940114777238437,
+        "height": 0.8,
+        "depth": 1.052390076652921
+      },
+      "inLibrary": false,
+      "taskId": "ae42db32-e7bc-44fa-8441-ebd13fdd8c5a",
+      "prompt": "A circular bench around a tree planter, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-lamp-solar-modern",
+      "category": "plaza",
+      "name": "现代太阳能灯",
+      "path": "plaza/plaza-lamp-solar-modern.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1898924,
+      "dimensions": {
+        "width": 1.9698669084773113,
+        "height": 5,
+        "depth": 1.8308012746320228
+      },
+      "inLibrary": false,
+      "taskId": "32c11986-2d2d-4447-b311-a31fba7dd31e",
+      "prompt": "A modern solar-powered LED street lamp with sleek design, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-lamp-harbor",
+      "category": "plaza",
+      "name": "码头灯",
+      "path": "plaza/plaza-lamp-harbor.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1972492,
+      "dimensions": {
+        "width": 2.1067121599245016,
+        "height": 4,
+        "depth": 0.6341055546222337
+      },
+      "inLibrary": false,
+      "taskId": "7ee4fb5c-0941-4d7c-b5c7-0f50945c4379",
+      "prompt": "A harbor-style lamp post with cage light, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-lamp-tiffany",
+      "category": "plaza",
+      "name": "蒂芙尼灯",
+      "path": "plaza/plaza-lamp-tiffany.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1904996,
+      "dimensions": {
+        "width": 0.7634416211669883,
+        "height": 3.5,
+        "depth": 1.8668612130073965
+      },
+      "inLibrary": false,
+      "taskId": "3d211948-5e7e-4f23-a280-af4b31afe108",
+      "prompt": "A Tiffany-style stained glass lamp post, colorful, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-flag-banner",
+      "category": "plaza",
+      "name": "横幅旗帜",
+      "path": "plaza/plaza-flag-banner.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1915728,
+      "dimensions": {
+        "width": 0.46733025775111353,
+        "height": 5,
+        "depth": 6.098691122906207
+      },
+      "inLibrary": false,
+      "taskId": "42c0d009-d2c6-40ea-9d0c-e65474bb9439",
+      "prompt": "A hanging banner flag between two poles, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-pennant-string",
+      "category": "plaza",
+      "name": "三角旗串",
+      "path": "plaza/plaza-pennant-string.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1652328,
+      "dimensions": {
+        "width": 0.2523239484819181,
+        "height": 3,
+        "depth": 4.230839109878049
+      },
+      "inLibrary": false,
+      "taskId": "5cb075e9-3fbe-4d31-b56a-f73d1d453883",
+      "prompt": "A string of colorful pennant flags, festival, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-decorative-column",
+      "category": "plaza",
+      "name": "装饰柱",
+      "path": "plaza/plaza-decorative-column.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2201204,
+      "dimensions": {
+        "width": 1.2598905603609707,
+        "height": 5,
+        "depth": 1.2585907198796
+      },
+      "inLibrary": false,
+      "taskId": "fdff13fd-b23c-4b14-a7b1-225bf43267df",
+      "prompt": "A decorative classical column with capital and base, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-chest-royal",
+      "category": "props",
+      "name": "皇家宝箱",
+      "path": "props/prop-chest-royal.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2157304,
+      "dimensions": {
+        "width": 0.9996032889804183,
+        "height": 1.2,
+        "depth": 1.2226510863654696
+      },
+      "inLibrary": false,
+      "taskId": "69ee6389-5a17-4699-b94e-64f94fc8d75a",
+      "prompt": "A royal treasure chest with velvet lining and gold trim, glowing, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-chest-cursed",
+      "category": "props",
+      "name": "诅咒宝箱",
+      "path": "props/prop-chest-cursed.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2536716,
+      "dimensions": {
+        "width": 1.2706256572562653,
+        "height": 1.1,
+        "depth": 1.4397669490203178
+      },
+      "inLibrary": false,
+      "taskId": "2016953c-aa3f-4d07-aa3a-d416ea83480e",
+      "prompt": "A cursed treasure chest with dark energy and skull lock, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-chest-ice",
+      "category": "props",
+      "name": "冰封宝箱",
+      "path": "props/prop-chest-ice.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1873224,
+      "dimensions": {
+        "width": 1.0298143925287073,
+        "height": 1.2,
+        "depth": 1.3766834623221988
+      },
+      "inLibrary": false,
+      "taskId": "c8c260ff-d4b1-4531-8083-d64facc19e61",
+      "prompt": "An ice-encased treasure chest frozen in a block of ice, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-chest-lava",
+      "category": "props",
+      "name": "熔岩宝箱",
+      "path": "props/prop-chest-lava.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2076028,
+      "dimensions": {
+        "width": 1.0243337573837514,
+        "height": 1,
+        "depth": 1.2713633963558946
+      },
+      "inLibrary": false,
+      "taskId": "96fd12b5-92a1-40db-9dfa-02b986bc83e1",
+      "prompt": "A lava-themed chest with glowing cracks and heat haze, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-urn-ancient",
+      "category": "props",
+      "name": "古瓮",
+      "path": "props/prop-urn-ancient.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2005808,
+      "dimensions": {
+        "width": 1.0524017155532623,
+        "height": 1.5,
+        "depth": 1.0539587448413466
+      },
+      "inLibrary": false,
+      "taskId": "75eb5382-771b-475c-b9ca-7f67bc18a9a5",
+      "prompt": "An ancient ceramic urn with Greek patterns, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-urn-jade",
+      "category": "props",
+      "name": "玉瓮",
+      "path": "props/prop-urn-jade.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2088156,
+      "dimensions": {
+        "width": 1.1092196484400276,
+        "height": 1.2,
+        "depth": 1.2045316346624146
+      },
+      "inLibrary": false,
+      "taskId": "2db5d54a-a329-4188-8507-116707a2724b",
+      "prompt": "A jade green urn with carved patterns, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-vase-blue",
+      "category": "props",
+      "name": "青花瓷瓶",
+      "path": "props/prop-vase-blue.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2473940,
+      "dimensions": {
+        "width": 0.672443675602296,
+        "height": 1.2,
+        "depth": 0.6695719554087844
+      },
+      "inLibrary": false,
+      "taskId": "21fc3beb-4ab4-45ac-895b-6fdc8433af8c",
+      "prompt": "A blue and white porcelain vase with floral patterns, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-vase-gold",
+      "category": "props",
+      "name": "金瓶",
+      "path": "props/prop-vase-gold.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2172704,
+      "dimensions": {
+        "width": 0.8021784115576095,
+        "height": 1.3,
+        "depth": 0.8091346198259712
+      },
+      "inLibrary": false,
+      "taskId": "bced2671-8a69-4db2-bd07-0f3e97078413",
+      "prompt": "A golden ornate vase with engravings, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-statue-bust",
+      "category": "props",
+      "name": "半身像",
+      "path": "props/prop-statue-bust.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1700028,
+      "dimensions": {
+        "width": 0.8236530988744062,
+        "height": 1.8,
+        "depth": 1.1870651035515207
+      },
+      "inLibrary": false,
+      "taskId": "2c90fab5-9128-40f5-b555-52f9227db2b2",
+      "prompt": "A marble bust sculpture on pedestal, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-globe-vintage",
+      "category": "props",
+      "name": "复古地球仪",
+      "path": "props/prop-globe-vintage.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2056984,
+      "dimensions": {
+        "width": 1.1248673632157502,
+        "height": 1.5,
+        "depth": 1.2042195463991123
+      },
+      "inLibrary": false,
+      "taskId": "2aead6ab-9cec-4eb1-9fc6-69281efb238b",
+      "prompt": "A vintage world globe on wooden stand, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-telescope",
+      "category": "props",
+      "name": "望远镜",
+      "path": "props/prop-telescope.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1938960,
+      "dimensions": {
+        "width": 0.912467708838038,
+        "height": 1.8,
+        "depth": 1.6671100000190755
+      },
+      "inLibrary": false,
+      "taskId": "68404b6a-4f6e-4bf5-bdad-195c0feeee6f",
+      "prompt": "A brass telescope on tripod, vintage, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-hourglass-giant",
+      "category": "props",
+      "name": "巨型沙漏",
+      "path": "props/prop-hourglass-giant.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1806360,
+      "dimensions": {
+        "width": 1.8340258900899358,
+        "height": 2.5,
+        "depth": 1.8356289925566451
+      },
+      "inLibrary": false,
+      "taskId": "c6cbd7fd-9a47-4fc2-aba5-a6915d25fe96",
+      "prompt": "A giant hourglass with flowing sand, decorative, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-sundial-small",
+      "category": "props",
+      "name": "小型日晷",
+      "path": "props/prop-sundial-small.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2171268,
+      "dimensions": {
+        "width": 0.9477448931898805,
+        "height": 1.2,
+        "depth": 0.9283146556474846
+      },
+      "inLibrary": false,
+      "taskId": "c48a969e-f631-4aa1-8c5f-3a535696ce58",
+      "prompt": "A small garden sundial on pedestal, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-birdhouse",
+      "category": "props",
+      "name": "鸟屋",
+      "path": "props/prop-birdhouse.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2049880,
+      "dimensions": {
+        "width": 0.9506482448056195,
+        "height": 2,
+        "depth": 0.8610288578877682
+      },
+      "inLibrary": false,
+      "taskId": "33bc4a42-9356-4cb2-8539-03db6ddbc6a4",
+      "prompt": "A decorative birdhouse on pole, painted, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-beehive",
+      "category": "props",
+      "name": "蜂箱",
+      "path": "props/prop-beehive.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2188188,
+      "dimensions": {
+        "width": 0.8569743684776688,
+        "height": 1,
+        "depth": 0.7053235640164581
+      },
+      "inLibrary": false,
+      "taskId": "31b5611e-625c-4bcd-abae-7f8736919777",
+      "prompt": "A wooden beehive with bees, garden, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-windmill-small",
+      "category": "props",
+      "name": "小风车",
+      "path": "props/prop-windmill-small.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2616672,
+      "dimensions": {
+        "width": 1.9079212972493211,
+        "height": 2.5,
+        "depth": 1.9588030089524449
+      },
+      "inLibrary": false,
+      "taskId": "b27221cd-e9ed-4a83-84da-b65bc57f489e",
+      "prompt": "A small decorative garden windmill, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-butterfly-house",
+      "category": "props",
+      "name": "蝴蝶屋",
+      "path": "props/prop-butterfly-house.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2765520,
+      "dimensions": {
+        "width": 2.1541282087300258,
+        "height": 2.5,
+        "depth": 2.1697268527229117
+      },
+      "inLibrary": false,
+      "taskId": "47556e17-5262-44c9-b260-3393523bc958",
+      "prompt": "A butterfly house with flowers and netting, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-compass-stone",
+      "category": "props",
+      "name": "石罗盘",
+      "path": "props/prop-compass-stone.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2050536,
+      "dimensions": {
+        "width": 0.13950700689279155,
+        "height": 0.15,
+        "depth": 0.19371003234163653
+      },
+      "inLibrary": false,
+      "taskId": "ba669c78-38df-45ce-b6d6-679d8978f932",
+      "prompt": "A compass rose embedded in stone pavement, bronze inlay, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-manhole",
+      "category": "props",
+      "name": "井盖",
+      "path": "props/prop-manhole.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2412088,
+      "dimensions": {
+        "width": 0.050881285769141124,
+        "height": 0.05,
+        "depth": 0.012253824503179711
+      },
+      "inLibrary": false,
+      "taskId": "b259580a-c27e-4bad-8c22-2e9f742590fd",
+      "prompt": "A decorative manhole cover with city emblem, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-drain-cover",
+      "category": "props",
+      "name": "排水篦子",
+      "path": "props/prop-drain-cover.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2913308,
+      "dimensions": {
+        "width": 0.1412491377010126,
+        "height": 0.05,
+        "depth": 0.14086566356375155
+      },
+      "inLibrary": false,
+      "taskId": "53e9d287-d66a-4c2c-8e71-8c8ee559d36e",
+      "prompt": "A metal drain grate cover, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-fire-hydrant",
+      "category": "props",
+      "name": "消防栓",
+      "path": "props/prop-fire-hydrant.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1688080,
+      "dimensions": {
+        "width": 0.572991788527735,
+        "height": 1,
+        "depth": 0.5678378459254219
+      },
+      "inLibrary": false,
+      "taskId": "75e683a5-45f5-4c6f-98ad-4d99fdcb59d9",
+      "prompt": "A red fire hydrant, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-newspaper-stand",
+      "category": "props",
+      "name": "报刊架",
+      "path": "props/prop-newspaper-stand.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2855784,
+      "dimensions": {
+        "width": 0.6160642618454214,
+        "height": 1.5,
+        "depth": 1.2331219861381353
+      },
+      "inLibrary": false,
+      "taskId": "6bd9f29a-3baa-4a71-b82b-627a1028b269",
+      "prompt": "A newspaper stand with magazines, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-sandwich-board",
+      "category": "props",
+      "name": "A型广告牌",
+      "path": "props/prop-sandwich-board.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1924788,
+      "dimensions": {
+        "width": 0.7230080056874658,
+        "height": 1.2,
+        "depth": 0.7708304240083724
+      },
+      "inLibrary": false,
+      "taskId": "6413eebf-48b5-4e22-8d8f-236ebe022773",
+      "prompt": "A sandwich board A-frame sign, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-barricade",
+      "category": "props",
+      "name": "路障",
+      "path": "props/prop-barricade.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2560984,
+      "dimensions": {
+        "width": 1.7070115001782225,
+        "height": 1.2,
+        "depth": 0.7348417008556372
+      },
+      "inLibrary": false,
+      "taskId": "98c88f43-02cd-4598-b134-dc37bc087e3b",
+      "prompt": "A wooden police barricade with stripes, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-window-box",
+      "category": "props",
+      "name": "窗盒花",
+      "path": "props/prop-window-box.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2010152,
+      "dimensions": {
+        "width": 0.33519406517761224,
+        "height": 0.6,
+        "depth": 0.5718806340392745
+      },
+      "inLibrary": false,
+      "taskId": "06552ac6-e237-43d2-a686-90927fb671b4",
+      "prompt": "A window box with colorful flowers, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-trellis",
+      "category": "props",
+      "name": "花架",
+      "path": "props/prop-trellis.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2692020,
+      "dimensions": {
+        "width": 0.40647833094782676,
+        "height": 2.5,
+        "depth": 1.9791311710137756
+      },
+      "inLibrary": false,
+      "taskId": "fe7f6bff-1fe9-4944-b238-28486037ae7e",
+      "prompt": "A wooden trellis with climbing roses, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-pergola",
+      "category": "props",
+      "name": "藤架",
+      "path": "props/prop-pergola.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2351112,
+      "dimensions": {
+        "width": 4.128542918001957,
+        "height": 3,
+        "depth": 3.5044743001748238
+      },
+      "inLibrary": false,
+      "taskId": "90707163-1de6-49c0-9d44-e63a5888610b",
+      "prompt": "A wooden pergola with climbing vines, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-gazebo-small",
+      "category": "props",
+      "name": "小露台",
+      "path": "props/prop-gazebo-small.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2285976,
+      "dimensions": {
+        "width": 3.680389340397973,
+        "height": 4,
+        "depth": 4.035204527625373
+      },
+      "inLibrary": false,
+      "taskId": "b265f977-5649-4bcb-a2f6-c1d15b748a8a",
+      "prompt": "A small garden gazebo with lattice sides, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-swing-bench",
+      "category": "props",
+      "name": "秋千椅",
+      "path": "props/prop-swing-bench.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2716272,
+      "dimensions": {
+        "width": 1.0835202116285498,
+        "height": 2.5,
+        "depth": 2.3010422261455297
+      },
+      "inLibrary": false,
+      "taskId": "f76a5483-74db-4763-923e-d88afbdda7a4",
+      "prompt": "A hanging swing bench with chains, garden, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-picnic-table",
+      "category": "props",
+      "name": "野餐桌",
+      "path": "props/prop-picnic-table.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2272740,
+      "dimensions": {
+        "width": 2.83531184516318,
+        "height": 1.5,
+        "depth": 3.393173810592346
+      },
+      "inLibrary": false,
+      "taskId": "fb984b6d-10ae-4130-8508-128ac959f62c",
+      "prompt": "A wooden picnic table with attached benches, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-bbq-grill",
+      "category": "props",
+      "name": "烧烤架",
+      "path": "props/prop-bbq-grill.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2005904,
+      "dimensions": {
+        "width": 1.1682203801968103,
+        "height": 1.5,
+        "depth": 1.3953470929186815
+      },
+      "inLibrary": false,
+      "taskId": "e00c25be-12cf-4ba6-ac45-2b2c952b2ce0",
+      "prompt": "A barbecue grill with charcoal and tools, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-fairy-door",
+      "category": "props",
+      "name": "精灵门",
+      "path": "props/prop-fairy-door.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2421536,
+      "dimensions": {
+        "width": 0.36640564811895615,
+        "height": 0.5,
+        "depth": 0.36518475555282304
+      },
+      "inLibrary": false,
+      "taskId": "6d0853fa-4591-4a90-a1ec-470f0ff02607",
+      "prompt": "A tiny fairy door on a tree trunk, magical, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-elm",
+      "category": "nature",
+      "name": "榆树",
+      "path": "nature/nature-tree-elm.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2094520,
+      "dimensions": {
+        "width": 6.830947624103912,
+        "height": 10,
+        "depth": 7.827498588662575
+      },
+      "inLibrary": false,
+      "taskId": "0a7d2f20-ba21-4b14-9bb9-c82df3688e35",
+      "prompt": "An elm tree with broad vase-shaped canopy, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-chestnut",
+      "category": "nature",
+      "name": "栗树",
+      "path": "nature/nature-tree-chestnut.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2952880,
+      "dimensions": {
+        "width": 8.270791423029564,
+        "height": 10,
+        "depth": 10.162257444660844
+      },
+      "inLibrary": false,
+      "taskId": "e74d6e6b-0b70-4998-9ce3-4176d3ec8d5c",
+      "prompt": "A chestnut tree with spiky seed pods, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-cherry",
+      "category": "nature",
+      "name": "樱桃树",
+      "path": "nature/nature-tree-cherry.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2407564,
+      "dimensions": {
+        "width": 4.384161039899329,
+        "height": 6,
+        "depth": 5.092691113870431
+      },
+      "inLibrary": false,
+      "taskId": "45f7b6af-17fc-4bf0-af39-2dadda0ac1e1",
+      "prompt": "A cherry tree with red fruit, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-walnut",
+      "category": "nature",
+      "name": "胡桃树",
+      "path": "nature/nature-tree-walnut.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2551300,
+      "dimensions": {
+        "width": 7.354741169390953,
+        "height": 9,
+        "depth": 8.794298517234862
+      },
+      "inLibrary": false,
+      "taskId": "5fbc8c71-3a5c-499d-8b01-1676c2aba42b",
+      "prompt": "A walnut tree with large leaves, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-apple",
+      "category": "nature",
+      "name": "苹果树",
+      "path": "nature/nature-tree-apple.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2468064,
+      "dimensions": {
+        "width": 4.410623587892571,
+        "height": 5,
+        "depth": 4.712383118500782
+      },
+      "inLibrary": false,
+      "taskId": "2c77b975-9f2e-4382-b882-c7647688cca0",
+      "prompt": "An apple tree with red apples, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-lemon",
+      "category": "nature",
+      "name": "柠檬树",
+      "path": "nature/nature-tree-lemon.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2376240,
+      "dimensions": {
+        "width": 3.6615416954539897,
+        "height": 4.5,
+        "depth": 4.731766967700787
+      },
+      "inLibrary": false,
+      "taskId": "9325886f-8f42-4f19-bfe5-30346d1ed662",
+      "prompt": "A lemon tree with yellow fruit, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-olive",
+      "category": "nature",
+      "name": "橄榄树",
+      "path": "nature/nature-tree-olive.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2612132,
+      "dimensions": {
+        "width": 4.870432591861242,
+        "height": 5,
+        "depth": 5.3966451445651655
+      },
+      "inLibrary": false,
+      "taskId": "f2c1e503-7178-4a45-80fc-cb227a6e086e",
+      "prompt": "An olive tree with silvery leaves and gnarled trunk, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-tree-bonsai",
+      "category": "nature",
+      "name": "盆景",
+      "path": "nature/nature-tree-bonsai.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2564688,
+      "dimensions": {
+        "width": 0.5639839902607636,
+        "height": 1,
+        "depth": 1.039414408177434
+      },
+      "inLibrary": false,
+      "taskId": "95e5df9c-aa94-429b-b72b-f501a4729398",
+      "prompt": "A bonsai tree in ceramic pot, carefully pruned, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-bush-rose",
+      "category": "nature",
+      "name": "玫瑰丛",
+      "path": "nature/nature-bush-rose.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2154764,
+      "dimensions": {
+        "width": 0.7568927087815919,
+        "height": 1.2,
+        "depth": 0.883493999909141
+      },
+      "inLibrary": false,
+      "taskId": "ce66ad3f-e285-4c02-84de-6928fdfc5056",
+      "prompt": "A rose bush with red flowers and thorns, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-bush-lavender",
+      "category": "nature",
+      "name": "薰衣草",
+      "path": "nature/nature-bush-lavender.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2523044,
+      "dimensions": {
+        "width": 0.8468122222052613,
+        "height": 0.8,
+        "depth": 0.8904619730237541
+      },
+      "inLibrary": false,
+      "taskId": "81c7ff0e-5285-4755-8dd1-d66ba3e46f65",
+      "prompt": "A lavender bush with purple flowers, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-bush-hydrangea",
+      "category": "nature",
+      "name": "绣球花",
+      "path": "nature/nature-bush-hydrangea.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2870836,
+      "dimensions": {
+        "width": 1.3979668740798268,
+        "height": 1.2,
+        "depth": 1.378936509034654
+      },
+      "inLibrary": false,
+      "taskId": "a652eaed-691d-4b61-abd2-c8f6fc5c2174",
+      "prompt": "A hydrangea bush with blue flower clusters, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-bush-rhododendron",
+      "category": "nature",
+      "name": "杜鹃花",
+      "path": "nature/nature-bush-rhododendron.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2945772,
+      "dimensions": {
+        "width": 1.5534681746985533,
+        "height": 1.5,
+        "depth": 1.5055313742512102
+      },
+      "inLibrary": false,
+      "taskId": "ff1d7284-b523-4042-9761-2fb72fe90a97",
+      "prompt": "A rhododendron bush with pink flowers, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-bush-boxwood",
+      "category": "nature",
+      "name": "黄杨木",
+      "path": "nature/nature-bush-boxwood.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 3197836,
+      "dimensions": {
+        "width": 0.7204598175618075,
+        "height": 1,
+        "depth": 1.0203787038617385
+      },
+      "inLibrary": false,
+      "taskId": "cb504715-ce40-4863-88e0-fae61f0659ca",
+      "prompt": "A boxwood hedge shrub, dense green, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-bush-holly",
+      "category": "nature",
+      "name": "冬青",
+      "path": "nature/nature-bush-holly.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2350524,
+      "dimensions": {
+        "width": 1.076721842504321,
+        "height": 1.2,
+        "depth": 1.2052519900142276
+      },
+      "inLibrary": false,
+      "taskId": "527f7f51-ac70-4050-a198-48eabebc9408",
+      "prompt": "A holly bush with red berries and spiky leaves, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-rock-volcanic",
+      "category": "nature",
+      "name": "火山岩",
+      "path": "nature/nature-rock-volcanic.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2330272,
+      "dimensions": {
+        "width": 1.7280031049061195,
+        "height": 1.5,
+        "depth": 1.6837076319125146
+      },
+      "inLibrary": false,
+      "taskId": "cb15a548-2c72-49fb-a684-d7808cb2fa6e",
+      "prompt": "A volcanic rock with porous texture, dark, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-rock-crystal-geode",
+      "category": "nature",
+      "name": "晶洞",
+      "path": "nature/nature-rock-crystal-geode.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2462608,
+      "dimensions": {
+        "width": 0.6985802090492267,
+        "height": 1,
+        "depth": 0.8821637679540052
+      },
+      "inLibrary": false,
+      "taskId": "35ecb809-9f4c-4de9-b83c-581cad03d32c",
+      "prompt": "A cracked geode rock with purple crystals inside, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-rock-marble",
+      "category": "nature",
+      "name": "大理石",
+      "path": "nature/nature-rock-marble.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2140432,
+      "dimensions": {
+        "width": 1.6673235260410837,
+        "height": 1.5,
+        "depth": 1.5703534546890248
+      },
+      "inLibrary": false,
+      "taskId": "90c11b76-2e39-4cac-81a0-801547807779",
+      "prompt": "A polished marble boulder with veins, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-rock-slate",
+      "category": "nature",
+      "name": "板岩",
+      "path": "nature/nature-rock-slate.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2307256,
+      "dimensions": {
+        "width": 1.4786901419225436,
+        "height": 2,
+        "depth": 2.0561877722269997
+      },
+      "inLibrary": false,
+      "taskId": "de6d43a7-5475-4f31-8331-cfe1b899c62a",
+      "prompt": "A slate rock formation with layered flat stones, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-rock-granite",
+      "category": "nature",
+      "name": "花岗岩",
+      "path": "nature/nature-rock-granite.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2649536,
+      "dimensions": {
+        "width": 2.4581131255804602,
+        "height": 2,
+        "depth": 2.3781019023612897
+      },
+      "inLibrary": false,
+      "taskId": "614d930b-955c-4b8d-8da4-f57521efddc8",
+      "prompt": "A granite boulder with speckled texture, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-rock-limestone",
+      "category": "nature",
+      "name": "石灰岩",
+      "path": "nature/nature-rock-limestone.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2528688,
+      "dimensions": {
+        "width": 2.8083197630729964,
+        "height": 2.5,
+        "depth": 2.538906071970889
+      },
+      "inLibrary": false,
+      "taskId": "6c25d974-77f9-445f-b066-abf628324dd8",
+      "prompt": "A limestone rock with erosion patterns, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-flower-sunflower",
+      "category": "nature",
+      "name": "向日葵",
+      "path": "nature/nature-flower-sunflower.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2307092,
+      "dimensions": {
+        "width": 1.1244517324786198,
+        "height": 2,
+        "depth": 1.1241056792216726
+      },
+      "inLibrary": false,
+      "taskId": "85ba2bb0-99ea-43fc-bd88-8f2ceea02bef",
+      "prompt": "A cluster of sunflowers with tall stems, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-flower-tulip",
+      "category": "nature",
+      "name": "郁金香",
+      "path": "nature/nature-flower-tulip.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2320620,
+      "dimensions": {
+        "width": 1.3598031750475703,
+        "height": 0.6,
+        "depth": 2.1849796452528105
+      },
+      "inLibrary": false,
+      "taskId": "69de39ff-08dc-4920-b540-d4ec4d6c0f2e",
+      "prompt": "A bed of tulips in various colors, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-flower-rose",
+      "category": "nature",
+      "name": "玫瑰花",
+      "path": "nature/nature-flower-rose.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2519824,
+      "dimensions": {
+        "width": 1.1573810992761449,
+        "height": 1,
+        "depth": 1.266300942238422
+      },
+      "inLibrary": false,
+      "taskId": "721b8145-f97f-48c6-b2ad-abe95b3377ae",
+      "prompt": "A cluster of rose bushes with blooms, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-flower-lavender-field",
+      "category": "nature",
+      "name": "薰衣草田",
+      "path": "nature/nature-flower-lavender-field.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 3212832,
+      "dimensions": {
+        "width": 3.8181652770009458,
+        "height": 0.8,
+        "depth": 3.57088416375826
+      },
+      "inLibrary": false,
+      "taskId": "a2900b0d-be70-4148-949b-2a786ad8a939",
+      "prompt": "A patch of lavender field rows, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-grass-tall",
+      "category": "nature",
+      "name": "高草",
+      "path": "nature/nature-grass-tall.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2880068,
+      "dimensions": {
+        "width": 1.3616018569279333,
+        "height": 1.5,
+        "depth": 1.2037252546990904
+      },
+      "inLibrary": false,
+      "taskId": "0a0307ae-4898-4288-a343-28be495c0512",
+      "prompt": "Tall ornamental grass plumes, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-grass-pampas",
+      "category": "nature",
+      "name": "蒲苇",
+      "path": "nature/nature-grass-pampas.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2703628,
+      "dimensions": {
+        "width": 1.0486225662514208,
+        "height": 2,
+        "depth": 1.0681889806977085
+      },
+      "inLibrary": false,
+      "taskId": "e781d0af-05af-4b92-89d5-e7a066a8e367",
+      "prompt": "Pampas grass with feathery plumes, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-moss-rock",
+      "category": "nature",
+      "name": "苔藓石",
+      "path": "nature/nature-moss-rock.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2452236,
+      "dimensions": {
+        "width": 1.604923274311171,
+        "height": 1,
+        "depth": 1.5194475318397296
+      },
+      "inLibrary": false,
+      "taskId": "b7eccddf-41d9-47ac-b1f9-575917bd8a7e",
+      "prompt": "A moss-covered rock with small ferns, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-lichen-stone",
+      "category": "nature",
+      "name": "地衣石",
+      "path": "nature/nature-lichen-stone.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2457284,
+      "dimensions": {
+        "width": 1.9097427835376057,
+        "height": 0.8,
+        "depth": 1.268662657214613
+      },
+      "inLibrary": false,
+      "taskId": "f620e869-cf57-43a5-aaa1-330cdbd462b9",
+      "prompt": "A stone with colorful lichen patches, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-log-mossy",
+      "category": "nature",
+      "name": "苔藓原木",
+      "path": "nature/nature-log-mossy.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2337116,
+      "dimensions": {
+        "width": 2.6818697344586733,
+        "height": 1,
+        "depth": 1.1097264186266944
+      },
+      "inLibrary": false,
+      "taskId": "79e886df-ab59-4dd9-b52b-719a72ffe8ce",
+      "prompt": "A fallen mossy log with mushrooms, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-stump",
+      "category": "nature",
+      "name": "树桩",
+      "path": "nature/nature-stump.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2504588,
+      "dimensions": {
+        "width": 1.7913369973612219,
+        "height": 0.8,
+        "depth": 1.7860751902940588
+      },
+      "inLibrary": false,
+      "taskId": "fe99f829-98b0-480c-baa9-c2fce91a7adc",
+      "prompt": "A tree stump with rings and moss, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-stump-hollow",
+      "category": "nature",
+      "name": "空心树桩",
+      "path": "nature/nature-stump-hollow.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2114416,
+      "dimensions": {
+        "width": 1.682591935554566,
+        "height": 1,
+        "depth": 1.6607251736164568
+      },
+      "inLibrary": false,
+      "taskId": "1f19e345-104a-4fb2-9dd7-a00356f0e709",
+      "prompt": "A hollow tree stump with glowing interior, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-branch-dead",
+      "category": "nature",
+      "name": "枯枝",
+      "path": "nature/nature-branch-dead.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2405328,
+      "dimensions": {
+        "width": 1.6276147636382354,
+        "height": 0.8,
+        "depth": 1.705342752281102
+      },
+      "inLibrary": false,
+      "taskId": "d87731d8-1030-4d63-9c54-afb1791450e1",
+      "prompt": "A pile of dead branches and twigs, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-acorn",
+      "category": "nature",
+      "name": "橡果",
+      "path": "nature/nature-acorn.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1847372,
+      "dimensions": {
+        "width": 0.28941266534126003,
+        "height": 0.1,
+        "depth": 0.2580506551896605
+      },
+      "inLibrary": false,
+      "taskId": "4e112a39-99bb-42cb-9a7e-67bef5796385",
+      "prompt": "A cluster of acorns on ground, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-pinecone",
+      "category": "nature",
+      "name": "松果",
+      "path": "nature/nature-pinecone.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2724608,
+      "dimensions": {
+        "width": 0.2602756633236578,
+        "height": 0.3,
+        "depth": 0.2667821448281917
+      },
+      "inLibrary": false,
+      "taskId": "c8e36957-67af-447e-8273-74920f179895",
+      "prompt": "A large pine cone on ground, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-water-lily",
+      "category": "nature",
+      "name": "睡莲",
+      "path": "nature/nature-water-lily.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1924140,
+      "dimensions": {
+        "width": 0.3333642491876143,
+        "height": 0.2,
+        "depth": 0.32478968484159565
+      },
+      "inLibrary": false,
+      "taskId": "e13a8874-0fa2-48df-9daf-6b6d9dfc5b67",
+      "prompt": "Water lily pads with pink flowers on pond, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-cattail",
+      "category": "nature",
+      "name": "香蒲",
+      "path": "nature/nature-cattail.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1888132,
+      "dimensions": {
+        "width": 0.34954075585748556,
+        "height": 1.8,
+        "depth": 0.7602626809377843
+      },
+      "inLibrary": false,
+      "taskId": "5bb748ca-ba7a-44fa-b5ec-1b4f7288025f",
+      "prompt": "Cattail reeds at water edge, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-stream",
+      "category": "nature",
+      "name": "溪流",
+      "path": "nature/nature-stream.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2528792,
+      "dimensions": {
+        "width": 0.8811665327129544,
+        "height": 0.2,
+        "depth": 0.5153408116695299
+      },
+      "inLibrary": false,
+      "taskId": "9d31e437-db36-4672-bd8c-effeaa659fdd",
+      "prompt": "A shallow stream with rocks and clear water, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-rapids",
+      "category": "nature",
+      "name": "急流",
+      "path": "nature/nature-rapids.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1672984,
+      "dimensions": {
+        "width": 5.987617341647819,
+        "height": 0.5,
+        "depth": 2.0533788669255806
+      },
+      "inLibrary": false,
+      "taskId": "8ab214cb-6e12-4fe0-bef6-8b37c74b771c",
+      "prompt": "White water rapids with rocks and foam, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-waterfall-small",
+      "category": "nature",
+      "name": "小瀑布",
+      "path": "nature/nature-waterfall-small.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1764564,
+      "dimensions": {
+        "width": 7.311765596756602,
+        "height": 4,
+        "depth": 6.594534121156719
+      },
+      "inLibrary": false,
+      "taskId": "3aadfee2-6e9d-4cd8-adce-e1bc825911da",
+      "prompt": "A small waterfall over rocks into pool, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-hot-spring-rock",
+      "category": "nature",
+      "name": "岩石温泉",
+      "path": "nature/nature-hot-spring-rock.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2479620,
+      "dimensions": {
+        "width": 4.71436088199658,
+        "height": 1,
+        "depth": 4.085482439145545
+      },
+      "inLibrary": false,
+      "taskId": "2ca7958e-df1e-45ce-abf7-bc30220065f8",
+      "prompt": "A natural hot spring pool surrounded by rocks with steam, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-ice-pond",
+      "category": "nature",
+      "name": "冰池",
+      "path": "nature/nature-ice-pond.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2114148,
+      "dimensions": {
+        "width": 0.3909597728621733,
+        "height": 0.1,
+        "depth": 0.38784336006694115
+      },
+      "inLibrary": false,
+      "taskId": "07a2503f-db8b-4b9e-8e2e-5924bc45d981",
+      "prompt": "A frozen pond with cracked ice surface, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-snow-patch",
+      "category": "nature",
+      "name": "积雪",
+      "path": "nature/nature-snow-patch.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1721276,
+      "dimensions": {
+        "width": 1.222317139734636,
+        "height": 0.2,
+        "depth": 0.8773609893881011
+      },
+      "inLibrary": false,
+      "taskId": "d58fcd42-3729-4cb4-9261-c0deca6ad846",
+      "prompt": "A patch of melting snow on ground, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-sand-patch",
+      "category": "nature",
+      "name": "沙地",
+      "path": "nature/nature-sand-patch.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2367756,
+      "dimensions": {
+        "width": 0.2123635372353873,
+        "height": 0.05,
+        "depth": 0.21560495213005623
+      },
+      "inLibrary": false,
+      "taskId": "72ad3b1b-6bfb-4feb-8bc0-33a7b744e91b",
+      "prompt": "A patch of sandy ground with small pebbles, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-mud-puddle",
+      "category": "nature",
+      "name": "泥坑",
+      "path": "nature/nature-mud-puddle.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1715800,
+      "dimensions": {
+        "width": 1.105003131603207,
+        "height": 0.1,
+        "depth": 1.1459979844507329
+      },
+      "inLibrary": false,
+      "taskId": "18e0759c-01eb-49e0-8033-85f18cc10f3f",
+      "prompt": "A muddy puddle with ripples, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-leaf-pile",
+      "category": "nature",
+      "name": "落叶堆",
+      "path": "nature/nature-leaf-pile.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2331976,
+      "dimensions": {
+        "width": 0.789033682905652,
+        "height": 0.5,
+        "depth": 0.7594906983472031
+      },
+      "inLibrary": false,
+      "taskId": "7fdbd26d-1c09-4ac8-9815-1c3009950ea4",
+      "prompt": "A pile of autumn leaves in orange and red, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-flower-wild-purple",
+      "category": "nature",
+      "name": "紫野花",
+      "path": "nature/nature-flower-wild-purple.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2750604,
+      "dimensions": {
+        "width": 0.8657367549019568,
+        "height": 0.5,
+        "depth": 0.8628854935849459
+      },
+      "inLibrary": false,
+      "taskId": "f5798d1f-2cd0-43b6-bf8d-51ff6749c0d0",
+      "prompt": "A patch of wild purple flowers, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-flower-wild-yellow",
+      "category": "nature",
+      "name": "黄野花",
+      "path": "nature/nature-flower-wild-yellow.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 3214304,
+      "dimensions": {
+        "width": 0.7547510212460493,
+        "height": 0.5,
+        "depth": 0.7720117302198823
+      },
+      "inLibrary": false,
+      "taskId": "9bf83c3d-520b-4a01-bd82-23d60339b7f3",
+      "prompt": "A patch of wild yellow flowers, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-flower-wild-white",
+      "category": "nature",
+      "name": "白野花",
+      "path": "nature/nature-flower-wild-white.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2552580,
+      "dimensions": {
+        "width": 0.7305889583589364,
+        "height": 0.5,
+        "depth": 0.7227311137120932
+      },
+      "inLibrary": false,
+      "taskId": "0648b30e-336e-43ab-a3f1-3bb1658beb5b",
+      "prompt": "A patch of wild white daisies, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-mushroom-brown",
+      "category": "nature",
+      "name": "棕蘑菇",
+      "path": "nature/nature-mushroom-brown.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1876972,
+      "dimensions": {
+        "width": 0.18372244806449362,
+        "height": 0.2,
+        "depth": 0.20233980492570422
+      },
+      "inLibrary": false,
+      "taskId": "90829a0d-151c-4d19-991b-3d07f3fdc2ce",
+      "prompt": "A cluster of brown cap mushrooms, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-mushroom-white",
+      "category": "nature",
+      "name": "白蘑菇",
+      "path": "nature/nature-mushroom-white.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1708108,
+      "dimensions": {
+        "width": 0.13806527657888903,
+        "height": 0.15,
+        "depth": 0.136378058427839
+      },
+      "inLibrary": false,
+      "taskId": "75ecc695-3b87-4c41-a2af-29348d571234",
+      "prompt": "White button mushrooms growing, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-mushroom-amanita",
+      "category": "nature",
+      "name": "毒蝇伞",
+      "path": "nature/nature-mushroom-amanita.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2195504,
+      "dimensions": {
+        "width": 0.2699515232798879,
+        "height": 0.3,
+        "depth": 0.266311263302146
+      },
+      "inLibrary": false,
+      "taskId": "47eeedc9-4838-46c8-b66e-eaea8c073aa4",
+      "prompt": "Red fly agaric mushrooms with white spots, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-mushroom-glow-blue",
+      "category": "nature",
+      "name": "蓝光蘑菇",
+      "path": "nature/nature-mushroom-glow-blue.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2041248,
+      "dimensions": {
+        "width": 0.32811922237207813,
+        "height": 0.4,
+        "depth": 0.38877547595806355
+      },
+      "inLibrary": false,
+      "taskId": "ce674e11-bf0e-411a-86ad-8b45470a3930",
+      "prompt": "Glowing blue bioluminescent mushrooms, fantasy, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-mushroom-glow-green",
+      "category": "nature",
+      "name": "绿光蘑菇",
+      "path": "nature/nature-mushroom-glow-green.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1811848,
+      "dimensions": {
+        "width": 0.3773140133026553,
+        "height": 0.4,
+        "depth": 0.37199862562057706
+      },
+      "inLibrary": false,
+      "taskId": "b61f4833-fee8-4ed0-9988-13ca16aacb49",
+      "prompt": "Glowing green bioluminescent mushrooms, fantasy, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-crystal-cave",
+      "category": "nature",
+      "name": "洞晶簇",
+      "path": "nature/nature-crystal-cave.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2068636,
+      "dimensions": {
+        "width": 2.013134090065092,
+        "height": 2,
+        "depth": 1.8394097225868247
+      },
+      "inLibrary": false,
+      "taskId": "f815e21b-599e-4ec7-a581-7c3957a2d9d8",
+      "prompt": "A crystal cluster growing from cave wall, amethyst, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-stalactite",
+      "category": "nature",
+      "name": "钟乳石",
+      "path": "nature/nature-stalactite.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2452372,
+      "dimensions": {
+        "width": 2.349277261361317,
+        "height": 3,
+        "depth": 3.0021579304697865
+      },
+      "inLibrary": false,
+      "taskId": "dc222afd-9715-4776-a1e9-7bf1b97e1da2",
+      "prompt": "Hanging stalactite formation from cave ceiling, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-stalagmite",
+      "category": "nature",
+      "name": "石笋",
+      "path": "nature/nature-stalagmite.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2035488,
+      "dimensions": {
+        "width": 2.141008557984589,
+        "height": 2.5,
+        "depth": 2.1373406693589403
+      },
+      "inLibrary": false,
+      "taskId": "a2efe4f0-6aac-46a2-b68c-82f858715039",
+      "prompt": "A stalagmite formation rising from cave floor, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-cave-pillar",
+      "category": "nature",
+      "name": "洞穴柱",
+      "path": "nature/nature-cave-pillar.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2044644,
+      "dimensions": {
+        "width": 1.954579843829166,
+        "height": 5,
+        "depth": 2.035431928590588
+      },
+      "inLibrary": false,
+      "taskId": "9377a950-a584-436f-8e4a-7f45c851f2d9",
+      "prompt": "A cave pillar where stalactite meets stalagmite, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-glowing-moss",
+      "category": "nature",
+      "name": "发光苔藓",
+      "path": "nature/nature-glowing-moss.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2125884,
+      "dimensions": {
+        "width": 0.2873825041238888,
+        "height": 0.3,
+        "depth": 0.3138737282396295
+      },
+      "inLibrary": false,
+      "taskId": "5486dc77-8844-4cbd-871e-2f34f662d77a",
+      "prompt": "Glowing green moss on rocks, fantasy cave, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "nature-underground-lake",
+      "category": "nature",
+      "name": "地下湖",
+      "path": "nature/nature-underground-lake.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2308912,
+      "dimensions": {
+        "width": 0.8619702196236396,
+        "height": 0.2,
+        "depth": 0.9316586112033022
+      },
+      "inLibrary": false,
+      "taskId": "1b328d89-414e-4353-894f-ae7847f725a8",
+      "prompt": "An underground lake with glowing blue water, cave setting, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-clocktower-grand",
+      "category": "buildings",
+      "name": "大钟楼",
+      "path": "buildings/building-clocktower-grand.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2430664,
+      "dimensions": {
+        "width": 5.8055027528696606,
+        "height": 22,
+        "depth": 5.5820690344590504
+      },
+      "inLibrary": false,
+      "taskId": "00e7cff2-e3e2-4d7d-ad7f-8656917c5cff",
+      "prompt": "A grand clock tower with giant clock face, bells, ornate stonework, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-windmill-large",
+      "category": "buildings",
+      "name": "大风车",
+      "path": "buildings/building-windmill-large.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2652668,
+      "dimensions": {
+        "width": 9.815924509228305,
+        "height": 14,
+        "depth": 12.619616933805878
+      },
+      "inLibrary": false,
+      "taskId": "e1aea887-357b-477c-9f3c-3e82f4c50fb7",
+      "prompt": "A large Dutch windmill with rotating blades, stone base, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-toyshop",
+      "category": "buildings",
+      "name": "玩具店",
+      "path": "buildings/building-toyshop.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2151744,
+      "dimensions": {
+        "width": 3.276211841898225,
+        "height": 5,
+        "depth": 5.5132030155960265
+      },
+      "inLibrary": false,
+      "taskId": "4e451642-3ee2-4924-b21f-0193d5aec132",
+      "prompt": "A toy shop with colorful displays and toys in window, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-art-gallery",
+      "category": "buildings",
+      "name": "美术馆",
+      "path": "buildings/building-art-gallery.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 721996,
+      "dimensions": {
+        "width": 1.2305514610893613,
+        "height": 8,
+        "depth": 6.992060111694606
+      },
+      "inLibrary": false,
+      "taskId": "801a46a8-7672-4f9a-ab73-84b035bd02a6",
+      "prompt": "A modern art gallery with white walls and paintings, minimalist design, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "building-museum-small",
+      "category": "buildings",
+      "name": "小博物馆",
+      "path": "buildings/building-museum-small.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2383036,
+      "dimensions": {
+        "width": 30.715414244480606,
+        "height": 9,
+        "depth": 5.398906436739885
+      },
+      "inLibrary": false,
+      "taskId": "51bbcfaf-2343-4f89-ae16-8e0e6104ebaa",
+      "prompt": "A small natural history museum with dinosaur skeleton visible, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-fountain-unicorn",
+      "category": "plaza",
+      "name": "独角兽喷泉",
+      "path": "plaza/plaza-fountain-unicorn.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2018188,
+      "dimensions": {
+        "width": 5.348863842916202,
+        "height": 5,
+        "depth": 4.995842108792127
+      },
+      "inLibrary": false,
+      "taskId": "0f9dcf04-b8aa-48aa-a227-965a66d7fb43",
+      "prompt": "A fountain with a unicorn statue spouting water, magical, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-fountain-dragon",
+      "category": "plaza",
+      "name": "龙喷泉",
+      "path": "plaza/plaza-fountain-dragon.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2506392,
+      "dimensions": {
+        "width": 4.058410062740318,
+        "height": 6,
+        "depth": 5.109657469367654
+      },
+      "inLibrary": false,
+      "taskId": "0f06736b-a4f5-4967-86c0-a1ae24dcf4c1",
+      "prompt": "A fountain with a coiled dragon statue, water from mouth, fantasy, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-fountain-cherub",
+      "category": "plaza",
+      "name": "天使喷泉",
+      "path": "plaza/plaza-fountain-cherub.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2028176,
+      "dimensions": {
+        "width": 3.150355794426391,
+        "height": 4,
+        "depth": 3.081403860179873
+      },
+      "inLibrary": false,
+      "taskId": "cb7a5d73-a21c-4b23-937f-9cd11917bf4f",
+      "prompt": "A baroque fountain with cherub statues and ornate basin, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-statue-knight",
+      "category": "plaza",
+      "name": "骑士雕像",
+      "path": "plaza/plaza-statue-knight.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2278532,
+      "dimensions": {
+        "width": 1.7379317867855757,
+        "height": 5,
+        "depth": 5.707577798701355
+      },
+      "inLibrary": false,
+      "taskId": "88fc67d8-5b49-4190-81de-130398802845",
+      "prompt": "A statue of a knight in armor on horseback, bronze, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-statue-mage",
+      "category": "plaza",
+      "name": "法师雕像",
+      "path": "plaza/plaza-statue-mage.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1898900,
+      "dimensions": {
+        "width": 2.4044545020814017,
+        "height": 4,
+        "depth": 2.3827567346018133
+      },
+      "inLibrary": false,
+      "taskId": "4300dded-a8a8-4d4e-8a5b-c057ffe4fb71",
+      "prompt": "A statue of a robed mage with staff and glowing orb, fantasy, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-gazebo-japanese",
+      "category": "plaza",
+      "name": "日式凉亭",
+      "path": "plaza/plaza-gazebo-japanese.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2262180,
+      "dimensions": {
+        "width": 5.819932564690839,
+        "height": 5,
+        "depth": 5.3591931907648425
+      },
+      "inLibrary": false,
+      "taskId": "57e78847-a184-432f-8992-9944416d648d",
+      "prompt": "A Japanese-style gazebo with curved roof and wooden structure, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-gazebo-roman",
+      "category": "plaza",
+      "name": "罗马凉亭",
+      "path": "plaza/plaza-gazebo-roman.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2401556,
+      "dimensions": {
+        "width": 5.289119177224839,
+        "height": 6,
+        "depth": 5.022463676045218
+      },
+      "inLibrary": false,
+      "taskId": "f1916a3d-854a-4fe2-a3f8-f9f69b8f25aa",
+      "prompt": "A Roman-style gazebo with marble columns and domed roof, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-bridge-arch",
+      "category": "plaza",
+      "name": "拱桥",
+      "path": "plaza/plaza-bridge-arch.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2688484,
+      "dimensions": {
+        "width": 2.8580718276340793,
+        "height": 4,
+        "depth": 6.792630612694493
+      },
+      "inLibrary": false,
+      "taskId": "b874ca5a-3526-4047-a09f-b57573740fac",
+      "prompt": "A stone arch bridge over water, classic design, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-bridge-wooden",
+      "category": "plaza",
+      "name": "木桥",
+      "path": "plaza/plaza-bridge-wooden.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2421072,
+      "dimensions": {
+        "width": 3.499427696662592,
+        "height": 2,
+        "depth": 6.568066119779457
+      },
+      "inLibrary": false,
+      "taskId": "6c86938e-0487-4002-b90f-54ca84c1cb81",
+      "prompt": "A wooden footbridge with railings over stream, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "plaza-bridge-suspension",
+      "category": "plaza",
+      "name": "吊桥",
+      "path": "plaza/plaza-bridge-suspension.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2180868,
+      "dimensions": {
+        "width": 2.701019020797242,
+        "height": 3,
+        "depth": 8.946185655409447
+      },
+      "inLibrary": false,
+      "taskId": "b77535ca-390c-4b95-8a9d-3996c7f30dab",
+      "prompt": "A small suspension bridge with wooden planks and rope railings, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-shrine-small",
+      "category": "props",
+      "name": "小神龛",
+      "path": "props/prop-shrine-small.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2140944,
+      "dimensions": {
+        "width": 3.2965779329495075,
+        "height": 3,
+        "depth": 3.2897638553222794
+      },
+      "inLibrary": false,
+      "taskId": "9c5e96ca-879c-4bd1-870e-59af918cdd8a",
+      "prompt": "A small Shinto shrine with torii gate and offerings, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-altar-stone",
+      "category": "props",
+      "name": "石祭坛",
+      "path": "props/prop-altar-stone.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 2418368,
+      "dimensions": {
+        "width": 2.162650355467536,
+        "height": 2,
+        "depth": 3.3304294245551955
+      },
+      "inLibrary": false,
+      "taskId": "0359e355-3dee-4951-b7f1-a3dde1acdec5",
+      "prompt": "A stone altar with carved runes and candles, ancient, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    },
+    {
+      "id": "prop-cauldron-large",
+      "category": "props",
+      "name": "大坩埚",
+      "path": "props/prop-cauldron-large.glb",
+      "spec": "high",
+      "credits": 70,
+      "size": 1865320,
+      "dimensions": {
+        "width": 2.4268353100848454,
+        "height": 2,
+        "depth": 2.374162799444512
+      },
+      "inLibrary": false,
+      "taskId": "08f8087c-fc7a-48e6-a0d9-6646f6cca1e7",
+      "prompt": "A large witch cauldron with bubbling green liquid and steam, game-ready 3D model",
+      "tags": [
+        "variant"
+      ]
+    }
+  ]
+}
