@@ -570,7 +570,85 @@ export type WSMessage =
   | { type: 'bar_multiplayer_speech'; side: 'pro' | 'con'; playerType: ParticipantType; nickname: string; text: string }
   /** 酒吧：观众投票合并结果。 */
   | { type: 'bar_multi_vote_result'; result: MultiPartyVoteResult }
+  // ===== Round4 R4-07：好友系统 + 私聊 + 房间 @提及 =====
+  // —— 服务端 → 客户端：好友在线状态 ——
+  | { type: 'friend_online'; userId: string; roomCode?: string }
+  | { type: 'friend_offline'; userId: string }
+  /** 新好友请求到达（推送给被请求方）。 */
+  | { type: 'friend_request'; request: FriendRequest }
+  /** 好友请求被接受/拒绝（推送给发起方）。 */
+  | { type: 'friend_request_handled'; requestId: string; status: 'accepted' | 'rejected' }
+  /** 好友被删除（推送给对方）。 */
+  | { type: 'friend_removed'; userId: string }
+  /** 邀请进房（推送给被邀请方）。 */
+  | { type: 'friend_invite'; invite: FriendInvite }
+  // —— 私聊 ——
+  | { type: 'private_message'; message: PrivateMessage }
+  /** 私聊发送失败（非好友/校验不通过），回送给发送方。 */
+  | { type: 'private_message_error'; messageId?: string; error: string }
+  /** 已读回执：conversationId 格式为 "a_b"（字典序），lastReadMessageId 为对方已读到的最后一条。 */
+  | { type: 'message_read'; conversationId: string; userId: string; lastReadMessageId: string }
+  /** 上线时补发离线私聊消息。 */
+  | { type: 'offline_messages'; messages: PrivateMessage[] }
+  // —— 房间 @提及 ——
+  | { type: 'mention'; mention: MentionEvent }
   | { type: 'error'; message: string; code?: string };
+
+// ===== Round4 R4-07：好友系统 =====
+/** 好友关系中的一条记录（含在线状态快照）。 */
+export interface Friend {
+  userId: string
+  nickname: string
+  avatarType?: string
+  avatarRef?: string
+  status: 'online' | 'offline'
+  /** 在线时所在房间码（social:<code> 的 code；其他场景房间为空）。 */
+  roomCode?: string
+}
+
+/** 一条待处理的好友请求。 */
+export interface FriendRequest {
+  requestId: string
+  fromUserId: string
+  fromNickname: string
+  toUserId: string
+  message?: string
+  status: 'pending' | 'accepted' | 'rejected'
+  createdAt: string
+}
+
+/** 邀请好友进房。 */
+export interface FriendInvite {
+  inviteId: string
+  fromUserId: string
+  fromNickname: string
+  toUserId: string
+  roomCode: string
+  createdAt: string
+}
+
+/** 一条私聊消息。 */
+export interface PrivateMessage {
+  messageId: string
+  conversationId: string
+  fromUserId: string
+  toUserId: string
+  text: string
+  timestamp: string
+  /** 发送方已被对方读到的最后一条 messageId（双向维护）。 */
+  readBy?: Record<string, string>
+}
+
+/** 房间内 @提及事件。 */
+export interface MentionEvent {
+  roomId: string
+  roomCode?: string
+  fromUserId: string
+  fromNickname: string
+  text: string
+  mentionedUserIds: string[]
+  timestamp: string
+}
 
 // ===== Round4 R4-03：化身换装分层系统 =====
 /** 化身装备分层：每层一个可选项 id，叠加渲染。 */

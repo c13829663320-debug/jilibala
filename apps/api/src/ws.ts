@@ -27,6 +27,18 @@ import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot, replaceHumanWithAI as werewolfReplaceHuman } from "./werewolf-orchestrator.js";
 import { getMultiplayerCourt } from "./court-orchestrator.js";
 import { getMultiplayerBar } from "./bar-orchestrator.js";
+import {
+  setPresenceProvider as setFriendPresenceProvider,
+  notifyUserOnline as friendsNotifyOnline,
+  notifyUserOffline as friendsNotifyOffline,
+} from "./friends.js";
+import {
+  setChatPresenceProvider,
+  flushOfflineMessages,
+  sendPrivateMessage,
+  markRead,
+  ChatError,
+} from "./chat.js";
 
 // ===== 房间数据结构 =====
 export type RoomUser = {
@@ -75,6 +87,57 @@ export function _resetRoomsForTest(): void {
 }
 
 const rooms = new Map<string, Room>();
+
+/**
+ * R4-07: 全局用户连接注册表 —— userId -> 该用户所有在线 socket（可能多房间/多标签页）。
+ * 用于：好友在线状态、私聊跨房间投递、离线消息补发。
+ */
+const globalUserSockets = new Map<string, Set<{ socket: WebSocket; roomId: string }>>();
+
+/** 向某用户的所有在线连接发一条 WS 消息。 */
+export function sendToGlobalUser(userId: string, msg: unknown): void {
+  const set = globalUserSockets.get(userId);
+  if (!set) return;
+  const payload = JSON.stringify(msg);
+  for (const entry of set) {
+    try {
+      if (entry.socket.readyState === entry.socket.OPEN) entry.socket.send(payload);
+    } catch {
+      /* noop */
+    }
+  }
+}
+
+/** 某用户是否至少有一条在线连接。 */
+export function isUserGloballyOnline(userId: string): boolean {
+  return (globalUserSockets.get(userId)?.size ?? 0) > 0;
+}
+
+/** 取用户当前所在的 social 房间码（多房间时取第一个 social 房间）。 */
+export function getUserSocialRoomCode(userId: string): string | undefined {
+  const set = globalUserSockets.get(userId);
+  if (!set) return undefined;
+  for (const entry of set) {
+    if (entry.roomId.startsWith("social:")) return entry.roomId.slice("social:".length);
+  }
+  return undefined;
+}
+
+/** 测试用：清空全局连接注册表。 */
+export function _resetGlobalConnectionsForTest(): void {
+  globalUserSockets.clear();
+}
+
+// 注册 PresenceProvider 给 friends / chat 模块，避免循环依赖。
+setFriendPresenceProvider({
+  isOnline: isUserGloballyOnline,
+  getSocialRoomCode: getUserSocialRoomCode,
+  sendToUser: sendToGlobalUser,
+});
+setChatPresenceProvider({
+  isOnline: isUserGloballyOnline,
+  sendToUser: sendToGlobalUser,
+});
 
 /**
  * R4-01: 会话 token 索引 —— token -> 所在房间与用户。
@@ -588,6 +651,22 @@ export function registerWebSocket(app: FastifyInstance): void {
       }
     }
 
+    // ===== R4-07: 全局连接注册表（好友在线状态 / 私聊跨房间投递） =====
+    const wasOfflineBefore = !isUserGloballyOnline(userId);
+    {
+      let set = globalUserSockets.get(userId);
+      if (!set) {
+        set = new Set();
+        globalUserSockets.set(userId, set);
+      }
+      set.add({ socket, roomId });
+    }
+    if (wasOfflineBefore) {
+      // 首次上线：补发离线私聊 + 通知好友 online
+      flushOfflineMessages(userId);
+      friendsNotifyOnline(userId, getUserSocialRoomCode(userId));
+    }
+
     // R4-01: 标记本次是否为宽限期内会话恢复（决定是否需要广播 user_joined / room_player_update）。
     // 通知其他人（仅全新入场；会话恢复期间其他人一直保留着该玩家，勿重复加入）
     if (!isResumedSession) {
@@ -683,6 +762,64 @@ export function registerWebSocket(app: FastifyInstance): void {
             nickname,
             text,
           } satisfies WSMessage);
+
+          // ===== R4-07: 房间内 @提及解析 =====
+          // 匹配 @昵称（昵称不含空白），与本房间在线用户昵称做精确匹配。
+          const mentionTokens = text.match(/@(\S+)/g) ?? [];
+          if (mentionTokens.length > 0) {
+            const mentionedUserIds: string[] = [];
+            for (const token of mentionTokens) {
+              const name = token.slice(1);
+              for (const u of room.users.values()) {
+                if (u.userId === userId) continue;
+                if (u.nickname === name && !mentionedUserIds.includes(u.userId)) {
+                  mentionedUserIds.push(u.userId);
+                }
+              }
+            }
+            if (mentionedUserIds.length > 0) {
+              const mentionEvent = {
+                roomId,
+                ...(roomId.startsWith("social:") ? { roomCode: roomId.slice("social:".length) } : {}),
+                fromUserId: userId,
+                fromNickname: nickname,
+                text,
+                mentionedUserIds,
+                timestamp: new Date().toISOString(),
+              };
+              for (const uid of mentionedUserIds) {
+                const target = room.users.get(uid);
+                if (target) safeSend(target.socket, { type: "mention", mention: mentionEvent } satisfies WSMessage);
+              }
+            }
+          }
+          break;
+        }
+        case "private_message": {
+          // ===== R4-07: 私聊 =====
+          const toUserId = String(data.toUserId ?? "");
+          const text = String(data.text ?? "");
+          try {
+            const message = sendPrivateMessage(userId, toUserId, text);
+            // 回送给发送方确认（含 messageId/timestamp）
+            safeSend(socket, { type: "private_message", message } satisfies WSMessage);
+          } catch (e) {
+            const err = e as ChatError;
+            safeSend(socket, {
+              type: "private_message_error",
+              messageId: typeof data.messageId === "string" ? data.messageId : undefined,
+              error: err.message ?? "发送失败",
+            } satisfies WSMessage);
+          }
+          break;
+        }
+        case "message_read": {
+          // ===== R4-07: 已读回执 =====
+          const conversationId = String(data.conversationId ?? "");
+          const lastReadMessageId = String(data.lastReadMessageId ?? "");
+          if (conversationId && lastReadMessageId) {
+            markRead(conversationId, userId, lastReadMessageId);
+          }
           break;
         }
         case "user_speech": {
@@ -891,6 +1028,21 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     // ===== 断开清理 =====
     socket.on("close", () => {
+      // ===== R4-07: 全局连接注册表清理（无论房间守卫是否通过都要执行） =====
+      {
+        const set = globalUserSockets.get(userId);
+        if (set) {
+          for (const entry of set) {
+            if (entry.socket === socket) set.delete(entry);
+          }
+          if (set.size === 0) {
+            globalUserSockets.delete(userId);
+            // 最后一条连接断开：通知好友 offline
+            friendsNotifyOffline(userId);
+          }
+        }
+      }
+
       const r = rooms.get(roomId);
       // 守卫：仅当房间内该 userId 当前指向的仍是本 socket 时才处理，
       // 避免旧连接关闭时误删已被新连接替换的条目。
