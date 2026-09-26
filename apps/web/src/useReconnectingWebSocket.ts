@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, type RefObject } from 'react'
+import type { ResumedSessionState, ReplayedMessage } from '@balabala/shared'
 
 export type WsStatus = 'connecting' | 'open' | 'reconnecting' | 'closed'
 
@@ -14,6 +15,13 @@ type Options = {
   maxDelayMs?: number
   /** 是否启用（默认 true）。可用于依赖就绪前暂停。 */
   enabled?: boolean
+  // ===== R4-01: 断线重连与会话恢复 =====
+  /** 重连时携带的 sessionToken（由 reconnection-manager 持久化）；返回 null/空则全新入场。 */
+  sessionToken?: () => string | null | undefined
+  /** 服务端下发新 session_token 时回调，供持久化。 */
+  onSessionToken?: (token: string) => void
+  /** 重连成功且服务端恢复了旧会话时回调（位置/化身已由服务端恢复，无需随机入场）。 */
+  onSessionResumed?: (state: ResumedSessionState, replayed: ReplayedMessage[]) => void
 }
 
 /**
@@ -22,6 +30,9 @@ type Options = {
  * - 连接成功后重置退避时间。
  * - 暴露 status 与 retryCount，供 UI 展示「连接中断，正在重连…（第 N 次）」。
  * - unmount 时彻底关闭，不再重连。
+ *
+ * R4-01：可选携带 sessionToken 重连，服务端据此恢复位置；
+ * 收到 session_token / session_resumed 时通过回调上抛。
  */
 export function useReconnectingWebSocket({
   url,
@@ -30,6 +41,9 @@ export function useReconnectingWebSocket({
   initialDelayMs = 1000,
   maxDelayMs = 30000,
   enabled = true,
+  sessionToken,
+  onSessionToken,
+  onSessionResumed,
 }: Options) {
   const wsRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -42,9 +56,15 @@ export function useReconnectingWebSocket({
   const urlRef = useRef(url)
   const onMessageRef = useRef(onMessage)
   const onOpenRef = useRef(onOpen)
+  const sessionTokenRef = useRef(sessionToken)
+  const onSessionTokenRef = useRef(onSessionToken)
+  const onSessionResumedRef = useRef(onSessionResumed)
   urlRef.current = url
   onMessageRef.current = onMessage
   onOpenRef.current = onOpen
+  sessionTokenRef.current = sessionToken
+  onSessionTokenRef.current = onSessionToken
+  onSessionResumedRef.current = onSessionResumed
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -55,8 +75,11 @@ export function useReconnectingWebSocket({
 
   const connect = useCallback(() => {
     if (!shouldRunRef.current) return
-    const target = urlRef.current()
-    if (!target) return
+    const base = urlRef.current()
+    if (!base) return
+    // R4-01: 携带已持久化的 sessionToken 重连，服务端据此恢复位置/化身
+    const token = sessionTokenRef.current?.()
+    const target = token ? `${base}${base.includes('?') ? '&' : '?'}sessionToken=${encodeURIComponent(token)}` : base
 
     setStatus('connecting')
     // 防护：若上一个连接仍停留在 CONNECTING/OPEN（尚未触发 onclose），先关闭，
@@ -83,7 +106,17 @@ export function useReconnectingWebSocket({
     }
 
     ws.onmessage = (ev) => {
-      try { onMessageRef.current(typeof ev.data === 'string' ? ev.data : String(ev.data)) }
+      const raw = typeof ev.data === 'string' ? ev.data : String(ev.data)
+      // R4-01: 旁路解析控制消息（session_token / session_resumed），不影响业务 onMessage
+      try {
+        const parsed = JSON.parse(raw) as { type?: string; token?: string; state?: ResumedSessionState; replayed?: ReplayedMessage[] }
+        if (parsed?.type === 'session_token' && typeof parsed.token === 'string') {
+          onSessionTokenRef.current?.(parsed.token)
+        } else if (parsed?.type === 'session_resumed' && parsed.state) {
+          onSessionResumedRef.current?.(parsed.state, parsed.replayed ?? [])
+        }
+      } catch { /* 非 JSON 业务帧，忽略 */ }
+      try { onMessageRef.current(raw) }
       catch (err) { console.error('[WS] onMessage handler error', err) }
     }
 
