@@ -744,3 +744,6 @@ export * from "./library-quiz.js";
 
 // ===== 自定义场景工作室 =====
 export * from "./scene-studio.js";
+
+// ===== 共享玩法基础层（六场景编排框架）=====
+export * from "./gameplay/index.js";
