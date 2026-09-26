@@ -21,6 +21,8 @@ import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { registerCourtRoutes } from './court-routes.js';
 import { registerRoomRoutes } from './room-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
+import { registerFriendRoutes } from './friends.js';
+import { registerChatRoutes } from './chat.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
@@ -997,6 +999,10 @@ registerCourtRoutes(app, { chat: chatWithProviders, contents, saveContents });
 
 // ===== Round3: 真人多人社交房间 REST =====
 registerRoomRoutes(app);
+
+// ===== Round4 R4-07: 好友系统 + 私聊 =====
+registerFriendRoutes(app);
+registerChatRoutes(app);
 
 // ===== 自定义场景工作室 =====
 registerSceneStudioRoutes(app, { chat: chatWithProviders });
