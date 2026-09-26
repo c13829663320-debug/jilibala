@@ -1,0 +1,17 @@
+{"ts":"2026-09-26T23:36:12.373Z","step":"server_started","ok":true,"base":"http://127.0.0.1:45435"}
+{"ts":"2026-09-26T23:36:12.454Z","step":"create_private_room","ok":true,"code":"V3J8ZD","hasPassword":true}
+{"ts":"2026-09-26T23:36:12.455Z","step":"password_not_leaked_in_dto","ok":true}
+{"ts":"2026-09-26T23:36:12.458Z","step":"private_not_in_list","ok":true,"listed":0}
+{"ts":"2026-09-26T23:36:12.466Z","step":"owner_joined_without_password","ok":true,"playerCount":1}
+{"ts":"2026-09-26T23:36:12.469Z","step":"wrong_password_rejected","ok":true,"code":1006}
+{"ts":"2026-09-26T23:36:12.472Z","step":"join_with_correct_password","ok":true}
+{"ts":"2026-09-26T23:36:12.473Z","step":"room_locked_broadcast","ok":true}
+{"ts":"2026-09-26T23:36:12.474Z","step":"locked_room_rejects_newcomer","ok":true,"code":1005}
+{"ts":"2026-09-26T23:36:12.475Z","step":"kicked_receives_error_code","ok":true,"code":2003}
+{"ts":"2026-09-26T23:36:12.556Z","step":"room_kicked_broadcast","ok":true}
+{"ts":"2026-09-26T23:36:12.558Z","step":"kicked_cannot_reconnect","ok":true,"code":2003}
+{"ts":"2026-09-26T23:36:12.560Z","step":"non_owner_kick_rejected","ok":true,"code":1007}
+{"ts":"2026-09-26T23:36:12.560Z","step":"owner_transferred","ok":true,"newOwner":"bob"}
+{"ts":"2026-09-26T23:36:12.560Z","step":"new_owner_can_lock","ok":true}
+{"ts":"2026-09-26T23:36:12.562Z","step":"third_user_joins","ok":true}
+{"ts":"2026-09-26T23:36:12.562Z","step":"owner_leave_transfers_to_next","ok":true,"newOwner":"bob"}
