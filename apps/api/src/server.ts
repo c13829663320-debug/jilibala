@@ -21,6 +21,7 @@ import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { registerCourtRoutes } from './court-routes.js';
 import { registerRoomRoutes } from './room-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
+import { registerEngineRoutes } from './engine-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
@@ -1000,6 +1001,9 @@ registerRoomRoutes(app);
 
 // ===== 自定义场景工作室 =====
 registerSceneStudioRoutes(app, { chat: chatWithProviders });
+
+// ===== 玩法深化引擎桥接（CourtOrchestrator / TalkshowOrchestrator，确定性单局）=====
+registerEngineRoutes(app);
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 
