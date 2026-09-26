@@ -500,6 +500,10 @@ export type WSMessage =
   | { type: 'emote'; userId: string; emote: EmoteType; durationMs?: number }
   | { type: 'talking'; userId: string; intensity: number }
   | { type: 'pong' }
+  // —— Round4 R4-04：语音不可用时的文字喊话回落（3D 头顶气泡） ——
+  | { type: 'text_shout'; userId: string; nickname: string; text: string; at: number }
+  // —— Round4 R4-04：客户端渲染/运行时错误上报（可选） ——
+  | { type: 'client_error'; userId?: string; message: string; componentStack?: string; at: number }
   | { type: 'error'; message: string };
 
 
