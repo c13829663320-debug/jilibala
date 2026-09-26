@@ -45,7 +45,7 @@
 - 📊 **全局玩家档案+XP段位系统**：每局结算上报XP和战绩，等级1-100，段位（新手→玩家→达人→大师→传奇），8项成就，每日挑战，个人页展示6场景战绩。新用户不再"一局结束即归零"。
 - 🚀 **新手引导·3次点击直达第一个游戏**：开屏→选兴趣→点"立即开始"，直接进入推荐场景并显示3步引导浮层；老用户保持原流程。
 - 🪄 **照片一键生成 3D 人物**：上传全身照或用文字描述，AI 生成可对话、可进入任意场景的专属 3D 角色（Tripo不可达时占位模特降级）。
-- 🌐 **3D 中央广场 ＋ 实时多人**：点击地面移动、点击建筑进入，实时看到其他在线玩家；WebSocket 断线自动重连；WebRTC距离语音+3D PannerNode空间音频。
+- 🌐 **真人多人同房间（VRChat 式）**：创建/加入房间（6位房间码邀请），多个真实用户进入同一 3D 广场，看到彼此化身、位置/动作/表情/语音实时同步；WebRTC mesh 距离语音 + 3D PannerNode 空间音频，只与最近 N 人建连节省带宽；与 AI NPC、六场景玩法、XP 系统完全共存。
 - 🛠️ **完整 AI 创作工具链**：AI 帮写段子与文案、TTS 语音合成、AI 视频生成，精彩内容一键发布到广场。
 
 ## 🛠️ 自定义场景工作室（AI 造物）
@@ -63,7 +63,7 @@
 
 ## 🧱 技术速览
 
-**前端**：React 18 · Three.js / React Three Fiber · Vite · PWA　｜　**后端**：Node.js · Hono · SQLite · WebSocket　｜　**AI**：StepFun step-3.5-flash（大模型）· step-tts-mini（语音）· Tripo（3D生成）· EvoMap（备用LLM）
+**前端**：React 18 · Three.js / React Three Fiber · Vite · PWA　｜　**后端**：Node.js · Fastify · SQLite · WebSocket　｜　**AI**：StepFun step-3.5-flash（大模型）· step-tts-mini（语音）· Tripo（3D生成）· EvoMap（备用LLM）
 
 ---
 
@@ -81,6 +81,23 @@
 | 图书馆 | 三个聊天框，无对错无分数 | 90秒知识擂台：8题×10s+3位AI名人抢答+combo加成+3条命 |
 
 新增：全局玩家档案+XP段位系统（8项成就+每日挑战）、新手引导3次点击直达游戏、名人扩编至100人（全部有persona+voice+视频）、法庭视频+TTS同步、五大功能端到端闭环。
+
+---
+
+## 🔥 Round 3 真人多人同房间（2026-09）
+
+从「1 真人 vs AI NPC」升级为「多个真实用户同房间互动」，VRChat 式社交临场感：
+
+| 能力 | 实现 |
+|---|---|
+| 房间系统 | 创建/加入/房间列表/6位房间码邀请，公开房间出现在大厅，私有房间凭码加入；人数上限 4-16 可调 |
+| 实时同步 | WebSocket 房间中继，玩家位置/朝向 10Hz 节流同步 + 客户端插值；动作/表情/说话强度/emote 实时广播 |
+| 真人化身 | 复用自定义人物/名人 avatar，第三人称全身；高级 rig 远端化身（口型驱动+表情+头部注视+音量指示条） |
+| 空间语音 | WebRTC mesh 全互联 + 3D PannerNode 空间音频 + 距离衰减；按距离订阅裁剪（只与最近 N 人建连），节省带宽/编解码；支持静音/按键说 |
+| 信令服务 | 服务端 WebSocket 转发 SDP offer/answer + ICE candidate（字典序小的一方主动发 offer 避免 glare） |
+| 共存 | 与 AI NPC、六场景玩法、XP 系统完全共存；广场内可走进建筑开始场景游戏，房间内玩家一起参与 |
+
+技术要点：Fastify @fastify/websocket 房间中继；useSpatialVoice hook 封装 WebRTC mesh + AudioContext 空间音频图；presence 消息携带 talkingIntensity 驱动远端口型；房间空 5 分钟自动回收。
 
 ---
 ## 场景玩法（M9–M11）
@@ -238,7 +255,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 
 ## 自动化测试
 
-核心纯逻辑使用 **Vitest** 覆盖：后端 **158** 个、前端 **85** 个用例，全部 mock 外部服务（LLM / Tripo / TTS），零网络依赖、确定性通过。
+核心纯逻辑使用 **Vitest** 覆盖：后端 **368** 个、前端 **206** 个用例，全部 mock 外部服务（LLM / Tripo / TTS），零网络依赖、确定性通过。
 
 | 后端测试文件 | 用例数 | 覆盖范围 |
 |---|---|---|
@@ -256,7 +273,7 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 | `normalize-character-model.test.ts` | 5 | 全身模型归一化（落地/居中/统一身高）、全身/半身判定 |
 | `skill.test.ts` | 13 | 名人技能（skill）加载、解析、检索与匹配 |
 
-**前端另有 85 个用例（4 文件）**：`courtroom-camera.test.ts`（34，法庭机位/视角切换）、`character-gallery.test.ts`（29，人物馆环形选人/画廊）、`courtroom-seats.test.ts`（17，席位布局/人物转向）、`character-voices.web.test.ts`（5，语音开关/朗读）。
+**前端另有 206 个用例（15 文件）**：`courtroom-camera.test.ts`（34）、`character-gallery.test.ts`（29）、`courtroom-seats.test.ts`（17）、`character-voices.web.test.ts`（5）、`profile/playerProfile.test.ts`（18）、`onboarding/onboardingProgress.test.ts`（11）、`voice/spatial-audio.test.ts`（19）、`avatar/animation-state-machine.test.ts`（15）、`avatar/lip-sync.test.ts`（10）、`celebrity-catalog.test.ts`（7）、`world/collision.test.ts`（15）、`scene-studio/*` 等。
 
 测试使用临时 SQLite 文件（`process.env.DB_PATH` 覆盖），每个测试文件独立数据库，`afterAll` 清理。GitHub Actions 在 push/PR 时自动运行 `npm test` + `npm run build`。
 
@@ -285,15 +302,22 @@ npm test             # 运行后端 Vitest 测试（狼人杀状态机 / 合议�
 - 跨刷新、跨设备（同一 userId）数据一致
 - 「我的」页面展示参与的庭审、发布的内容、证书墙、消息通知
 
-## 实时多人（M7）
+## 实时多人（M7 + Round3）
 
 基于 `@fastify/websocket` 的房间制实时联机：
 
+### 社交房间（Round3）
+- 首页「多人房间」进入大厅：公开房间列表、创建房间（名称/场景/公开私有/人数上限）、6位房间码加入
+- 房间码使用 `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`（排除易混 0/O/1/I），碰撞自动重抽
+- 进入房间后连接 `social:<code>` WS 房间，收到 `room_info` 元数据 + `room_player_update` 人数变化
+- 房间内所有玩家的化身、位置、动作、表情、说话强度实时同步；空房间 5 分钟自动回收
+- **WebRTC 空间语音**：mesh 全互联，按距离订阅裁剪（默认最近 8 人、15 米内），PannerNode HRTF 方位 + 距离衰减，支持静音/按键说（空格按住）
+- 远端化身使用高级 rig：说话时口型张合、表情变化、头部转向最近玩家、头顶音量条
+
 ### 广场
-- 进入广场自动连接 `plaza` 房间
-- 实时看到其他在线用户的化身（胶囊 + 名牌），位置 10Hz 节流同步 + 客户端插值
-- 左上角显示在线人数
-- 点击地面移动，位置实时同步给房间内其他人
+- 进入广场自动连接 `plaza` 房间（全局广场，无需房间码）
+- 实时看到其他在线用户的化身，位置 10Hz 节流同步 + 客户端插值
+- 左上角显示在线人数，点击地面移动，位置实时同步给房间内其他人
 
 ### 法庭房间
 - 启动合议庭后自动创建 `court:<caseId>` 房间
@@ -409,8 +433,14 @@ vite 已配置 `/api` 的 WebSocket 代理（`ws: true`）。
 - `DELETE /api/scene-studio/:id` — 删除场景
 - `GET /api/scene-studio/:id/play` — 运行时数据（解析后蓝图 + 资产 URL + NPC 资源）
 
+### 社交房间（Round3）
+- `POST /api/rooms` — 创建房间，body `{name, scene?, isPublic?, maxPlayers?}`，返回 `{room: SocialRoom}`（含 6 位 code）
+- `GET /api/rooms` — 公开房间列表（按创建时间倒序，含实时在线人数）
+- `GET /api/rooms/:code` — 房间详情，不存在返回 404
+
 ### WebSocket
-- `GET /api/ws?userId=<id>&room=plaza|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>|gym:lobby` — 实时连接
+- `GET /api/ws?userId=<id>&room=plaza|social:<code>|court:<caseId>|talkshow:<id>|bar:<id>|library:<id>|werewolf:<gameId>|gym:lobby` — 实时连接
+- 社交房间消息：`room_info`（加入时单发元数据）、`room_player_update`（人数变化广播）、`presence`（位置/动作/表情/说话强度）、`emote`（手势）、`talking`（说话强度）、`rtc_sdp`/`rtc_ice`/`rtc_bye`（WebRTC 信令转发）、`chat`（文字聊天）
 - 场景房间：脱口秀/酒吧/图书馆/健身房各使用 `talkshow:lobby` / `bar:lobby` / `library:lobby` / `gym:lobby`，通过场景专属事件广播（表演、发言、问答、打卡、加油等）
 - 狼人杀房间：`werewolf:<gameId>`，客户端发送 `werewolf_action`（夜晚行动/发言/投票），服务端对每个玩家单独下发 `werewolf_snapshot`（含私密信息），对全员广播 `werewolf_event`（公开阶段/死亡/发言/投票/胜负）
 
@@ -515,6 +545,7 @@ apps/
       court-state.ts    # M13: 状态机/视角过滤/发言上下文（纯逻辑）
       court-orchestrator.ts  # M13: AI分析+庭审循环+判决编排
       court-routes.ts   # M13: 案件 CRUD/分析/SSE庭审/玩家输入/判决
+      room-routes.ts    # Round3: 社交房间 REST（创建/列表/详情/房间码）
       scene-studio/      # 自定义场景工作室：scene-planner(AI蓝图)/scene-asset-builder(Tripo资产)/scene-db/scene-routes
   web/          # Vite + React 18 + R3F 前端
     src/
@@ -532,7 +563,8 @@ apps/
       WerewolfView.tsx    # 狼人杀 3D 圆桌场景
       GymShell.tsx        # 健身房 UI 壳 + AI教练/器械/名人/多人/记录 + WS
       GymView.tsx         # 健身房 3D 场景（6 件可交互器械）
-      Plaza3D.tsx     # 3D 广场 + presence
+      Plaza3D.tsx     # 3D 广场 + presence + WebRTC空间语音 + 社交房间
+      MultiplayerLobby.tsx  # Round3: 房间大厅（列表/创建/加入码）
       RoomEntry.tsx   # 场景入口大厅
       MyPage.tsx      # 我的页面
       CharacterHall.tsx  # 人物馆（名人 + 自定义人物，三 tab）
@@ -551,7 +583,7 @@ packages/
 
 - **后端**：Fastify 5 + node:sqlite + @fastify/websocket + undici
 - **前端**：Vite 5 + React 18 + React Three Fiber + drei + three + vite-plugin-pwa
-- **测试**：Vitest（后端 158 + 前端 85 用例）
+- **测试**：Vitest（后端 368 + 前端 206 用例）
 - **共享**：TypeScript 类型 + 名人数据
 - **CI**：GitHub Actions（push/PR 自动跑 test + build）
 - **AI**：StepFun / EvoMap（庭审生成、名人对话、润色）、Tripo（3D 模型）、StepFun TTS
