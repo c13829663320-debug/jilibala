@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>叽里呱啦 BalaBala · 答辩 Q&A</title>
+<style>
+  :root{
+    --bg:#000000;
+    --yellow:#FFD700;
+    --teal:#00CED1;
+    --teal2:#20B2AA;
+    --card:#0d0d0f;
+    --line:#1d1d22;
+    --text:#e8e8ea;
+    --muted:#9a9aa2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.7;
+  }
+  a{color:var(--teal);text-decoration:none;}
+  /* Hero */
+  header{
+    padding:64px 24px 40px;
+    text-align:center;
+    background:radial-gradient(ellipse at 50% -10%, rgba(0,206,209,.18), transparent 60%),
+               radial-gradient(ellipse at 50% 120%, rgba(255,215,0,.10), transparent 60%);
+    border-bottom:1px solid var(--line);
+  }
+  header h1{
+    font-size:clamp(28px,5vw,48px);
+    color:var(--yellow);
+    letter-spacing:1px;
+    text-shadow:0 0 24px rgba(255,215,0,.45);
+  }
+  header p{color:var(--teal);margin-top:12px;font-size:clamp(14px,2vw,18px);}
+  header .sub{color:var(--muted);margin-top:8px;font-size:14px;}
+
+  /* Nav */
+  nav{
+    position:sticky;top:0;z-index:10;
+    background:rgba(0,0,0,.92);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    display:flex;flex-wrap:wrap;gap:4px;
+    padding:10px 16px;justify-content:center;
+  }
+  nav a{
+    color:var(--text);
+    padding:6px 14px;border-radius:999px;
+    font-size:14px;border:1px solid transparent;
+    transition:.2s;
+  }
+  nav a:hover{color:var(--yellow);border-color:var(--yellow);}
+
+  main{max-width:1080px;margin:0 auto;padding:32px 20px 80px;}
+  section{margin-top:48px;}
+  h2{
+    font-size:22px;color:var(--yellow);
+    border-left:4px solid var(--teal);
+    padding-left:12px;margin-bottom:20px;
+  }
+  h2 .tag{color:var(--teal);font-size:14px;margin-left:8px;font-weight:400;}
+
+  .qa{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:20px 22px;
+    margin-bottom:16px;
+    transition:.2s;
+  }
+  .qa:hover{border-color:var(--teal);box-shadow:0 0 18px rgba(0,206,209,.12);}
+  .q{
+    color:var(--yellow);font-weight:600;font-size:16px;
+    margin-bottom:12px;display:flex;gap:8px;
+  }
+  .q::before{content:"Q";color:var(--teal);font-weight:700;}
+  .a{list-style:none;}
+  .a li{
+    position:relative;padding-left:20px;margin-bottom:8px;color:var(--text);font-size:15px;
+  }
+  .a li::before{content:"▸";position:absolute;left:0;color:var(--teal);}
+  .a li b{color:var(--teal);font-weight:600;}
+
+  footer{
+    text-align:center;color:var(--muted);font-size:13px;
+    padding:32px;border-top:1px solid var(--line);
+  }
+  @media(max-width:600px){
+    header{padding:40px 16px 28px;}
+    .qa{padding:16px;}
+    nav a{font-size:13px;padding:5px 10px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>叽里呱啦 BalaBala</h1>
+  <p>答辩 Q&amp;A · 可能被追问的问题与应答要点</p>
+  <p class="sub">AI 原生 3D 社交与 UGC 平台 · React Three Fiber + Fastify + WebSocket + node:sqlite + Tripo / StepFun / Evomap</p>
+</header>
+
+<nav>
+  <a href="#arch">架构类</a>
+  <a href="#deploy">部署类</a>
+  <a href="#ai">AI 类</a>
+  <a href="#perf">性能类</a>
+  <a href="#sec">安全类</a>
+  <a href="#ops">运维类</a>
+</nav>
+
+<main>
+
+<!-- ============ 架构类 ============ -->
+<section id="arch">
+  <h2>架构类 <span>Architecture</span></h2>
+
+  <div class="qa">
+    <div class="q">为什么后端选 Fastify，而不是 Express / NestJS？</div>
+    <ul class="a">
+      <li><b>性能与开销</b>：Fastify 内置基于 Schema 的 JSON 序列化（fast-json-stringify），高并发下序列化开销显著低于 Express，常驻内存也更小。</li>
+      <li><b>原生 WebSocket</b>：通过 <code>@fastify/websocket</code> 插件与 HTTP 路由同生命周期管理房间连接，省去额外 ws 服务进程。</li>
+      <li><b>插件化 + TypeScript</b>：依赖注入、钩子（hook）、装饰器开箱即用，结构比 Express 更规整，又不像 NestJS 那样引入过重的框架抽象。</li>
+      <li><b>工程适配</b>：与 Node 20+、undici、ESM 配合良好，<code>tsx watch</code> 热重启开发体验好，契合本项目 monorepo 快速迭代节奏。</li>
+    </ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">WebSocket 多人实时的扩展性如何？单机撑不住怎么办？</div>
+    <ul class="a">
+      <li><b>房间化隔离</b>：连接按"房间/场景"分区，状态只在房间内广播，天然避免全局广播风暴。</li>
+      <li><b>无状态横向扩展预留</b>：接入层可水平扩容，房间状态与广播后续可切换到 Redis Pub/Sub 做跨节点转发。</li>
+      <li><b>语音走 WebRTC</b>：实时音视频用 WebRTC/媒体中继，不占用 WebSocket 信令带宽，信令通道只传位置/动作/出牌等小包。</li>
+      <li><b>降级策略</b>：WebSocket 断线自动重连 + 状态快照重拉，弱网下退化为轮询，保证玩法可恢复。</li>
+    </ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">用 node:sqlite 做存储够吗？为什么不上 PostgreSQL / MySQL？</div>
+    <ul class="a">
+      <li><b>数据规模匹配</b>：本项目是社交玩法原型，核心数据是用户、房间状态、XP、场景草稿，写并发以"房间"为单位，单文件 SQLite 足够。</li>
+      <li><b>零运维</b>：<code>node:sqlite</code> 内嵌、随进程启停，无需独立数据库实例，契合 PWA / 一键部署目标。</li>
+      <li><b>事务与一致性</b>：单写者事务保证房间结算（如法庭出牌、XP 入账）的原子性，满足玩法正确性。</li>
+      <li><b>演进路径清晰</b>：数据访问层已封装 repository，规模上来后可平滑迁移到 Postgres，对上层业务透明。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 部署类 ============ -->
+<section id="deploy">
+  <h2>部署类 <span>Deployment</span></h2>
+
+  <div class="qa">
+    <div class="q">能否 Docker 一键部署？</div>
+    <ul class="a"><li><b>单镜像打包</b>：前端 Vite 构建产物 + Fastify 后端打进同一镜像，容器内一并托管静态资源与 API，对外只暴露一个端口（默认 8787）。</li>
+    <li><b>环境变量注入</b>：Tripo / StepFun / Evomap 的 Key 通过 <code>.env</code> 或容器环境变量注入，不进镜像。</li>
+    <li><b>卷持久化</b>：SQLite 文件与上传的照片/3D 化身挂到 named volume，容器重建不丢数据。</li>
+    <li><b>一条命令</b>：<code>docker compose up -d</code> 即可起全栈，无需手动分前后端启动。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">HTTPS 怎么解决？WebSocket 必须 wss 吗？</div>
+    <ul class="a"><li><b>浏览器强约束</b>：PWA 与 WebRTC 要求安全上下文，生产环境必须 HTTPS，对应 WebSocket 升级为 <code>wss://</code>。</li>
+    <li><b>反向终端</b>：前面挂 Nginx / Caddy 终止 TLS，自动签发 Let's Encrypt 证书，再反代到容器 8787。</li>
+    <li><b>开发环境</b>：本地用 Vite dev server + 自签证书，或 <code>ws://</code> 明文联调，不影响生产。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">能否离线 / 内网部署？</div>
+    <ul class="a"><li><b>前端 PWA 离线</b>：vite-plugin-pwa 预缓存壳与静态资源，无网也能打开广场与本地缓存场景。</li>
+    <li><b>后端可内网自托管</b>：Fastify + SQLite 完全本地化运行，不依赖公网。</li>
+    <li><b>AI 能力分级</b>：联网时走 Tripo/StepFun 在线生成；离线时降级到内置规则与本地缓存 NPC 对白（见 AI 类）。</li></ul>
+  </div>
+</section>
+
+<!-- ============ AI 类 ============ -->
+<section id="ai">
+  <h2>AI 类 <span>AI Capabilities</span></h2>
+
+  <div class="qa">
+    <div class="q">Tripo（3D 生成）和 StepFun/Evomap（LLM）的成本如何控制？</div>
+    <ul class="a"><li><b>结果缓存复用</b>：同一照片/同一场景描述的生成结果按哈希缓存，命中直接返回，不重复调用付费 API。</li>
+    <li><b>模型分级路由</b>：日常 NPC 对话用低成本 flash 模型（step-3.5-flash / evomap-deepseek-v4-flash），复杂造场景才升级。</li>
+    <li><b>3D 生成按需触发</b>：照片转 3D 是用户主动动作，不在在线路径上批量跑，按量付费可控。</li>
+    <li><b>配额预算</b>：服务端对每个 Key 设月度预算与用量告警，超限自动熔断。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">高并发下 LLM / 3D 生成怎么做限流？</div>
+    <ul class="a"><li><b>令牌桶限流</b>：按用户 + 按 Key 双层限流，防止单用户刷爆额度。</li>
+    <li><b>队列 + 异步</b>：3D 化身生成进入任务队列，前端轮询/WebSocket 推送进度，不阻塞实时玩法。</li>
+    <li><b>并发上限</b>：对外请求走 undici 连接池，控制到上游的最大并发，避免触发服务商 429。</li>
+    <li><b>降级兜底</b>：被限流时返回预置 NPC 对白模板，保证玩法不卡死。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">离线或 AI 接口挂了，系统怎么降级？</div>
+    <ul class="a"><li><b>NPC 对白降级</b>：在线时用 LLM 实时生成；不可用时切到"人设剧本库 + 规则模板"，名人仍能按性格接话。</li>
+    <li><b>玩法判定降级</b>：法庭天平、知识擂台等结算仍走本地确定性规则，不依赖大模型。</li>
+    <li><b>造场景降级</b>：无法在线生成时，提供官方预制场景模板供用户选择。</li>
+    <li><b>前端提示</b>：界面明确标注"当前为离线/降级模式"，不假装在线生成。</li></ul>
+  </div>
+</section>
+
+<!-- ============ 性能类 ============ -->
+<section id="perf">
+  <h2>性能类 <span>Performance</span></h2>
+
+  <div class="qa">
+    <div class="q">3D 场景加载慢怎么办？</div>
+    <ul class="a"><li><b>模型压缩</b>：glTF-Transform + draco3d + meshoptimizer 压缩 glTF，几何体减面与 Draco 解码。</li>
+    <li><b>按需加载</b>：广场是常驻轻量场景，六座建筑用 Suspense + React.lazy 按进入时才加载。</li>
+    <li><b>预取与缓存</b>：热门建筑模型浏览器端缓存，WebP/KTX2 纹理降体积。</li>
+    <li><b>加载兜底</b>：加载期间用对应宣传图静帧占位，避免白屏。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">大模型调用延迟高，怎么缓存？</div>
+    <ul class="a"><li><b>语义缓存</b>：相似问题/话题缓存命中历史回答，缩短首字延迟。</li>
+    <li><b>流式输出</b>：LLM 走 SSE/流式，边生成边推给前端，体感延迟大幅下降。</li>
+    <li><b>预热</b>：演示/高峰前预热连接池与常用人设提示词。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">低端设备 / 手机跑不动 Three.js 怎么办？</div>
+    <ul class="a"><li><b>画质分级</b>：按设备 GPU/帧率自动降分辨率、关阴影与后处理辉光。</li>
+    <li><b>实例化与 LOD</b>：名人光点用 InstancedMesh，远景降模型精度。</li>
+    <li><b>PWA 轻量壳</b>：手机优先轻量模式，3D 简化但玩法完整。</li></ul>
+  </div>
+</section>
+
+<!-- ============ 安全类 ============ -->
+<section id="sec">
+  <h2>安全类 <span>Security</span></h2>
+
+  <div class="qa">
+    <div class="q">CORS 怎么配？前后端跨域会不会有问题？</div>
+    <ul class="a"><li><b>白名单</b>：<code>@fastify/cors</code> 只放行已知前端域名，不直接 <code>*</code>。</li>
+    <li><b>同源部署</b>：生产环境前后端同源（Fastify 托管静态产物），从根本上消除跨域。</li>
+    <li><b>凭证策略</b>：如需带 Cookie，明确 <code>credentials:true</code> 并配合具体 Origin，不用通配。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">第三方 API Key（Tripo/StepFun/Evomap）怎么管理？</div>
+    <ul class="a"><li><b>绝不落前端</b>：所有 Key 只在后端环境变量（<code>.env</code> / 容器 Secret），前端永远接触不到。</li>
+    <li><b>.gitignore</b>：<code>.env</code> 已被 gitignore，仓库只保留 <code>.env.example</code> 空模板。</li>
+    <li><b>最小权限 + 轮换</b>：按服务商开通最小权限子 Key，定期轮换，泄漏可单独吊销。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">用户照片与个人数据怎么保护？</div>
+    <ul class="a"><li><b>最小收集</b>：照片仅用于生成 3D 化身，不做无关用途。</li>
+    <li><b>上传校验</b>：服务端校验文件类型/大小，禁止可执行内容，落盘前清洗元数据。</li>
+    <li><b>用户可控</b>：提供删除入口，删除即清理对应 SQLite 记录与生成文件。</li>
+    <li><b>注入防护</b>：自然语言造场景的用户输入做转义，作为 LLM 提示词时隔离系统指令，防提示注入。</li></ul>
+  </div>
+</section>
+
+<!-- ============ 运维类 ============ -->
+<section id="ops">
+  <h2>运维类 <span>Operations</span></h2>
+
+  <div class="qa">
+    <div class="q">SQLite 数据怎么备份与恢复？</div>
+    <ul class="a"><li><b>定时快照</b>：用 <code>.backup</code> 或文件级定时拷贝做冷备，保留多版本。</li>
+    <li><b>卷即备份</b>：Docker named volume 可整机快照，迁移到新容器即恢复。</li>
+    <li><b>恢复演练</b>：定期在测试环境做恢复演练，确认备份可用。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">有没有监控告警？</div>
+    <ul class="a"><li><b>进程级</b>：Fastify 暴露健康检查路由与基础指标（QPS、房间数、WS 连接数）。</li>
+    <li><b>外部依赖</b>：监控 Tripo/LLM 调用成功率与延迟、429/超时率，异常告警。</li>
+    <li><b>资源</b>：容器 CPU/内存/磁盘水位告警，SQLite 文件体积监控。</li></ul>
+  </div>
+
+  <div class="qa">
+    <div class="q">升级和回滚怎么做？</div>
+    <ul class="a"><li><b>镜像不可变</b>：每次发布打版本镜像，回滚即切回上一版 tag。</li>
+    <li><b>迁移可逆</b>：Schema 变更写在迁移脚本并保留回滚语句，避免单向升级锁死。</li>
+    <li><b>蓝绿/滚动</b>：容器滚动更新，异常立刻切旧版本，数据卷不动。</li></ul>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  叽里呱啦 BalaBala · 答辩 Q&amp;A · 黑底 #000000 / 明黄 #FFD700 / 青绿 #00CED1
+</footer>
+
+</body>
+</html>
