@@ -33,6 +33,7 @@ import {
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const CustomCharacterStudio = lazy(() => import('./CustomCharacterStudio'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
+const MultiplayerLobby = lazy(() => import('./MultiplayerLobby'))
 const TalkshowShell = lazy(() => import('./TalkshowShell'))
 const WerewolfShell = lazy(() => import('./WerewolfShell'))
 const BarShell = lazy(() => import('./BarShell'))
@@ -44,7 +45,7 @@ const ScenePlay = lazy(() => import('./scene-studio/ScenePlay'))
 
 type HearingMode = 'quick' | 'evidence'
 type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play'
-  | 'onboarding-interest' | 'onboarding-quickstart'
+  | 'onboarding-interest' | 'onboarding-quickstart' | 'multiplayer-lobby'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -100,6 +101,8 @@ function AppInner() {
   // 新手引导：兴趣选择后推荐的那个兴趣（用于渲染 QuickStartCard）
   const [quickStartInterest, setQuickStartInterest] = useState<InterestId | null>(null)
   const [roomId] = useState<string | null>(() => parseRoomParam())
+  // Round3: 正在进入的社交房间 id（social:<code>）；null = 全局开放广场
+  const [multiplayerRoomId, setMultiplayerRoomId] = useState<string | null>(null)
   // 场景工作室：正在编辑的场景 id（undefined = 新建）；正在播放的场景 id
   const [sceneStudioId, setSceneStudioId] = useState<string | undefined>(undefined)
   const [scenePlayId, setScenePlayId] = useState<string | null>(null)
@@ -194,6 +197,7 @@ function AppInner() {
       onEnterGym={() => setView('gym')}
       onEnterSceneStudio={() => { setSceneStudioId(undefined); setView('scene-studio') }}
       onMyScenes={() => setView('my-scenes')}
+      onMultiplayer={() => setView('multiplayer-lobby')}
     />
   }
 
@@ -243,6 +247,15 @@ function AppInner() {
     </>
   }
 
+  // ===== 多人房间大厅（纯 DOM 页，无 3D / 无 TopNav） =====
+  if (view === 'multiplayer-lobby') {
+    return <LazyScene component={MultiplayerLobby} label="多人房间"
+      props={{
+        onBack: () => setView('entry'),
+        onEnterRoom: (room: string) => { setMultiplayerRoomId(room); setView('plaza') },
+      }} />
+  }
+
   // ===== 广场（懒加载） =====
   if (view === 'plaza') {
     return <>
@@ -257,6 +270,10 @@ function AppInner() {
           onEnterLibrary: () => setView('library'),
           onEnterGym: () => setView('gym'),
           recommendedScene: getRecommendedScene() ?? undefined,
+          roomId: multiplayerRoomId ?? 'plaza',
+          onLeaveRoom: multiplayerRoomId
+            ? () => { setMultiplayerRoomId(null); setView('multiplayer-lobby') }
+            : undefined,
         }} />
     </>
   }

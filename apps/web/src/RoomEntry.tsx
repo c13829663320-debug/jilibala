@@ -23,6 +23,8 @@ export type RoomEntryProps = {
   onEnterSceneStudio?: () => void
   /** 进入「我的场景」列表。 */
   onMyScenes?: () => void
+  /** 进入 Round3 真人多人房间大厅。 */
+  onMultiplayer?: () => void
 }
 
 type Item = {
@@ -317,7 +319,7 @@ function OrbScene({ items, activeId, onActivate, onHover }: { items: Item[]; act
   </SafeCanvas>
 }
 
-export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, onMyPage, onEnterSceneStudio, onMyScenes }: RoomEntryProps) {
+export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, onMyPage, onEnterSceneStudio, onMyScenes, onMultiplayer }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
   const items = SCENES
@@ -366,6 +368,11 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
       <button type="button" className="main-home__create-card" onClick={() => onMyScenes?.()}>
         <span className="main-home__create-emoji">📁</span>
         <span className="main-home__create-text"><b>我的场景</b><small>管理、编辑、发布你创造过的每一个世界</small></span>
+        <i>↗</i>
+      </button>
+      <button type="button" className="main-home__create-card" onClick={() => onMultiplayer?.()}>
+        <span className="main-home__create-emoji">👥</span>
+        <span className="main-home__create-text"><b>多人房间</b><small>创建房间拉上真人朋友，同房间语音聊天</small></span>
         <i>↗</i>
       </button>
     </section>

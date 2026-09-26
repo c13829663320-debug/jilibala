@@ -11,7 +11,7 @@ import { Billboard, Text, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { BuildingConfig, RemotePlayer, WorldManifest, WorldRuntime } from './types'
 import { BUILDINGS, FOUNTAIN, WORLD_HALF } from './config'
-import { getCelebrity, hashColor } from '../identity'
+import { RemoteAvatar } from '../avatar/RemoteAvatar'
 
 // ---------------------------------------------------------------------------
 // 确定性伪随机（让植被布局每次加载一致，不随渲染抖动）
@@ -212,56 +212,6 @@ function Nature() {
         <cylinderGeometry args={[0.08, 0.1, 3.2, 6]} />
         <meshStandardMaterial color="#2a2d33" emissive="#FFD600" emissiveIntensity={0.4} />
       </instancedMesh>
-    </group>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// 远端玩家化身
-// ---------------------------------------------------------------------------
-function RemoteAvatar({ userId, playersRef }: {
-  userId: string
-  playersRef: MutableRefObject<Map<string, RemotePlayer>>
-}) {
-  const groupRef = useRef<THREE.Group>(null)
-  const player = playersRef.current.get(userId)
-
-  let displayName = '玩家'
-  let avatarColor = hashColor(userId)
-  if (player) {
-    displayName = player.nickname
-    if (player.avatarType === 'celebrity' && player.avatarRef) {
-      const celeb = getCelebrity(player.avatarRef)
-      if (celeb) displayName = celeb.name
-    }
-    avatarColor = player.avatarType === 'capsule' ? hashColor(player.userId) : '#4fb3a5'
-  }
-
-  useFrame(() => {
-    const p = playersRef.current.get(userId)
-    if (!p || !groupRef.current) return
-    const g = groupRef.current
-    g.position.x = THREE.MathUtils.lerp(g.position.x, p.targetX, 0.12)
-    g.position.z = THREE.MathUtils.lerp(g.position.z, p.targetZ, 0.12)
-    g.rotation.y = p.rotation
-  })
-
-  if (!player) return null
-  return (
-    <group ref={groupRef} position={[player.x, 0, player.z]}>
-      <mesh position={[0, 0.55, 0]} castShadow>
-        <capsuleGeometry args={[0.26, 0.6, 8, 16]} />
-        <meshStandardMaterial color={avatarColor} roughness={0.4} metalness={0.1} />
-      </mesh>
-      <mesh position={[0, 1.25, 0]} castShadow>
-        <sphereGeometry args={[0.2, 16, 16]} />
-        <meshStandardMaterial color={avatarColor} roughness={0.5} />
-      </mesh>
-      <Billboard position={[0, 1.7, 0]}>
-        <Text fontSize={0.28} color="#FFFFFF" anchorX="center" anchorY="middle" outlineWidth={0.015} outlineColor="#000000" raycast={() => null}>
-          {displayName}
-        </Text>
-      </Billboard>
     </group>
   )
 }

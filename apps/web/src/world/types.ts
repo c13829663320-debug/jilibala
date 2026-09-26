@@ -4,6 +4,7 @@
  * 这里只放与 three.js 解耦的纯类型，方便 collision.ts / config.ts
  * 在无 WebGL 环境下被 vitest 直接单测。
  */
+import type { AvatarExpression, EmoteType } from '@balabala/shared'
 
 /** 资产清单里单个模型的描述（由后台管线生成到 public/models/world/） */
 export interface WorldAsset {
@@ -133,7 +134,11 @@ export type Collider =
   | { kind: 'aabb'; box: AABB }
   | { kind: 'circle'; c: CircleObs }
 
-/** 远端玩家（WS 同步过来的位置会被 lerp 到 targetX/targetZ） */
+/**
+ * 远端玩家（WS 同步过来的位置会被 lerp 到 targetX/targetZ）。
+ * 可选字段与 avatar/RemoteAvatar 的 PresencePlayer 结构兼容（结构化类型）：
+ * talkingIntensity/emote/expression 由 WS 实时推送，驱动口型/表情/手势动画。
+ */
 export interface RemotePlayer {
   userId: string
   nickname: string
@@ -144,4 +149,12 @@ export interface RemotePlayer {
   rotation: number
   targetX: number
   targetZ: number
+  /** 说话强度 0~1（远端口型驱动） */
+  talkingIntensity?: number
+  /** 当前手势（收到后设置，emoteUntil 超时后由动画机回归 idle） */
+  emote?: EmoteType
+  /** emote 结束时间戳（performance.now / clock.elapsedTime*1000 域） */
+  emoteUntil?: number
+  /** 表情 neutral/happy/surprised/angry */
+  expression?: AvatarExpression
 }
