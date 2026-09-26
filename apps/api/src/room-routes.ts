@@ -79,6 +79,17 @@ export function getSocialRoom(code: string): SocialRoom | undefined {
   return socialRooms.get(code);
 }
 
+/**
+ * 传输层兜底：房主断线且超过重连窗口后，把房主转移给房间内最早加入者。
+ * 仅做 creatorId/creatorName 迁移，不触碰锁房/密码/踢人逻辑。
+ */
+export function transferSocialRoomOwner(code: string, newOwnerId: string, newOwnerName: string): void {
+  const room = socialRooms.get(code);
+  if (!room) return;
+  room.creatorId = newOwnerId;
+  room.creatorName = newOwnerName || room.creatorName;
+}
+
 /** 全部社交房间（已同步实时人数 + 惰性清理后）。 */
 export function getAllSocialRooms(): SocialRoom[] {
   sweepEmptyRooms();
