@@ -1,0 +1,3 @@
+{"ts":"2026-09-26T23:36:11.262Z","step":"server_listening","base":"ws://127.0.0.1:43031"}
+{"ts":"2026-09-26T23:36:12.224Z","step":"chromium_launched","executablePath":"/usr/local/bin/chromium"}
+{"ts":"2026-09-26T23:36:13.249Z","step":"browser_signaling_result","welcome":true,"hasRTC":true,"stun":"stun:stun.l.google.com:19302","offerToB":true,"answerToA":true}

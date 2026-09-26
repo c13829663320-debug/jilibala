@@ -1,0 +1,3 @@
+{"ts":"2026-09-26T23:32:28.356Z","step":"suite_start","logFile":"/home/user/Doubao/chats/38444190639093762/wt-webrtc/tests/e2e/logs/webrtc-signaling-2026-09-26T23-32-28-352Z.jsonl","note":"裸 node WS 客户端验证信令面；媒体面需浏览器真机"}
+{"ts":"2026-09-26T23:32:29.233Z","step":"server_listening","base":"http://127.0.0.1:42357"}
+{"ts":"2026-09-26T23:32:44.323Z","step":"suite_end","logCount":2}
