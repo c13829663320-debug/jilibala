@@ -67,11 +67,15 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
   const [scene, setScene] = useState<RoomScene>('plaza')
   const [isPublic, setIsPublic] = useState(true)
   const [maxPlayers, setMaxPlayers] = useState(8)
+  const [createPassword, setCreatePassword] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
   // —— 加入码状态 ——
   const [code, setCode] = useState('')
+  const [joinPassword, setJoinPassword] = useState('')
+  /** 拉到房间详情后，若房间有密码则先要求输入密码。 */
+  const [needPassword, setNeedPassword] = useState<SocialRoom | null>(null)
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState('')
 
@@ -82,7 +86,13 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
     if (!trimmed) { setCreateError('请输入房间名'); return }
     setCreating(true)
     try {
-      const body: CreateRoomRequest = { name: trimmed, scene, isPublic, maxPlayers }
+      const body: CreateRoomRequest = {
+        name: trimmed,
+        scene,
+        isPublic,
+        maxPlayers,
+        ...(createPassword.trim() ? { password: createPassword.trim() } : {}),
+      }
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,6 +111,22 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
     }
   }
 
+  /** 用房间码 + 可选密码进入房间；成功后把密码暂存给 WS 连接使用。 */
+  const enterRoom = async (room: SocialRoom, password?: string) => {
+    if (room.hasPassword) {
+      const pwd = (password ?? '').trim()
+      const res = await fetch(`/api/rooms/${encodeURIComponent(room.code)}/verify-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd }),
+      })
+      if (!res.ok) throw new Error('房间密码错误')
+      // 暂存密码给 Plaza3D 建立 WS 时携带（仅 sessionStorage，用完即删）
+      sessionStorage.setItem(`rpw:${room.code}`, pwd)
+    }
+    onEnterRoom(room.id)
+  }
+
   const handleJoinCode = async (e: FormEvent) => {
     e.preventDefault()
     setJoinError('')
@@ -113,11 +139,17 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
     try {
       const res = await fetch(`/api/rooms/${encodeURIComponent(trimmed)}`)
       if (!res.ok) {
-        if (res.status === 404) throw new Error('房间不存在或已满')
+        if (res.status === 404) throw new Error('房间不存在或已解散')
         throw new Error('加入房间失败')
       }
       const data = (await res.json()) as { room: SocialRoom }
-      onEnterRoom(data.room.id)
+      // 房间设了密码：第一次先停下要密码，第二次带密码再进
+      if (data.room.hasPassword && !needPassword) {
+        setNeedPassword(data.room)
+        setJoining(false)
+        return
+      }
+      await enterRoom(data.room, joinPassword)
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : '加入房间失败')
     } finally {
@@ -250,6 +282,19 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
               </div>
             </div>
 
+            <label className="mp-field">
+              <span className="mp-label">房间密码（可选）</span>
+              <input
+                className="mp-input"
+                type="password"
+                value={createPassword}
+                onChange={(e) => setCreatePassword(e.target.value)}
+                placeholder="留空则不设密码"
+                maxLength={32}
+                autoComplete="new-password"
+              />
+            </label>
+
             {createError && <div className="mp-error">{createError}</div>}
 
             <button type="submit" className="mp-primary-btn mp-submit" disabled={creating}>
@@ -274,10 +319,29 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
                 maxLength={6}
               />
             </label>
+            {needPassword && (
+              <label className="mp-field">
+                <span className="mp-label">房间密码（{needPassword.name}）</span>
+                <input
+                  className="mp-input"
+                  type="password"
+                  value={joinPassword}
+                  onChange={(e) => setJoinPassword(e.target.value)}
+                  placeholder="请输入房间密码"
+                  maxLength={32}
+                  autoFocus
+                  autoComplete="current-password"
+                />
+              </label>
+            )}
             {joinError && <div className="mp-error">{joinError}</div>}
-            <button type="submit" className="mp-primary-btn mp-submit" disabled={joining || code.length !== 6}>
+            <button
+              type="submit"
+              className="mp-primary-btn mp-submit"
+              disabled={joining || code.length !== 6 || (Boolean(needPassword) && !joinPassword)}
+            >
               {joining ? <Loader2 size={16} className="mp-spin" /> : <LogIn size={16} />}
-              {joining ? '加入中…' : '加入房间'}
+              {joining ? '加入中…' : (needPassword ? '验证密码并加入' : '加入房间')}
             </button>
             <p className="mp-hint-text">向房间创建者索取 6 位房间码即可加入。</p>
           </form>

@@ -456,3 +456,36 @@
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* ===== 房主控制面板 ===== */
+.mp-roominfo-owner {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255, 214, 0, 0.15); color: #FFD600;
+  border: 1px solid rgba(255, 214, 0, 0.4);
+  border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.owner-panel {
+  position: absolute; top: 64px; right: 16px; z-index: 40;
+  width: 280px; background: rgba(10, 12, 10, 0.95);
+  border: 1px solid rgba(255, 214, 0, 0.35); border-radius: 12px;
+  padding: 14px; color: #e8e8e8; font-size: 13px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+.owner-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: #FFD600; }
+.owner-panel-close { background: none; border: none; color: #aaa; cursor: pointer; }
+.owner-panel-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.owner-panel-row > span { flex: 0 0 72px; }
+.owner-panel-input {
+  flex: 1; background: #1a1d1a; border: 1px solid #333; border-radius: 6px;
+  color: #eee; padding: 5px 8px; font-size: 12px;
+}
+.owner-panel-row small { color: #888; flex: 1; }
+.owner-panel-btn {
+  background: #FFD600; color: #111; border: none; border-radius: 6px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.owner-btn-danger { background: #e5484d; color: #fff; }
+.owner-panel-members { margin-top: 12px; border-top: 1px solid #2a2a2a; padding-top: 8px; }
+.owner-panel-sub { color: #888; margin-bottom: 6px; }
+.owner-panel-member { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.owner-panel-member > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
