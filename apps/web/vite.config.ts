@@ -27,6 +27,8 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         lang: 'zh-CN',
+        orientation: 'any',
+        categories: ['entertainment', 'social', 'games'],
         icons: [
           {
             src: 'icons/icon-192.jpg',
@@ -53,6 +55,22 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        screenshots: [
+          {
+            src: 'promo/01-main-kv.png',
+            sizes: '1280x720',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: '叽里呱啦广场主视觉',
+          },
+          {
+            src: 'promo/02-court.png',
+            sizes: '1280x720',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: '开庭辩论',
+          },
+        ],
       },
       workbox: {
         // 只 precache 构建产物（html/js/css）+ includeAssets 中的小图。
@@ -60,6 +78,11 @@ export default defineConfig({
         globPatterns: ['**/*.{html,js,css,ico,jpg,png,svg,woff,woff2}'],
         globIgnores: ['**/*.glb', '**/models/**', '**/promo/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // 导航请求离线兜底：仅当导航失败且无缓存 HTML 时回退到离线页。
+        navigateFallback: '/offline.html',
+        // 排除 API / 模型 / 静态资源路径，避免它们被错误回退到离线页。
+        navigateFallbackDenylist: [/^\/api\//, /^\/models\//, /^\/brand\//, /^\/icons\//, /^\/portraits\//, /^\/videos\//, /^\/skills\//],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             // 3D 大模型：永不缓存，每次走网络（避免占用磁盘 + 版本更新及时）
