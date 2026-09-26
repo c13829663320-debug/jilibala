@@ -1,0 +1,17 @@
+{"ts":1790465351411,"event":"server_started","base":"http://127.0.0.1:43795"}
+{"ts":1790465351472,"event":"welcome","userId":"ss_cfg_a","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465351477,"event":"assert_welcome_config","ok":true,"cfg":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465351484,"event":"welcome","userId":"ss_agg_a","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465351489,"event":"welcome","userId":"ss_agg_b","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465351641,"event":"high_freq_moves_sent","from":"ss_agg_a","count":30}
+{"ts":1790465352344,"event":"presence_count_observed","from":"ss_agg_b","movesSent":30,"presenceReceived":1}
+{"ts":1790465352350,"event":"welcome","userId":"ss_seq_a","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465352354,"event":"welcome","userId":"ss_seq_b","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465352658,"event":"seq_series_sent","series":[1,1,4]}
+{"ts":1790465352905,"event":"seq_last_seen","lastSeen":{"userId":"ss_seq_a","x":8,"z":8,"rotation":0,"serverTs":1790465352705,"lastKnownSeq":4},"observedLastKnownSeq":4}
+{"ts":1790465352911,"event":"welcome","userId":"ss_snap_a","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465352916,"event":"welcome","userId":"ss_snap_b","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465353220,"event":"state_snapshot_received","players":[{"id":"ss_snap_a","x":3.5},{"id":"ss_snap_b","x":5.549640745281055}]}
+{"ts":1790465353225,"event":"welcome","userId":"ss_rate_a","stateSync":{"serverTickHz":10,"clientSendMaxHz":15,"interpolationDelayMs":100,"maxExtrapolationMs":250,"positionClipThreshold":50,"maxMessageBytes":4096}}
+{"ts":1790465353528,"event":"rate_limit_result","sent":25,"rateLimitedErrors":10}
+{"ts":1790465353533,"event":"server_stopped"}

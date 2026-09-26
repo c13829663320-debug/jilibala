@@ -17,8 +17,18 @@ import MobileControls, { isTouchDevice } from './world/MobileControls'
 import SceneSelect from './world/SceneSelect'
 import { SCENE_LABELS } from './onboarding/onboardingProgress'
 import { useSpatialVoice } from './voice/useSpatialVoice'
+import { RemotePlayerBuffer, type RenderedState } from './state-sync'
+import type { StateSyncConfig } from '@balabala/shared'
 import './plaza-3d.css'
 import './onboarding/onboarding.css'
+
+/**
+ * 是否启用「客户端插值/外推」渲染路径。
+ * true = RemoteAvatar 每帧调用 RemotePlayerBuffer.sample() 直接定位（平滑但需 GPU 真机验证）；
+ * false = 维持既有 targetX/targetZ + R3F lerp 的已验证渲染路径（buffer 仍在后台喂数据，便于平滑切换）。
+ * TODO(GPU-VERIFY): 真机多人联调时置 true，验证插值延迟 100ms / 外推 250ms / snap 不出现瞬移抖动。
+ */
+const ENABLE_INTERPOLATION_RENDER = false
 
 /** 数字键 1-7 → 手势 */
 const KEY_EMOTES: Record<string, EmoteType> = {
@@ -81,6 +91,38 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const [remoteUserIds, setRemoteUserIds] = useState<string[]>([])
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<number | null>(null)
+
+  // ===== 实时状态同步：每远端玩家一个插值缓冲 + 时钟偏移 =====
+  // buffersRef 纯逻辑、高频读写不走 React state；时钟偏移由 presence.serverTs 校准。
+  const buffersRef = useRef(new Map<string, RemotePlayerBuffer>())
+  const clockOffsetRef = useRef(0) // serverNow = Date.now() + clockOffset
+  const stateSyncCfgRef = useRef<StateSyncConfig | null>(null)
+
+  /** 把服务端 presence 快照喂入对应玩家的插值缓冲。 */
+  const feedRemoteBuffer = useCallback((p: { userId: string; x: number; z: number; rotation: number; talkingIntensity?: number; animation?: string; expression?: string; headTarget?: { x: number; z: number } | null; serverTs?: number }) => {
+    const serverTs = typeof p.serverTs === 'number' ? p.serverTs : Date.now() + clockOffsetRef.current
+    let buf = buffersRef.current.get(p.userId)
+    if (!buf) {
+      const cfg = stateSyncCfgRef.current
+      buf = new RemotePlayerBuffer(cfg ? {
+        interpolationDelayMs: cfg.interpolationDelayMs,
+        maxExtrapolationMs: cfg.maxExtrapolationMs,
+        positionClipThreshold: cfg.positionClipThreshold,
+      } : undefined)
+      buffersRef.current.set(p.userId, buf)
+    }
+    buf.push({ x: p.x, z: p.z, rotation: p.rotation, talkingIntensity: p.talkingIntensity, animation: p.animation, expression: p.expression, headTarget: p.headTarget ?? null, serverTs })
+  }, [])
+
+  /**
+   * 供 RemoteAvatar 每帧调用：返回该远端玩家当前应渲染的插值/外推姿态。
+   * 无缓冲时返回 null，上层回退到既有 lerp-to-target 路径。
+   */
+  const sampleRemotePose = useCallback((userId: string): RenderedState | null => {
+    const buf = buffersRef.current.get(userId)
+    if (!buf) return null
+    return buf.sample(Date.now() + clockOffsetRef.current)
+  }, [])
   const shouldReconnect = useRef(true)
   // 本地玩家位置（供空间音频 AudioListener 使用）
   const localPosRef = useRef({ x: world.player.x, z: world.player.z })
@@ -123,6 +165,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
 
   const removePlayer = useCallback((userId: string) => {
     playersRef.current.delete(userId)
+    buffersRef.current.delete(userId)
     setRemoteUserIds((prev) => prev.filter((id) => id !== userId))
   }, [])
 
@@ -145,8 +188,15 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         switch (msg.type) {
           case 'welcome': {
             playersRef.current.clear()
+            buffersRef.current.clear()
+            // 服务端下发状态同步配置（向后兼容：旧服务端无此字段则用默认值）
+            const welcomeExt = msg as unknown as { stateSync?: StateSyncConfig }
+            stateSyncCfgRef.current = welcomeExt.stateSync ?? null
             const others = msg.users.filter((u) => u.userId !== user.userId)
-            for (const u of others) upsertPlayer(u)
+            for (const u of others) {
+              upsertPlayer(u)
+              feedRemoteBuffer({ ...u, serverTs: Date.now() })
+            }
             setRemoteUserIds(others.map((u) => u.userId))
             setOnlineCount(msg.users.length)
             break
@@ -160,7 +210,16 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             setOnlineCount((n) => Math.max(1, n - 1))
             break
           case 'presence': {
+            // presence 现在携带 serverTs；据此校准 client→server 时钟偏移（仅取一次滑动平均）。
+            const presenceExt = msg as unknown as { serverTs?: number; users: Array<Record<string, unknown>> }
+            if (typeof presenceExt.serverTs === 'number') {
+              const inst = presenceExt.serverTs - Date.now()
+              clockOffsetRef.current = clockOffsetRef.current === 0 ? inst : clockOffsetRef.current * 0.9 + inst * 0.1
+            }
             for (const p of msg.users) {
+              if (p.userId === user.userId) continue // 自己不进远端缓冲
+              // 喂入插值缓冲（含 serverTs，供插值/外推/裁剪）
+              feedRemoteBuffer(p)
               const existing = playersRef.current.get(p.userId)
               if (existing) {
                 existing.targetX = p.x
@@ -418,6 +477,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             manifest={manifest}
             playersRef={playersRef}
             remoteUserIds={remoteUserIds}
+            poseSampler={ENABLE_INTERPOLATION_RENDER ? sampleRemotePose : undefined}
           />
           <PlayerController world={world} colliders={colliders} onSync={handleSync} />
           <CameraRig world={world} colliders={colliders} />
