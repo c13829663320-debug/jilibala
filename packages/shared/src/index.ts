@@ -693,6 +693,47 @@ export type CourtTrialEvent =
   | { type: 'court_round_recap'; round: number; unresolved: string[]; balance: { plaintiff: number; defendant: number } }
   | { type: 'error'; message: string };
 
+// ===== Round 3: 社交房间（真人多人同房间） =====
+/** 房间所在场景：plaza 为开放广场，其余为六大场景建筑内 */
+export type RoomScene = 'plaza' | SceneId;
+
+/** 社交房间元数据（REST 返回 + WS 广播共用） */
+export interface SocialRoom {
+  /** 房间唯一 id，格式 social:<code> */
+  id: string;
+  /** 6 位大写字母数字房间码，用于邀请加入 */
+  code: string;
+  /** 房间名称 */
+  name: string;
+  /** 创建者 userId */
+  creatorId: string;
+  /** 创建者昵称 */
+  creatorName: string;
+  /** 房间场景 */
+  scene: RoomScene;
+  /** 最大人数（默认 16） */
+  maxPlayers: number;
+  /** 是否公开（公开房间出现在房间列表） */
+  isPublic: boolean;
+  /** 创建时间 ISO */
+  createdAt: string;
+  /** 当前在线人数（由 WS 实时维护，REST 查询时也返回） */
+  playerCount: number;
+}
+
+/** 创建房间请求 */
+export interface CreateRoomRequest {
+  name: string;
+  scene?: RoomScene;
+  isPublic?: boolean;
+  maxPlayers?: number;
+}
+
+/** 房间相关 WS 消息（在已有 WSMessage 联合类型之外，通过 type 区分） */
+export type SocialRoomWsMessage =
+  | { type: 'room_info'; room: SocialRoom }
+  | { type: 'room_player_update'; roomId: string; playerCount: number };
+
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";
 export * from "./character-voices.js";
