@@ -1,0 +1,651 @@
+{
+  "startedAt": "2026-09-26T23:35:46.058Z",
+  "eventCount": 45,
+  "events": [
+    {
+      "t": 1790465743450,
+      "dir": "sys",
+      "who": "sys",
+      "type": "room_created",
+      "payload": {
+        "id": "social:WPSZZ8",
+        "code": "WPSZZ8",
+        "name": "E2E 韧性房",
+        "creatorId": "owner1",
+        "creatorName": "房主",
+        "scene": "plaza",
+        "maxPlayers": 16,
+        "isPublic": true,
+        "createdAt": "2026-09-26T23:35:43.448Z",
+        "playerCount": 0
+      }
+    },
+    {
+      "t": 1790465743518,
+      "dir": "out",
+      "who": "owner1",
+      "type": "__open__"
+    },
+    {
+      "t": 1790465743519,
+      "dir": "in",
+      "who": "owner1",
+      "type": "welcome",
+      "payload": {
+        "type": "welcome",
+        "roomId": "social:WPSZZ8",
+        "users": [
+          {
+            "userId": "owner1",
+            "nickname": "匿名用户",
+            "avatarType": "capsule",
+            "avatarRef": "",
+            "x": 9.796456985093943,
+            "z": -3.3375883729011058,
+            "rotation": 0
+          }
+        ],
+        "heartbeat": {
+          "pingIntervalMs": 15000,
+          "timeoutMs": 10000,
+          "reconnectWindowMs": 2500
+        },
+        "sessionToken": {
+          "sessionId": "56be6bc1-9703-4c9f-80e4-24b40445911e",
+          "userId": "owner1",
+          "roomId": "social:WPSZZ8",
+          "issuedAt": 1790465743516,
+          "expiresAt": 1790465863516
+        }
+      }
+    },
+    {
+      "t": 1790465743519,
+      "dir": "in",
+      "who": "owner1",
+      "type": "room_info",
+      "payload": {
+        "type": "room_info",
+        "room": {
+          "id": "social:WPSZZ8",
+          "code": "WPSZZ8",
+          "name": "E2E 韧性房",
+          "creatorId": "owner1",
+          "creatorName": "房主",
+          "scene": "plaza",
+          "maxPlayers": 16,
+          "isPublic": true,
+          "createdAt": "2026-09-26T23:35:43.448Z",
+          "playerCount": 1
+        }
+      }
+    },
+    {
+      "t": 1790465743519,
+      "dir": "in",
+      "who": "owner1",
+      "type": "user_joined",
+      "payload": {
+        "type": "user_joined",
+        "user": {
+          "userId": "owner1",
+          "nickname": "匿名用户",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 9.796456985093943,
+          "z": -3.3375883729011058,
+          "rotation": 0
+        }
+      }
+    },
+    {
+      "t": 1790465743519,
+      "dir": "in",
+      "who": "owner1",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 1
+      }
+    },
+    {
+      "t": 1790465743522,
+      "dir": "out",
+      "who": "alice",
+      "type": "__open__"
+    },
+    {
+      "t": 1790465743522,
+      "dir": "in",
+      "who": "alice",
+      "type": "welcome",
+      "payload": {
+        "type": "welcome",
+        "roomId": "social:WPSZZ8",
+        "users": [
+          {
+            "userId": "owner1",
+            "nickname": "匿名用户",
+            "avatarType": "capsule",
+            "avatarRef": "",
+            "x": 9.796456985093943,
+            "z": -3.3375883729011058,
+            "rotation": 0
+          },
+          {
+            "userId": "alice",
+            "nickname": "匿名用户",
+            "avatarType": "capsule",
+            "avatarRef": "",
+            "x": -7.446613581705055,
+            "z": -1.5736850772539412,
+            "rotation": 0
+          }
+        ],
+        "heartbeat": {
+          "pingIntervalMs": 15000,
+          "timeoutMs": 10000,
+          "reconnectWindowMs": 2500
+        },
+        "sessionToken": {
+          "sessionId": "976ac6a5-5812-4a69-8adf-d34fa96489d7",
+          "userId": "alice",
+          "roomId": "social:WPSZZ8",
+          "issuedAt": 1790465743521,
+          "expiresAt": 1790465863521
+        }
+      }
+    },
+    {
+      "t": 1790465743522,
+      "dir": "in",
+      "who": "alice",
+      "type": "room_info",
+      "payload": {
+        "type": "room_info",
+        "room": {
+          "id": "social:WPSZZ8",
+          "code": "WPSZZ8",
+          "name": "E2E 韧性房",
+          "creatorId": "owner1",
+          "creatorName": "房主",
+          "scene": "plaza",
+          "maxPlayers": 16,
+          "isPublic": true,
+          "createdAt": "2026-09-26T23:35:43.448Z",
+          "playerCount": 2
+        }
+      }
+    },
+    {
+      "t": 1790465743522,
+      "dir": "in",
+      "who": "alice",
+      "type": "user_joined",
+      "payload": {
+        "type": "user_joined",
+        "user": {
+          "userId": "alice",
+          "nickname": "匿名用户",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -7.446613581705055,
+          "z": -1.5736850772539412,
+          "rotation": 0
+        }
+      }
+    },
+    {
+      "t": 1790465743522,
+      "dir": "in",
+      "who": "alice",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 2
+      }
+    },
+    {
+      "t": 1790465743524,
+      "dir": "in",
+      "who": "owner1",
+      "type": "user_joined",
+      "payload": {
+        "type": "user_joined",
+        "user": {
+          "userId": "alice",
+          "nickname": "匿名用户",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -7.446613581705055,
+          "z": -1.5736850772539412,
+          "rotation": 0
+        }
+      }
+    },
+    {
+      "t": 1790465743524,
+      "dir": "in",
+      "who": "owner1",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 2
+      }
+    },
+    {
+      "t": 1790465743524,
+      "dir": "in",
+      "who": "owner1",
+      "type": "pong",
+      "payload": {
+        "type": "pong",
+        "clientSeq": 42,
+        "serverTs": 1790465743524,
+        "playerCount": 2
+      }
+    },
+    {
+      "t": 1790465743525,
+      "dir": "in",
+      "who": "owner1",
+      "type": "chat",
+      "payload": {
+        "type": "chat",
+        "userId": "owner1",
+        "nickname": "匿名用户",
+        "text": "before-drop"
+      }
+    },
+    {
+      "t": 1790465743525,
+      "dir": "in",
+      "who": "alice",
+      "type": "chat",
+      "payload": {
+        "type": "chat",
+        "userId": "owner1",
+        "nickname": "匿名用户",
+        "text": "before-drop"
+      }
+    },
+    {
+      "t": 1790465743527,
+      "dir": "sys",
+      "who": "owner1",
+      "type": "__close__"
+    },
+    {
+      "t": 1790465743527,
+      "dir": "in",
+      "who": "alice",
+      "type": "player_disconnecting",
+      "payload": {
+        "type": "player_disconnecting",
+        "userId": "owner1",
+        "reconnectWindowMs": 2500
+      }
+    },
+    {
+      "t": 1790465743527,
+      "dir": "in",
+      "who": "alice",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 1
+      }
+    },
+    {
+      "t": 1790465743529,
+      "dir": "in",
+      "who": "alice",
+      "type": "chat",
+      "payload": {
+        "type": "chat",
+        "userId": "alice",
+        "nickname": "匿名用户",
+        "text": "while-owner-away"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "alice",
+      "type": "player_reconnected",
+      "payload": {
+        "type": "player_reconnected",
+        "userId": "owner1"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "alice",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 2
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "out",
+      "who": "owner1",
+      "type": "__open__"
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "reconnect_progress",
+      "payload": {
+        "type": "reconnect_progress",
+        "stage": "resuming",
+        "progress": 0.1,
+        "message": "恢复会话"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "reconnect_progress",
+      "payload": {
+        "type": "reconnect_progress",
+        "stage": "replaying",
+        "progress": 0.3,
+        "message": "补发 8 条在途消息"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "user_joined",
+      "payload": {
+        "type": "user_joined",
+        "user": {
+          "userId": "owner1",
+          "nickname": "匿名用户",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": 9.796456985093943,
+          "z": -3.3375883729011058,
+          "rotation": 0
+        }
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 1
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "user_joined",
+      "payload": {
+        "type": "user_joined",
+        "user": {
+          "userId": "alice",
+          "nickname": "匿名用户",
+          "avatarType": "capsule",
+          "avatarRef": "",
+          "x": -7.446613581705055,
+          "z": -1.5736850772539412,
+          "rotation": 0
+        }
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 2
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "chat",
+      "payload": {
+        "type": "chat",
+        "userId": "owner1",
+        "nickname": "匿名用户",
+        "text": "before-drop"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "player_disconnecting",
+      "payload": {
+        "type": "player_disconnecting",
+        "userId": "owner1",
+        "reconnectWindowMs": 2500
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 1
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "chat",
+      "payload": {
+        "type": "chat",
+        "userId": "alice",
+        "nickname": "匿名用户",
+        "text": "while-owner-away"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "reconnect_progress",
+      "payload": {
+        "type": "reconnect_progress",
+        "stage": "syncing_state",
+        "progress": 0.7,
+        "message": "同步房间状态"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "welcome",
+      "payload": {
+        "type": "welcome",
+        "roomId": "social:WPSZZ8",
+        "users": [
+          {
+            "userId": "owner1",
+            "nickname": "匿名用户",
+            "avatarType": "capsule",
+            "avatarRef": "",
+            "x": 9.796456985093943,
+            "z": -3.3375883729011058,
+            "rotation": 0
+          },
+          {
+            "userId": "alice",
+            "nickname": "匿名用户",
+            "avatarType": "capsule",
+            "avatarRef": "",
+            "x": -7.446613581705055,
+            "z": -1.5736850772539412,
+            "rotation": 0
+          }
+        ],
+        "resumed": true,
+        "heartbeat": {
+          "pingIntervalMs": 15000,
+          "timeoutMs": 10000,
+          "reconnectWindowMs": 2500
+        },
+        "sessionToken": {
+          "sessionId": "56be6bc1-9703-4c9f-80e4-24b40445911e",
+          "userId": "owner1",
+          "roomId": "social:WPSZZ8",
+          "issuedAt": 1790465743516,
+          "expiresAt": 1790465863516
+        }
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "reconnect_progress",
+      "payload": {
+        "type": "reconnect_progress",
+        "stage": "done",
+        "progress": 1,
+        "message": "恢复完成"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "reconnect_response",
+      "payload": {
+        "type": "reconnect_response",
+        "accepted": true,
+        "sessionId": "56be6bc1-9703-4c9f-80e4-24b40445911e",
+        "progress": 1,
+        "users": [
+          {
+            "userId": "owner1",
+            "nickname": "匿名用户",
+            "avatarType": "capsule",
+            "avatarRef": "",
+            "x": 9.796456985093943,
+            "z": -3.3375883729011058,
+            "rotation": 0
+          },
+          {
+            "userId": "alice",
+            "nickname": "匿名用户",
+            "avatarType": "capsule",
+            "avatarRef": "",
+            "x": -7.446613581705055,
+            "z": -1.5736850772539412,
+            "rotation": 0
+          }
+        ]
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "player_reconnected",
+      "payload": {
+        "type": "player_reconnected",
+        "userId": "owner1"
+      }
+    },
+    {
+      "t": 1790465743530,
+      "dir": "in",
+      "who": "owner1",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 2
+      }
+    },
+    {
+      "t": 1790465743532,
+      "dir": "sys",
+      "who": "owner1",
+      "type": "__close__"
+    },
+    {
+      "t": 1790465743532,
+      "dir": "in",
+      "who": "alice",
+      "type": "player_disconnecting",
+      "payload": {
+        "type": "player_disconnecting",
+        "userId": "owner1",
+        "reconnectWindowMs": 2500
+      }
+    },
+    {
+      "t": 1790465743532,
+      "dir": "in",
+      "who": "alice",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 1
+      }
+    },
+    {
+      "t": 1790465746057,
+      "dir": "in",
+      "who": "alice",
+      "type": "room_owner_changed",
+      "payload": {
+        "type": "room_owner_changed",
+        "oldOwnerId": "owner1",
+        "newOwnerId": "alice"
+      }
+    },
+    {
+      "t": 1790465746057,
+      "dir": "in",
+      "who": "alice",
+      "type": "user_left",
+      "payload": {
+        "type": "user_left",
+        "userId": "owner1"
+      }
+    },
+    {
+      "t": 1790465746057,
+      "dir": "in",
+      "who": "alice",
+      "type": "room_player_update",
+      "payload": {
+        "type": "room_player_update",
+        "roomId": "social:WPSZZ8",
+        "playerCount": 1
+      }
+    }
+  ]
+}

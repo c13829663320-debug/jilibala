@@ -14,12 +14,12 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
     // 测试绝不读取真实 .env / 真实密钥。
     env: {},
     clearMocks: true,
     restoreMocks: false,
-    testTimeout: 20000,
-    hookTimeout: 20000,
+    testTimeout: 30000,
+    hookTimeout: 30000,
   },
 });
