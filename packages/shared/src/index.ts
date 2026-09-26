@@ -222,6 +222,8 @@ export interface WerewolfPublicPlayer {
   avatarRef: string;
   alive: boolean;
   isAI: boolean;
+  /** R4-05: 统一的参与者类型（与 isAI 等价，前端真人徽章用此字段）。 */
+  playerType?: ParticipantType;
 }
 
 // ===== Round2：白天自由发言窗口的结构化动作牌 =====
@@ -549,6 +551,25 @@ export type WSMessage =
   | { type: 'text_shout'; userId: string; nickname: string; text: string; at: number }
   // —— Round4 R4-04：客户端渲染/运行时错误上报（可选） ——
   | { type: 'client_error'; userId?: string; message: string; componentStack?: string; at: number }
+  // ===== Round4 R4-05：玩法多人适配 — 真人混入 AI =====
+  // —— 客户端 → 服务端 ——
+  /** 法庭：真人玩家在轮到自己时提交当庭发言。 */
+  | { type: 'court_player_speech'; text: string }
+  /** 酒吧：真人辩手提交发言（side 标明正方/反方）。 */
+  | { type: 'bar_player_speech'; side: 'pro' | 'con'; text: string }
+  // —— 服务端 → 客户端（广播） ——
+  /** 法庭：参与者列表（含真人徽章 playerType）。 */
+  | { type: 'court_participants'; participants: GameParticipant[] }
+  /** 法庭：一条当庭发言（真人或 AI，playerType 区分）。 */
+  | { type: 'court_multiplayer_speech'; slotId: string; playerType: ParticipantType; nickname: string; text: string }
+  /** 法庭：投票环节真人/AI 合并计票结果。 */
+  | { type: 'court_multi_vote_result'; result: MultiPartyVoteResult }
+  /** 酒吧：参与者列表。 */
+  | { type: 'bar_participants'; participants: GameParticipant[] }
+  /** 酒吧：一条辩论发言。 */
+  | { type: 'bar_multiplayer_speech'; side: 'pro' | 'con'; playerType: ParticipantType; nickname: string; text: string }
+  /** 酒吧：观众投票合并结果。 */
+  | { type: 'bar_multi_vote_result'; result: MultiPartyVoteResult }
   | { type: 'error'; message: string; code?: string };
 
 // ===== Round4 R4-03：化身换装分层系统 =====
@@ -772,6 +793,32 @@ export type CourtTrialEvent =
   /** 一回合结束小结：剩余 unresolved、当前天平。 */
   | { type: 'court_round_recap'; round: number; unresolved: string[]; balance: { plaintiff: number; defendant: number } }
   | { type: 'error'; message: string };
+
+// ===== Round4 R4-05: 玩法多人适配 — 真人玩家混入 AI =====
+/** 玩法参与者是真人还是 AI NPC。前端据此渲染真人徽章。 */
+export type ParticipantType = "human" | "ai";
+
+/** 通用玩法参与者（法庭 / 酒吧等多人局共用），区分真人与 AI。 */
+export interface GameParticipant {
+  /** 角色位 id，如 plaintiff / defendant / witness / pro-1。 */
+  slotId: string;
+  /** 展示名，如「原告」「反方一辩」。 */
+  label: string;
+  /** 真人 / AI。 */
+  playerType: ParticipantType;
+  /** 真人 userId（AI 无此字段）。 */
+  userId?: string;
+  /** 显示名（真人=昵称，AI=AI 兜底名）。 */
+  nickname: string;
+}
+
+/** 一场多人局的合并投票结果（真人票 + AI 陪审员/观众票）。 */
+export interface MultiPartyVoteResult {
+  votes: Record<string, number>;
+  humanVotes: number;
+  aiVotes: number;
+  leading?: string;
+}
 
 // ===== Round 3: 社交房间（真人多人同房间） =====
 /** 房间所在场景：plaza 为开放广场，其余为六大场景建筑内 */

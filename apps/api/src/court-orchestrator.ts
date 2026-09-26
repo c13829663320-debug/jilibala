@@ -51,6 +51,7 @@ import {
   type BalanceState,
   type CourtSide,
 } from "./court-state.js";
+import { AiFillManager } from "./ai-fill-manager.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -818,4 +819,259 @@ async function generateVerdict(
       final_balance: { ...balance },
     };
   }
+}
+
+// ===== Round4 R4-05: 多人庭审 — 真人玩家混入 AI =====
+// 与上方 SSE 单人出牌庭审（runCourtTrial）并列：本类跑在 WS court: 房间里，
+// 允许真人认领「原告 / 被告 / 证人」任一角色，其余角色由 AI NPC 填充。
+// 真人轮到发言时通过 WS court_player_speech 提交；超时 / 离线则 AI 自动接管（AI 填充模式）。
+// 投票环节：真人票与 AI 陪审员票合并统计。
+export type CourtMultiRole = "plaintiff" | "defendant" | "witness";
+
+export interface MultiplayerCourtOpts {
+  caseTitle: string;
+  userInput: string;
+  chat: ChatFn;
+  /** 广播事件回调（ws.ts 注入：房间广播）。 */  onEvent: (e: Record<string, unknown>) => void;
+  /** 真人发言等待超时（默认 15s），超时由 AI 代述。测试可缩短。 */
+  speechTimeoutMs?: number;
+  /** 轮询真人发言队列间隔（默认 200ms）。 */
+  pollMs?: number;
+  /** 辩论轮数（默认 2）。 */
+  rounds?: number;
+  /** AI 陪审员票数（默认 3）。 */
+  aiJurorCount?: number;
+}
+
+const ROLE_LABEL: Record<CourtMultiRole, string> = {
+  plaintiff: "原告",
+  defendant: "被告",
+  witness: "证人",
+};
+
+const AI_FALLBACK_SPEECH: Record<CourtMultiRole, string> = {
+  plaintiff: "（AI 代述）我方主张被告应对此事负责，请法庭明察。",
+  defendant: "（AI 代述）我方认为责任不在己，请求依法驳回。",
+  witness: "（AI 代述）我当时确实在场，所见所闻大致如此。",
+};
+
+/**
+ * 多人庭审编排器。无真人玩家时，三个角色位全部是 AI，行为与纯 AI 模式完全一致
+ * （每个角色 AI 自动发言，AI 陪审员投票）——向后兼容。
+ */
+export class MultiplayerCourtTrial {
+  private readonly fill: AiFillManager;
+  private readonly chat: ChatFn;
+  private readonly onEvent: (e: Record<string, unknown>) => void;
+  private readonly timeoutMs: number;
+  private readonly pollMs: number;
+  private readonly rounds: number;
+  private readonly aiJurors: number;
+  private readonly caseTitle: string;
+  private readonly userInput: string;
+
+  /** 当前正在等待真人发言的 slotId（同一时刻只有一个）。 */
+  private awaitingSlot: CourtMultiRole | null = null;
+  private awaitingResolve: ((text: string) => void) | null = null;
+  /** 真人提交但尚未被轮到的发言缓冲（按 userId）。 */
+  private speechBuffer = new Map<string, string>();
+  /** 真人投票：userId -> "plaintiff" | "defendant" */
+  private humanVotes = new Map<string, "plaintiff" | "defendant">();
+  private speakCount: Record<"plaintiff" | "defendant", number> = { plaintiff: 0, defendant: 0 };
+  private finished = false;
+
+  constructor(opts: MultiplayerCourtOpts) {
+    this.caseTitle = opts.caseTitle || "未命名案件";
+    this.userInput = opts.userInput || "";
+    this.chat = opts.chat;
+    this.onEvent = opts.onEvent;
+    this.timeoutMs = opts.speechTimeoutMs ?? 15_000;
+    this.pollMs = opts.pollMs ?? 200;
+    this.rounds = opts.rounds ?? 2;
+    this.aiJurors = opts.aiJurorCount ?? 3;
+    this.fill = new AiFillManager();
+    this.fill.registerSlot("plaintiff", ROLE_LABEL.plaintiff, "AI 原告");
+    this.fill.registerSlot("defendant", ROLE_LABEL.defendant, "AI 被告");
+    this.fill.registerSlot("witness", ROLE_LABEL.witness, "AI 证人");
+  }
+
+  /** 广播当前参与者列表（前端真人徽章）。 */
+  broadcastParticipants(): void {
+    this.onEvent({ type: "court_participants", participants: this.fill.toParticipants() });
+  }
+
+  /** 真人认领一个角色位（替换 AI）。返回是否成功。 */
+  joinAsRole(userId: string, nickname: string, role: CourtMultiRole): boolean {
+    const slot = this.fill.humanJoin(role, userId, nickname);
+    if (!slot) return false;
+    this.broadcastParticipants();
+    return true;
+  }
+
+  /** 真人离开某个角色位，AI 重新接管。 */
+  leaveRole(userId: string): void {
+    const slot = this.fill.slotOfUser(userId);
+    if (slot) {
+      this.fill.humanLeave(slot.slotId as CourtMultiRole);
+      this.broadcastParticipants();
+    }
+  }
+
+  /** WS court_player_speech：真人提交发言。若正轮到该用户则立即结算，否则缓冲。 */
+  submitSpeech(userId: string, text: string): boolean {
+    const clean = text.trim().slice(0, 400);
+    if (!clean) return false;
+    const slot = this.fill.slotOfUser(userId);
+    if (!slot) return false;
+    this.fill.markActive(userId);
+    // 正轮到该真人：直接唤醒等待中的流程。
+    if (this.awaitingSlot === slot.slotId && this.awaitingResolve) {
+      const resolve = this.awaitingResolve;
+      this.awaitingSlot = null;
+      this.awaitingResolve = null;
+      resolve(clean);
+      return true;
+    }
+    // 否则缓冲，轮到时取用。
+    this.speechBuffer.set(userId, clean);
+    return true;
+  }
+
+  /** WS 真人投票。 */
+  castVote(userId: string, vote: "plaintiff" | "defendant"): boolean {
+    if (vote !== "plaintiff" && vote !== "defendant") return false;
+    this.humanVotes.set(userId, vote);
+    this.fill.markActive(userId);
+    return true;
+  }
+
+  /** 等待某个真人 slot 发言：缓冲优先，否则轮询等待直到超时（AI 代述）。 */
+  private async waitHumanSpeech(role: CourtMultiRole, userId: string): Promise<{ text: string; byHuman: boolean }> {
+    // 1) 已有缓冲发言（提前打字）直接用。
+    const buffered = this.speechBuffer.get(userId);
+    if (buffered) {
+      this.speechBuffer.delete(userId);
+      return { text: buffered, byHuman: true };
+    }
+    // 2) 进入等待：广播「轮到你发言」，轮询缓冲 + 超时。
+    this.onEvent({ type: "awaiting_human_speech", slotId: role, deadlineMs: this.timeoutMs });
+    const deadline = Date.now() + this.timeoutMs;
+    while (Date.now() < deadline) {
+      const pending = this.speechBuffer.get(userId);
+      if (pending) {
+        this.speechBuffer.delete(userId);
+        return { text: pending, byHuman: true };
+      }
+      // 真人可能离线：宽限内再等，超时由 AI 代述。
+      await sleep(this.pollMs);
+    }
+    // 3) 超时：AI 填充模式。
+    return { text: AI_FALLBACK_SPEECH[role], byHuman: false };
+  }
+
+  /** AI 生成某角色发言（失败用兜底）。 */
+  private async aiSpeak(role: CourtMultiRole): Promise<string> {
+    const personaMap: Record<CourtMultiRole, string> = {
+      plaintiff: "你是趣味法庭的原告，情绪激动但有理有据。",
+      defendant: "你是趣味法庭的被告，理性冷静为自己辩护。",
+      witness: "你是本案证人，客观陈述你看到的事实。",
+    };
+    try {
+      const raw = await this.chat(
+        [
+          { role: "system", content: `${personaMap[role]} 用第一人称发言，60-150字，不要 Markdown。` },
+          { role: "user", content: `案件：${this.caseTitle}\n案情：${this.userInput}\n请以${ROLE_LABEL[role]}身份当庭发言。` },
+        ],
+        300,
+      );
+      const text = tidySpeech(raw);
+      return text || AI_FALLBACK_SPEECH[role];
+    } catch {
+      return AI_FALLBACK_SPEECH[role];
+    }
+  }
+
+  /** 跑完整场多人庭审。 */
+  async run(): Promise<{ participants: ReturnType<AiFillManager["toParticipants"]>; votes: Record<string, number> }> {
+    this.broadcastParticipants();
+    this.onEvent({ type: "court_multi_stage", stage: "open" });
+
+    for (let round = 1; round <= this.rounds; round += 1) {
+      // 法官开场（AI）
+      this.onEvent({
+        type: "court_multiplayer_speech",
+        slotId: "judge",
+        playerType: "ai",
+        nickname: "AI 法官",
+        text: `现在开庭（第 ${round} 轮）。本案「${this.caseTitle}」，请双方依次陈述。`,
+      });
+
+      for (const role of ["plaintiff", "defendant", "witness"] as CourtMultiRole[]) {
+        const slot = this.fill.get(role)!;
+        let text: string;
+        let byHuman = false;
+        if (slot.playerType === "human" && slot.userId) {
+          const r = await this.waitHumanSpeech(role, slot.userId);
+          text = r.text;
+          byHuman = r.byHuman;
+        } else {
+          text = await this.aiSpeak(role);
+        }
+        if (role === "plaintiff" || role === "defendant") this.speakCount[role] += 1;
+        this.onEvent({
+          type: "court_multiplayer_speech",
+          slotId: role,
+          // 真人超时由 AI 代述时发言实为 AI，按 byHuman 区分徽章。
+          playerType: byHuman ? "human" : "ai",
+          nickname: slot.nickname,
+          text,
+        });
+      }
+    }
+
+    // ===== 投票：真人票 + AI 陪审员票合并 =====
+    const result = this.finalizeVotes();
+    this.finished = true;
+    this.onEvent({ type: "court_multi_vote_result", result });
+    return { participants: this.fill.toParticipants(), votes: result.votes };
+  }
+
+  /** 合并真人票与 AI 陪审员票。AI 陪审员倾向庭审发言更多的一方。 */
+  finalizeVotes(): { votes: Record<string, number>; humanVotes: number; aiVotes: number; leading?: string } {
+    const votes: Record<string, number> = { plaintiff: 0, defendant: 0 };
+    for (const v of this.humanVotes.values()) votes[v] += 1;
+    const humanVotes = this.humanVotes.size;
+
+    // AI 陪审员：发言更多的一方获得多数 AI 票，平票则平分。
+    let aiPro = 0;
+    let aiCon = 0;
+    if (this.speakCount.plaintiff > this.speakCount.defendant) aiPro = this.aiJurors;
+    else if (this.speakCount.defendant > this.speakCount.plaintiff) aiCon = this.aiJurors;
+    else { aiPro = Math.ceil(this.aiJurors / 2); aiCon = Math.floor(this.aiJurors / 2); }
+    votes.plaintiff += aiPro;
+    votes.defendant += aiCon;
+
+    const leading = votes.plaintiff > votes.defendant ? "plaintiff"
+      : votes.defendant > votes.plaintiff ? "defendant" : undefined;
+    return { votes, humanVotes, aiVotes: this.aiJurors, leading };
+  }
+
+  isFinished(): boolean { return this.finished; }
+}
+
+// ===== 模块级多人庭审注册表（ws.ts 注入广播回调后调用）=====
+const multiCourtSessions = new Map<string, MultiplayerCourtTrial>();
+
+/** 注册一场多人庭审（按 caseId）。 */
+export function registerMultiplayerCourt(caseId: string, trial: MultiplayerCourtTrial): void {
+  multiCourtSessions.set(caseId, trial);
+}
+
+export function getMultiplayerCourt(caseId: string): MultiplayerCourtTrial | undefined {
+  return multiCourtSessions.get(caseId);
+}
+
+/** 测试用：清空注册表。 */
+export function _resetMultiCourtsForTest(): void {
+  multiCourtSessions.clear();
 }
