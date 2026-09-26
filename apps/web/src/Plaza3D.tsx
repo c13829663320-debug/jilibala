@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, MessagesSquare, Users, Mic, MicOff, Copy, Check, LogOut, Hand } from 'lucide-react'
+import { ArrowLeft, MessagesSquare, Users, Mic, MicOff, Copy, Check, LogOut, Hand, Shield, X } from 'lucide-react'
 import { Plaza } from './Plaza'
 import { useIdentity } from './identity'
 import type { EmoteType, SocialRoom, WSMessage, WSUser } from '@balabala/shared'
@@ -30,7 +30,17 @@ const TALKING_REPORT_MS = 120
 
 function buildWsUrl(room: string, userId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
+  let url = `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
+  // 私密房密码：由大厅在 sessionStorage 暂存，连接一次后即删，不长期驻留。
+  if (room.startsWith('social:')) {
+    const code = room.slice('social:'.length)
+    const pwd = sessionStorage.getItem(`rpw:${code}`)
+    if (pwd) {
+      url += `&password=${encodeURIComponent(pwd)}`
+      sessionStorage.removeItem(`rpw:${code}`)
+    }
+  }
+  return url
 }
 
 export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, recommendedScene, roomId = 'plaza', onLeaveRoom }: {
@@ -56,6 +66,9 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const [onlineCount, setOnlineCount] = useState(1)
   const [roomInfo, setRoomInfo] = useState<SocialRoom | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
+  const [showOwnerPanel, setShowOwnerPanel] = useState(false)
+  const [panelPwd, setPanelPwd] = useState('')
+  const [panelMax, setPanelMax] = useState(16)
 
   // ===== 开放世界运行时（mutable ref，高频读写不走 React state） =====
   const [world] = useState<WorldRuntime>(() => createWorldRuntime())
@@ -175,6 +188,15 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           intensity?: number
           room?: SocialRoom
           playerCount?: number
+          // 房间权限事件扩展字段（宽松解析，按需读取）
+          newOwnerId?: string
+          oldOwnerId?: string
+          targetUserId?: string
+          locked?: boolean
+          hasPassword?: boolean
+          maxPlayers?: number
+          code?: number
+          message?: string
         }
         if (m.type === 'emote' && m.userId && m.emote) {
           const p = playersRef.current.get(m.userId)
@@ -196,6 +218,33 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           setOnlineCount(m.room.playerCount)
         } else if (m.type === 'room_player_update' && typeof m.playerCount === 'number') {
           setOnlineCount(m.playerCount)
+        } else if (m.type === 'room_owner_changed') {
+          // 房主变更：同步本地 roomInfo 的 creatorId 并 toast
+          setRoomInfo((prev) => prev ? { ...prev, creatorId: String(m.newOwnerId) } : prev)
+          toast(m.newOwnerId === user?.userId ? '你已成为新房主' : `房主已转移给 ${m.newOwnerId}`)
+        } else if (m.type === 'room_kicked') {
+          if (m.targetUserId === user?.userId) {
+            toast('你已被房主移出房间')
+            shouldReconnect.current = false
+            onLeaveRoom?.()
+          } else {
+            toast(`房主移出了 ${m.targetUserId}`)
+          }
+        } else if (m.type === 'room_locked') {
+          const locked = m.locked === true
+          setRoomInfo((prev) => prev ? { ...prev, locked } : prev)
+          toast(locked ? '房间已锁定，暂不允许新成员加入' : '房间已解锁')
+        } else if (m.type === 'room_password_changed') {
+          setRoomInfo((prev) => prev ? { ...prev, hasPassword: m.hasPassword === true } : prev)
+          toast(m.hasPassword ? '房间密码已设置' : '房间密码已清除')
+        } else if (m.type === 'room_max_players_changed') {
+          setRoomInfo((prev) => prev ? { ...prev, maxPlayers: Number(m.maxPlayers) || prev.maxPlayers } : prev)
+          toast(`人数上限调整为 ${m.maxPlayers} 人`)
+        } else if (m.type === 'error' && typeof m.code === 'number' && m.code === 2003) {
+          // KICKED 结构化错误码：被踢后离开房间
+          toast(String(m.message ?? '你已被移出房间'))
+          shouldReconnect.current = false
+          onLeaveRoom?.()
         }
       }
 
@@ -224,6 +273,14 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
     ws.send(JSON.stringify({ type: 'move', x, z, rotation }))
+  }, [])
+
+  // ===== 房主控制消息发送 =====
+  const isOwner = isSocialRoom && roomInfo?.creatorId === user?.userId
+  const sendControl = useCallback((obj: Record<string, unknown>) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify(obj))
   }, [])
 
   // ===== 建筑 id → onEnter 回调映射 =====
@@ -387,6 +444,11 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
               房间码 {roomInfo.code}
             </button>
           )}
+          {isOwner && (
+            <button className="mp-roominfo-owner" onClick={() => setShowOwnerPanel((v) => !v)} title="房主设置">
+              <Shield size={13} /> 房主设置
+            </button>
+          )}
           {onLeaveRoom && (
             <button className="mp-roominfo-leave" onClick={onLeaveRoom}>
               <LogOut size={13} /> 离开房间
@@ -466,6 +528,72 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
 
       {/* 移动端控件 */}
       {touch && <MobileControls world={world} />}
+
+      {/* 房主控制面板 */}
+      {isOwner && showOwnerPanel && roomInfo && (
+        <div className="owner-panel">
+          <div className="owner-panel-head">
+            <b><Shield size={14} /> 房主控制面板</b>
+            <button className="owner-panel-close" onClick={() => setShowOwnerPanel(false)}><X size={15} /></button>
+          </div>
+
+          <div className="owner-panel-row">
+            <span>锁定房间</span>
+            <button
+              className={`mp-switch ${roomInfo.locked ? 'is-on' : ''}`}
+              role="switch"
+              aria-checked={roomInfo.locked}
+              onClick={() => { sendControl({ type: 'lock_room', locked: !roomInfo.locked }) }}
+            >
+              <span className="mp-switch-knob" />
+            </button>
+            <small>{roomInfo.locked ? '已锁，新人无法加入' : '开放加入'}</small>
+          </div>
+
+          <div className="owner-panel-row">
+            <span>房间密码{roomInfo.hasPassword ? '（已设置）' : '（无）'}</span>
+            <input
+              className="owner-panel-input"
+              type="password"
+              placeholder="输入新密码，留空清除"
+              value={panelPwd}
+              onChange={(e) => setPanelPwd(e.target.value)}
+              maxLength={32}
+            />
+            <button className="owner-panel-btn" onClick={() => {
+              sendControl({ type: 'set_password', password: panelPwd || null })
+              setPanelPwd('')
+            }}>确定</button>
+          </div>
+
+          <div className="owner-panel-row">
+            <span>人数上限</span>
+            <input
+              className="owner-panel-input"
+              type="number"
+              min={1}
+              max={64}
+              value={panelMax}
+              onChange={(e) => setPanelMax(Number(e.target.value))}
+            />
+            <button className="owner-panel-btn" onClick={() => sendControl({ type: 'set_max_players', maxPlayers: panelMax })}>应用</button>
+          </div>
+
+          <div className="owner-panel-members">
+            <div className="owner-panel-sub">房间成员（{onlineCount}）</div>
+            {remoteUserIds.map((uid) => {
+              const p = playersRef.current.get(uid)
+              return (
+                <div className="owner-panel-member" key={uid}>
+                  <span>{p?.nickname ?? uid}</span>
+                  <button className="owner-panel-btn" onClick={() => sendControl({ type: 'transfer_owner', newOwnerId: uid })}>转移房主</button>
+                  <button className="owner-panel-btn owner-btn-danger" onClick={() => sendControl({ type: 'kick', targetUserId: uid, reason: '被房主移出' })}>踢人</button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* toast */}
       {toastMsg && <div className="plaza-3d-toast">{toastMsg}</div>}

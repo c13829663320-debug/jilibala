@@ -712,7 +712,9 @@ export type CourtTrialEvent =
 /** 房间所在场景：plaza 为开放广场，其余为六大场景建筑内 */
 export type RoomScene = 'plaza' | SceneId;
 
-/** 社交房间元数据（REST 返回 + WS 广播共用） */
+/** 社交房间元数据（REST 返回 + WS 广播共用）
+ *  注意：明文密码绝不出现在此类型上。服务端内存单独存储密码，
+ *  这里仅以 hasPassword 布尔值对外暴露。 */
 export interface SocialRoom {
   /** 房间唯一 id，格式 social:<code> */
   id: string;
@@ -720,7 +722,7 @@ export interface SocialRoom {
   code: string;
   /** 房间名称 */
   name: string;
-  /** 创建者 userId */
+  /** 创建者 / 当前房主 userId（转移房主后会更新） */
   creatorId: string;
   /** 创建者昵称 */
   creatorName: string;
@@ -730,6 +732,10 @@ export interface SocialRoom {
   maxPlayers: number;
   /** 是否公开（公开房间出现在房间列表） */
   isPublic: boolean;
+  /** 是否锁定（锁定后新房主之外的新连接被拒，code=ROOM_LOCKED）。旧房间默认 false。 */
+  locked: boolean;
+  /** 房间是否已设置密码（仅布尔，绝不回传明文密码）。旧房间默认 false。 */
+  hasPassword: boolean;
   /** 创建时间 ISO */
   createdAt: string;
   /** 当前在线人数（由 WS 实时维护，REST 查询时也返回） */
@@ -741,13 +747,33 @@ export interface CreateRoomRequest {
   name: string;
   scene?: RoomScene;
   isPublic?: boolean;
+  /** 私密房：等价于 isPublic=false（优先级高于 isPublic）。私密房不出现在 /api/rooms 公开列表。 */
+  isPrivate?: boolean;
+  /** 房间密码（创建时可选；仅服务端内存存储，不下发给任何成员）。 */
+  password?: string;
   maxPlayers?: number;
 }
 
 /** 房间相关 WS 消息（在已有 WSMessage 联合类型之外，通过 type 区分） */
 export type SocialRoomWsMessage =
   | { type: 'room_info'; room: SocialRoom }
-  | { type: 'room_player_update'; roomId: string; playerCount: number };
+  | { type: 'room_player_update'; roomId: string; playerCount: number }
+  // —— 房间权限事件（服务端广播；绝不携带明文密码） ——
+  | { type: 'room_owner_changed'; oldOwnerId: string; newOwnerId: string; byUserId: string }
+  | { type: 'room_kicked'; targetUserId: string; reason?: string; byUserId: string }
+  | { type: 'room_locked'; locked: boolean; byUserId: string }
+  | { type: 'room_password_changed'; hasPassword: boolean; byUserId: string }
+  | { type: 'room_max_players_changed'; maxPlayers: number; byUserId: string }
+  // —— 结构化权限错误（被踢/锁房/密码错误/满员等），带 NetErrorCode 数字码 ——
+  | { type: 'permission_error'; code: number; message: string };
+
+/** 客户端 → 服务端 房间权限控制消息（仅房主可成功执行）。 */
+export type RoomControlClientMessage =
+  | { type: 'kick'; targetUserId: string; reason?: string }
+  | { type: 'transfer_owner'; newOwnerId: string }
+  | { type: 'lock_room'; locked: boolean }
+  | { type: 'set_password'; password: string | null }
+  | { type: 'set_max_players'; maxPlayers: number };
 
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";
