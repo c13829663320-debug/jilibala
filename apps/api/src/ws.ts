@@ -14,9 +14,18 @@ import {
   type Perspective,
   type EmoteType,
   type SocialRoom,
+  NetErrorCode,
 } from "@balabala/shared";
 import { getCourtCase } from "./db.js";
-import { getSocialRoom } from "./room-routes.js";
+import {
+  getSocialRoom,
+  isPasswordValid,
+  setRoomPassword,
+  setRoomLocked,
+  setRoomMaxPlayers,
+  transferRoomOwner,
+  clampMaxPlayers,
+} from "./room-routes.js";
 import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
@@ -46,10 +55,46 @@ export type Room = {
   users: Map<string, RoomUser>;
   courtState?: CourtRoomState;
   sceneState?: SceneRoomState;
+  // —— 房间权限分片（仅 social 房间使用，向后兼容可选） ——
+  /** 被房主踢出的 userId 集合；这些用户重连该房间会被拒（code=KICKED）。 */
+  kickedUsers?: Set<string>;
+  /** 房主断线后等待重连的定时器；窗口期内不转移房主。 */
+  ownerTransferTimer?: NodeJS.Timeout;
+  /** 最近离开的用户（userId -> 离开时间戳）；用于锁房后允许老成员在重连窗口内回来。 */
+  recentUsers?: Map<string, number>;
 };
+
+/** 锁房后允许老成员在重连窗口内重连的记忆时长（与协议重连窗口一致）。 */
+const RECENT_REMEMBER_MS = 120_000;
+
+function rememberUserLeave(room: Room, userId: string): void {
+  if (!room.recentUsers) room.recentUsers = new Map();
+  room.recentUsers.set(userId, Date.now());
+}
+
+/** 该用户是否在重连窗口内刚离开过本房间（锁房后允许其重连）。 */
+function wasRecentlyPresent(room: Room, userId: string): boolean {
+  const m = room.recentUsers;
+  if (!m) return false;
+  const ts = m.get(userId);
+  if (ts === undefined) return false;
+  if (Date.now() - ts > RECENT_REMEMBER_MS) { m.delete(userId); return false; }
+  return true;
+}
+
+/** 房主断线后的转移宽限（ms）。窗口期内房主重连则取消转移；超时后才把房主转给下一位在线用户。 */
+let OWNER_GRACE_MS = 30_000;
+
+/** 测试用：缩短/重置房主转移宽限，避免用例等待真实 30s。 */
+export function _setOwnerGraceMsForTest(ms: number): void {
+  OWNER_GRACE_MS = ms;
+}
 
 /** 供测试使用：清空所有房间，保证用例隔离。 */
 export function _resetRoomsForTest(): void {
+  for (const r of rooms.values()) {
+    if (r.ownerTransferTimer) clearTimeout(r.ownerTransferTimer);
+  }
   rooms.clear();
 }
 
@@ -133,6 +178,17 @@ function safeSend(socket: WebSocket, msg: WSMessage): void {
     }
   } catch {
     // 忽略发送失败（可能已断开）
+  }
+}
+
+/** 发送带 NetErrorCode 数字码的结构化错误（type 仍为 error，向后兼容旧客户端）。 */
+function sendErrorWithCode(socket: WebSocket, code: number, message: string): void {
+  try {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(JSON.stringify({ type: "error", code, message }));
+    }
+  } catch {
+    // 忽略
   }
 }
 
@@ -234,9 +290,10 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     // Round3: social 房间——校验房间元数据存在（不存在则拒绝连接）
     let socialMeta: SocialRoom | undefined;
+    let socialCode = "";
     if (roomId.startsWith("social:")) {
-      const code = roomId.slice("social:".length);
-      socialMeta = getSocialRoom(code);
+      socialCode = roomId.slice("social:".length);
+      socialMeta = getSocialRoom(socialCode);
       if (!socialMeta) {
         safeSend(socket, { type: "error", message: "房间不存在或已解散" });
         socket.close();
@@ -251,12 +308,36 @@ export function registerWebSocket(app: FastifyInstance): void {
     const avatarRef = userProfile?.avatarRef ?? "";
 
     const room = getOrCreateRoom(roomId);
+    if (!room.kickedUsers) room.kickedUsers = new Set();
 
-    // Round3: social 房间人数上限（同 userId 重连替换旧连接不占新名额）
-    if (socialMeta && !room.users.has(userId) && room.users.size >= socialMeta.maxPlayers) {
-      safeSend(socket, { type: "error", message: "房间已满" });
-      socket.close();
-      return;
+    // —— 房间权限分片：social 房间准入校验（顺序：被踢 → 锁房 → 密码 → 满员）——
+    if (socialMeta) {
+      // 1) 被踢用户：无法用同 userId 重连本房间
+      if (room.kickedUsers.has(userId)) {
+        sendErrorWithCode(socket, NetErrorCode.KICKED, "你已被房主移出该房间，无法重新加入");
+        socket.close();
+        return;
+      }
+      // 2) 锁房：房主本人、已在房用户、以及重连窗口内刚离开的老成员放行；新连接被拒
+      const mayReenterWhileLocked = room.users.has(userId) || wasRecentlyPresent(room, userId);
+      if (socialMeta.locked && userId !== socialMeta.creatorId && !mayReenterWhileLocked) {
+        sendErrorWithCode(socket, NetErrorCode.ROOM_LOCKED, "房间已锁定，房主暂不允许新成员加入");
+        socket.close();
+        return;
+      }
+      // 3) 密码：房间设有密码时，非房主必须在 WS 连接参数中携带正确 password
+      const suppliedPassword = url.searchParams.get("password") ?? undefined;
+      if (userId !== socialMeta.creatorId && !isPasswordValid(socialCode, suppliedPassword)) {
+        sendErrorWithCode(socket, NetErrorCode.WRONG_PASSWORD, "房间密码错误");
+        socket.close();
+        return;
+      }
+      // 4) 人数上限（同 userId 重连替换旧连接不占新名额）
+      if (!room.users.has(userId) && room.users.size >= socialMeta.maxPlayers) {
+        sendErrorWithCode(socket, NetErrorCode.ROOM_FULL, "房间已满");
+        socket.close();
+        return;
+      }
     }
 
     const roomUser: RoomUser = {
@@ -277,6 +358,14 @@ export function registerWebSocket(app: FastifyInstance): void {
       try { existingUser.socket.close(); } catch { /* noop */ }
     }
     room.users.set(userId, roomUser);
+    // 重连成功：消费掉“最近离开”记忆，避免长期残留。
+    room.recentUsers?.delete(userId);
+
+    // 房主在重连窗口内回到房间：取消待执行的房主转移。
+    if (socialMeta && userId === socialMeta.creatorId && room.ownerTransferTimer) {
+      clearTimeout(room.ownerTransferTimer);
+      room.ownerTransferTimer = undefined;
+    }
 
     // 发送 welcome 快照
     const welcome: WSMessage = {
@@ -569,6 +658,82 @@ export function registerWebSocket(app: FastifyInstance): void {
           safeSend(socket, { type: "pong" } satisfies WSMessage);
           break;
         }
+
+        // ===== 房间权限分片：房主控制消息（仅 social 房间） =====
+        case "kick":
+        case "transfer_owner":
+        case "lock_room":
+        case "set_password":
+        case "set_max_players": {
+          if (!roomId.startsWith("social:") || !socialMeta) break;
+          // 服务端权威校验：发起者必须是当前房主。
+          if (userId !== socialMeta.creatorId) {
+            sendErrorWithCode(socket, NetErrorCode.NOT_OWNER, "仅房主可执行此操作");
+            break;
+          }
+          const code = socialCode;
+
+          if (type === "kick") {
+            const targetUserId = String(data.targetUserId ?? "");
+            const target = targetUserId ? room.users.get(targetUserId) : undefined;
+            if (!target) {
+              sendErrorWithCode(socket, NetErrorCode.TARGET_NOT_FOUND, "目标用户不在房间内");
+              break;
+            }
+            if (targetUserId === userId) {
+              sendErrorWithCode(socket, NetErrorCode.INVALID_ROOM, "不能踢出自己");
+              break;
+            }
+            // 标记为被踢：之后无法用同 userId 重连本房间。
+            room.kickedUsers?.add(targetUserId);
+            // 先单发结构化错误（code=KICKED），再关闭其连接。
+            try {
+              if (target.socket.readyState === target.socket.OPEN) {
+                target.socket.send(JSON.stringify({
+                  type: "error",
+                  code: NetErrorCode.KICKED,
+                  message: data.reason ? `你已被房主移出房间：${String(data.reason)}` : "你已被房主移出房间",
+                }));
+              }
+            } catch { /* ignore */ }
+            const kickedSocket = target.socket;
+            room.users.delete(targetUserId);
+            try { kickedSocket.close(); } catch { /* noop */ }
+            broadcastToRoom(roomId, {
+              type: "room_kicked",
+              targetUserId,
+              ...(data.reason ? { reason: String(data.reason) } : {}),
+              byUserId: userId,
+            });
+            broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: room.users.size });
+          } else if (type === "transfer_owner") {
+            const newOwnerId = String(data.newOwnerId ?? "");
+            const target = newOwnerId ? room.users.get(newOwnerId) : undefined;
+            if (!target) {
+              sendErrorWithCode(socket, NetErrorCode.TARGET_NOT_FOUND, "目标用户不在房间内");
+              break;
+            }
+            if (newOwnerId === userId) break; // 自己已是房主，无操作
+            const oldOwnerId = socialMeta.creatorId;
+            transferRoomOwner(code, newOwnerId);
+            broadcastToRoom(roomId, { type: "room_owner_changed", oldOwnerId, newOwnerId, byUserId: userId });
+          } else if (type === "lock_room") {
+            const locked = data.locked === true;
+            setRoomLocked(code, locked);
+            broadcastToRoom(roomId, { type: "room_locked", locked, byUserId: userId });
+          } else if (type === "set_password") {
+            // password=null/"" 清除密码；绝不把密码内容广播/写日志。
+            const raw = data.password;
+            const passwordArg = raw === null ? null : (typeof raw === "string" && raw.length > 0 ? raw : null);
+            const hasPassword = setRoomPassword(code, passwordArg);
+            broadcastToRoom(roomId, { type: "room_password_changed", hasPassword, byUserId: userId });
+          } else if (type === "set_max_players") {
+            const maxPlayers = clampMaxPlayers(data.maxPlayers);
+            setRoomMaxPlayers(code, maxPlayers);
+            broadcastToRoom(roomId, { type: "room_max_players_changed", maxPlayers, byUserId: userId });
+          }
+          break;
+        }
       }
     });
 
@@ -586,7 +751,29 @@ export function registerWebSocket(app: FastifyInstance): void {
         }
         // Round3: social 房间——全员广播断线后的实时人数
         if (roomId.startsWith("social:")) {
+          // 记录最近离开的用户：锁房后允许其在重连窗口内回来。
+          rememberUserLeave(r, userId);
           broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: r.users.size });
+
+          // 房主断线：不立即转移，等待重连宽限；窗口期内房主重连会取消定时器。
+          const meta = getSocialRoom(socialCode);
+          if (meta && userId === meta.creatorId) {
+            if (r.ownerTransferTimer) clearTimeout(r.ownerTransferTimer);
+            r.ownerTransferTimer = setTimeout(() => {
+              const roomNow = rooms.get(roomId);
+              if (!roomNow) return;
+              roomNow.ownerTransferTimer = undefined;
+              const m = getSocialRoom(socialCode);
+              if (!m) return;
+              // 房主已在窗口内重连（保险起见再查一次；正常路径在 join 时已取消）
+              if (roomNow.users.has(m.creatorId)) return;
+              // 选最早仍在线的用户接任房主
+              const nextOwner = roomNow.users.keys().next().value as string | undefined;
+              if (!nextOwner) return; // 房间已空，无可接任者
+              transferRoomOwner(socialCode, nextOwner);
+              broadcastToRoom(roomId, { type: "room_owner_changed", oldOwnerId: userId, newOwnerId: nextOwner, byUserId: "system" });
+            }, OWNER_GRACE_MS);
+          }
         }
         // 房间空了可清理（保留 court 房间状态以便重连）
         if (r.users.size === 0 && roomId === "plaza") {
