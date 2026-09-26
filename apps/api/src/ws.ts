@@ -20,6 +20,7 @@ import { getSocialRoom } from "./room-routes.js";
 import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
+import { metrics } from "./metrics.js";
 
 // ===== 房间数据结构 =====
 export type RoomUser = {
@@ -277,6 +278,7 @@ export function registerWebSocket(app: FastifyInstance): void {
       try { existingUser.socket.close(); } catch { /* noop */ }
     }
     room.users.set(userId, roomUser);
+    metrics.wsConnected();
 
     // 发送 welcome 快照
     const welcome: WSMessage = {
@@ -574,6 +576,7 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     // ===== 断开清理 =====
     socket.on("close", () => {
+      metrics.wsDisconnected();
       const r = rooms.get(roomId);
       // 守卫：仅当房间内该 userId 当前指向的仍是本 socket 时才清理，
       // 避免旧连接关闭时误删已被新连接替换的条目。
@@ -596,6 +599,7 @@ export function registerWebSocket(app: FastifyInstance): void {
     });
 
     socket.on("error", () => {
+      metrics.wsError();
       // 忽略，close 会触发
     });
   });

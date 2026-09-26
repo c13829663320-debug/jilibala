@@ -6,8 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+# 取消旧的同分支运行
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  # ===== 阶段 1：Lint（仓库未引入 ESLint，检测到则跑，否则跳过并注明）=====
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,10 +27,164 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
-      - name: Run tests (apps/api, all mocked — no network)
-        run: npm test
+      - name: Run lint (skip if not configured)
+        run: |
+          if [ -f eslint.config.js ] || [ -f .eslintrc.cjs ] || [ -f .eslintrc.json ]; then
+            echo "::group::ESLint detected"
+            npm run lint || exit 1
+          else
+            echo "::notice::未检测到 ESLint 配置（eslint.config.* / .eslintrc.*），lint 阶段跳过。"
+          fi
 
-      - name: Build
+  # ===== 阶段 2：测试（api 与 web 并行分片）=====
+  test:
+    name: Test (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run unit tests
+        run: npm run test --workspace apps/${{ matrix.app }} 2>&1 | tee /tmp/test-${{ matrix.app }}.log
+
+      - name: Upload test log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-${{ matrix.app }}
+          path: /tmp/test-${{ matrix.app }}.log
+          retention-days: 7
+
+  # ===== 阶段 3：构建（依赖 lint + test）=====
+  build:
+    name: Build
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build all workspaces
         run: npm run build
+
+      - name: Upload web dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 7
+
+  # ===== 阶段 4：E2E 冒烟（Node fetch + ws，不依赖浏览器）=====
+  smoke:
+    name: E2E Smoke
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build (dist needed by smoke check)
+        run: npm run build
+
+      - name: Run smoke tests
+        run: bash e2e/run-smoke.sh
+
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-server-log
+          path: /tmp/balabala-smoke-*/server.log
+          retention-days: 7
+
+  # ===== 阶段 5：（可选）Docker 镜像构建，仅 main 分支 push 且存在 Dockerfile 时触发 =====
+  docker:
+    name: Docker build
+    needs: [smoke]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      # secrets 不能在 step 的 if 中直接引用，先映射为 env 再判断
+      DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Dockerfile
+        id: detect
+        run: |
+          if [ -f Dockerfile ]; then
+            echo "has_dockerfile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_dockerfile=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::仓库暂无 Dockerfile，跳过镜像构建。添加 Dockerfile 并配置 DOCKER_REGISTRY secrets 后自动启用。"
+          fi
+
+      - name: Setup Buildx
+        if: steps.detect.outputs.has_dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to registry
+        if: steps.detect.outputs.has_dockerfile == 'true' && env.DOCKER_REGISTRY != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push
+        if: steps.detect.outputs.has_dockerfile == 'true' && env.DOCKER_REGISTRY != ''
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/balabala:${{ github.sha }}
+
+  # ===== 阶段 6：（可选）Playwright 浏览器 E2E =====
+  # 冒烟测试已覆盖 API + WS，浏览器级 E2E 需要时取消注释并安装 @playwright/test。
+  # e2e/browser.spec.ts 存在时再启用本 job（含 npx playwright install --with-deps）。
+  # e2e-browser:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: 22, cache: npm }
+  #     - run: npm ci
+  #     - run: npx playwright install --with-deps
+  #     - run: npm run test:e2e
