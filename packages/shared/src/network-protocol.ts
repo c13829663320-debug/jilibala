@@ -282,3 +282,58 @@ export interface RtcRetryRequest {
   /** 重试原因。 */
   reason: string;
 }
+
+// ---------------------------------------------------------------------------
+// 8. WebRTC 健壮性扩展（信令状态机 / TURN 下发 / 失败重试 / 文字回落）
+// ---------------------------------------------------------------------------
+
+/**
+ * 服务端维护的每对用户信令状态（按房间内用户对聚合）。
+ * - offering：A 已发 offer 给 B，等待 B 的 answer
+ * - answering：B 已收到 offer，正在回 answer（服务端在转发 offer 后置位）
+ * - connected：answer 已交换，ICE 协商完成/进行中
+ * - failed：一方 bye / fallback / 连续失败，需重新 offer
+ */
+export type RtcPairState = "offering" | "answering" | "connected" | "failed";
+
+/** rtc_error 错误码（结构化，便于客户端按码决策）。 */
+export const RtcErrorCode = {
+  /** 目标用户不在房间（离线/已离开）。 */
+  TARGET_OFFLINE: "rtc_target_offline",
+  /** 双方同时发 offer（glare 冲突），后到的 offer 被拒。 */
+  OFFER_CONFLICT: "rtc_offer_conflict",
+  /** 在 answer 到达前同一方重复发 offer（重试风暴），被节流。 */
+  DUPLICATE_OFFER: "rtc_duplicate_offer",
+  /** 服务端内部错误。 */
+  INTERNAL: "rtc_internal",
+} as const;
+
+export type RtcErrorCodeValue = (typeof RtcErrorCode)[keyof typeof RtcErrorCode];
+
+/** 服务端→发起方的信令错误（目标不在线 / 冲突等），替代静默丢弃。 */
+export interface RtcErrorNotify {
+  from: string;
+  to: string;
+  code: RtcErrorCodeValue;
+  message: string;
+  /** 关联的发起方消息 seq（若有）。 */
+  reqSeq?: number;
+}
+
+/** 降级原因（与 RtcFallbackNotify.reason 对齐）。 */
+export type RtcFallbackReason =
+  | "ice_failed"
+  | "no_media"
+  | "timeout"
+  | "user_disabled";
+
+/**
+ * rtc_sdp / rtc_ice / rtc_retry / rtc_fallback 信令消息统一携带的路由元信息。
+ * seq 为发起方单调递增序号，供服务端去重/排重（可选，旧客户端可不带，向后兼容）。
+ */
+export interface RtcRoutingMeta {
+  from: string;
+  to: string;
+  /** 发起方信令序号（可选）。 */
+  seq?: number;
+}
