@@ -2,37 +2,34 @@
 //
 // 架构要点（关键决策在注释中说明）：
 //
-// 1. WebRTC mesh（全互联）：维护 Map<userId, RTCPeerConnection>。
-//    协商策略（避免 glare/同时发 offer 冲突）：**userId 字典序较小的一方主动发 offer**。
-//    双方都跑同一个 reconciliation 节拍，判断"我是否该对这个 peer 发 offer"：
-//      myUserId < peerId  → 我创建 offer；否则我只接收对方的 offer 并回 answer。
-//    这样同一对 peer 永远只有一侧发起，不会双侧同时 createOffer。
+// 1. WebRTC mesh（全互联）：每个近端 peer 由一个 RtcPeerManager 管理一条 PeerConnection。
+//    协商策略（避免 glare/同时发 offer 冲突）：**userId 字典序较小的一方主动发 offer**，
+//    由 manager 的 iAmOfferer 标志决定。
 //
-// 2. 信令：通过 wsRef.current 发送 {type:'rtc_sdp'|'rtc_ice'|'rtc_bye'}，
-//    服务端只按 to 单发转发，不广播。本 hook 用 addEventListener('message')
-//    挂监听，与 Plaza3D 自带的 onmessage 共存（WebSocket 支持多监听器）。
+// 2. 健壮性（WebRTC 分片）：RtcPeerManager 封装
+//    createOffer/handleAnswer/addIceCandidate/ICE 状态监控/自动重试（2s/5s/10s，
+//    强制 TURN relay）/10s 信令超时/15s ICE 收集超时/重试耗尽降级文字。
+//    本 hook 只负责：近端订阅裁剪、空间音频图、麦克采集、说话检测。
 //
-// 3. 距离订阅裁剪：每 ~300ms 用 pickSubscribers(localPos, playersRef, maxSubscribers,
-//    maxDistance) 算出"应连接的近端 peer 集合"。超出集合的 PC 关闭并发 rtc_bye；
-//    重新进入范围时下一个节拍自动重建。人多时只与最近 N 个建连，节省带宽/编解码。
+// 3. 信令：通过 wsRef.current 发送 {type:'rtc_sdp'|'rtc_ice'|'rtc_bye'|'rtc_retry'|'rtc_fallback'}，
+//    服务端做目标在线校验（离线回 rtc_error）与每对用户状态机。本 hook 用
+//    addEventListener('message') 挂监听，与 Plaza3D 自带的 onmessage 共存。
 //
-// 4. 空间音频：每个远端流 → MediaStreamSource → PannerNode(只做方位) →
+// 4. 距离订阅裁剪：每 ~300ms 用 pickSubscribers(localPos, playersRef, maxSubscribers,
+//    maxDistance) 算出"应连接的近端 peer 集合"。超出集合的 manager 关闭并发 rtc_bye。
+//
+// 5. 空间音频：每个远端流 → MediaStreamSource → PannerNode(只做方位) →
 //    GainNode(computeDistanceGain 衰减) → AudioContext.destination。
-//    PannerNode 位置每节拍随 peer 坐标更新；AudioListener 位置绑定 localPosRef。
-//    PannerNode 的 distanceModel 设为 inverse + rolloffFactor=0，让它只负责
-//    左右/前后方位，不做衰减；衰减统一交给 computeDistanceGain（与纯逻辑单测一致）。
 //
-// 5. 静音/按键说：用 track.enabled=false 控制发送（不 removeTrack，避免重协商）。
-//    全局 enabled=false 时远端全部 gain=0、本地不发。pushToTalk 模式下，仅当
-//    pushingRef.current=true（调用方按住按键）时发送。
-//
-// 6. 优雅降级：getUserMedia 失败/拒绝 → error 字段提示，PC 仍可作为 recvonly
-//    收听他人；卸载时关闭所有 PC、停止麦克流、关闭 AudioContext。
+// 6. 优雅降级：ICE 重试耗尽 / 麦克被拒 → onFallback，UI 提示"语音不可用，已切换文字"，
+//    文字聊天始终可用；用户可手动重试语音。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
+import type { IceServerConfig } from '@balabala/shared'
 import { useMicrophone } from './useMicrophone'
 import { computeDistanceGain, pickSubscribers, type Vec2 } from './spatial-audio'
+import { RtcPeerManager, type RtcFallbackReason } from './webrtc-manager'
 
 export type SpatialVoiceOptions = {
   wsRef: RefObject<WebSocket | null>
@@ -48,6 +45,8 @@ export type SpatialVoiceOptions = {
   maxDistance?: number
   /** 最多同时建立的语音连接数，默认 8 */
   maxSubscribers?: number
+  /** 服务端下发的 ICE 服务器配置（含 TURN）；缺省仅公共 STUN */
+  rtcIceServers?: IceServerConfig[]
 }
 
 export type SpatialVoiceResult = {
@@ -67,12 +66,16 @@ export type SpatialVoiceResult = {
    * 仅在 pushToTalk=true 时生效。由调用方在 keydown/keyup 中调用。
    */
   setPushing: (v: boolean) => void
+  /** 是否处于语音降级状态（语音不可用，已切文字） */
+  fallbackActive: boolean
+  /** 降级原因提示文案（null = 未降级） */
+  fallbackNotice: string | null
+  /** 手动重试语音（降级后用户点击） */
+  retryVoice: () => void
 }
 
-/** STUN 服务器：NAT 穿越必需；内网/单机环境可留空。 */
-const DEFAULT_RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-}
+/** 缺省 ICE 配置：仅公共 STUN（服务端未下发配置时兜底）。 */
+const FALLBACK_ICE_SERVERS: IceServerConfig[] = [{ urls: 'stun:stun.l.google.com:19302' }]
 
 /** 订阅重建节拍（ms） */
 const TICK_MS = 300
@@ -97,6 +100,7 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
     enabled,
     maxDistance = 15,
     maxSubscribers = 8,
+    rtcIceServers,
   } = opts
 
   // —— 麦克风采集（含电平分析） ——
@@ -108,9 +112,10 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [speakingPeers, setSpeakingPeers] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null)
 
   // —— 内部可变引用（避免闭包过期） ——
-  const pcMap = useRef(new Map<string, RTCPeerConnection>())
+  const peerManagers = useRef(new Map<string, RtcPeerManager>())
   const audioGraphMap = useRef(new Map<string, PeerAudioGraph>())
   const audioCtxRef = useRef<AudioContext | null>(null)
   const wiredWsRef = useRef<WebSocket | null>(null)
@@ -120,9 +125,11 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
   const pushToTalkRef = useRef(false)
   const micStreamRef = useRef<MediaStream | null>(null)
   const roomIdRef = useRef(roomId)
+  const iceServersRef = useRef<IceServerConfig[]>(rtcIceServers ?? FALLBACK_ICE_SERVERS)
 
   useEffect(() => { enabledRef.current = enabled }, [enabled])
   useEffect(() => { roomIdRef.current = roomId }, [roomId])
+  useEffect(() => { iceServersRef.current = rtcIceServers?.length ? rtcIceServers : FALLBACK_ICE_SERVERS }, [rtcIceServers])
 
   // ===== AudioContext 懒创建（单例） =====
   const getAudioCtx = useCallback((): AudioContext | null => {
@@ -132,7 +139,6 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
     if (!Ctx) return null
     const ctx = new Ctx()
     audioCtxRef.current = ctx
-    // 朝向：本地面向 -Z，+X 为右（three.js 约定）
     try {
       if (typeof ctx.listener.forwardX !== 'undefined') {
         ctx.listener.forwardX.value = 0
@@ -140,13 +146,12 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
         ctx.listener.forwardZ.value = -1
         ctx.listener.upX.value = 0
         ctx.listener.upY.value = 1
-        ctx.listener.upZ.value = 0
       }
     } catch { /* older API */ }
     return ctx
   }, [])
 
-  // ===== 本地发送闸门：根据 muted / pushToTalk / pushing / 全局 enabled 决定 track.enabled =====
+  // ===== 本地发送闸门 =====
   const applyLocalSendGate = useCallback(() => {
     const stream = micStreamRef.current
     if (!stream) return
@@ -161,7 +166,7 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
   const setMuted = useCallback((m: boolean) => {
     setMutedState(m)
     mutedRef.current = m
-    mic.setMuted(m) // 同步底层 track.enabled
+    mic.setMuted(m)
     applyLocalSendGate()
   }, [mic, applyLocalSendGate])
 
@@ -176,85 +181,8 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
     applyLocalSendGate()
   }, [applyLocalSendGate])
 
-  // ===== 关闭单个 peer 的 PC 与音频图 =====
-  const closePeer = useCallback((peerId: string, notify: boolean) => {
-    const pc = pcMap.current.get(peerId)
-    if (pc) {
-      pcMap.current.delete(peerId)
-      try { pc.close() } catch { /* noop */ }
-    }
-    const graph = audioGraphMap.current.get(peerId)
-    if (graph) {
-      audioGraphMap.current.delete(peerId)
-      try { graph.source.disconnect() } catch { /* noop */ }
-      try { graph.panner.disconnect() } catch { /* noop */ }
-      try { graph.gain.disconnect() } catch { /* noop */ }
-      try { graph.analyser.disconnect() } catch { /* noop */ }
-      for (const track of graph.stream.getTracks()) {
-        // 远端流不 stop（属于对端），仅断开引用
-      }
-    }
-    if (notify) {
-      const ws = wsRef.current
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'rtc_bye', from: userId, to: peerId }))
-      }
-    }
-  }, [wsRef, userId])
-
-  // ===== 创建并配置一个 RTCPeerConnection =====
-  const createPeerConnection = useCallback((peerId: string): RTCPeerConnection => {
-    const pc = new RTCPeerConnection(DEFAULT_RTC_CONFIG)
-    pcMap.current.set(peerId, pc)
-
-    // 加入本地麦克流（若已授权）
-    const localStream = micStreamRef.current
-    if (localStream) {
-      for (const track of localStream.getAudioTracks()) {
-        pc.addTrack(track, localStream)
-      }
-    }
-
-    // ICE candidate → 通过 WS 发给对端
-    pc.onicecandidate = (ev) => {
-      if (!ev.candidate) return
-      const ws = wsRef.current
-      if (!ws || ws.readyState !== WebSocket.OPEN) return
-      ws.send(JSON.stringify({
-        type: 'rtc_ice',
-        from: userId,
-        to: peerId,
-        candidate: {
-          candidate: ev.candidate.candidate,
-          sdpMid: ev.candidate.sdpMid,
-          sdpMLineIndex: ev.candidate.sdpMLineIndex,
-        },
-      }))
-    }
-
-    // 协商失败/断开时清理
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
-        // disconnected 可能短暂抖动，不立即关；failed/closed 才清理
-        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-          if (pcMap.current.get(peerId) === pc) closePeer(peerId, true)
-        }
-      }
-    }
-
-    // 远端音频流到达 → 接入空间音频图
-    pc.ontrack = (ev) => {
-      const [remoteStream] = ev.streams
-      if (!remoteStream) return
-      attachRemoteStream(peerId, remoteStream)
-    }
-
-    return pc
-  }, [closePeer, userId, wsRef])
-
   // ===== 把远端流接入 PannerNode → Gain → destination =====
   const attachRemoteStream = useCallback((peerId: string, stream: MediaStream) => {
-    // 已存在则跳过
     if (audioGraphMap.current.has(peerId)) return
     const ctx = getAudioCtx()
     if (!ctx) return
@@ -262,7 +190,6 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
 
     const source = ctx.createMediaStreamSource(stream)
     const panner = ctx.createPanner()
-    // PannerNode 只做方位，不做距离衰减（衰减交给 GainNode = computeDistanceGain）
     panner.panningModel = 'HRTF'
     panner.distanceModel = 'inverse'
     panner.refDistance = 0.001
@@ -276,113 +203,123 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
     source.connect(panner)
     panner.connect(gain)
     gain.connect(ctx.destination)
-    source.connect(analyser) // 旁路做说话检测
+    source.connect(analyser)
 
     audioGraphMap.current.set(peerId, { stream, source, panner, gain, analyser })
   }, [getAudioCtx, maxDistance])
 
-  // ===== 发 offer（仅当本端是 userId 较小的一方） =====
-  const maybeSendOffer = useCallback(async (peerId: string) => {
-    // 协商策略：字典序小的一方发 offer，避免 glare
-    if (userId >= peerId) return
-    const existing = pcMap.current.get(peerId)
-    if (!existing) return
-    // 已有本地/远端描述则不重复 offer
-    if (existing.signalingState !== 'stable') return
-    try {
-      const offer = await existing.createOffer()
-      await existing.setLocalDescription(offer)
-      const ws = wsRef.current
-      if (!ws || ws.readyState !== WebSocket.OPEN) return
-      ws.send(JSON.stringify({
-        type: 'rtc_sdp',
-        from: userId,
-        to: peerId,
-        sdp: { type: existing.localDescription!.type, sdp: existing.localDescription!.sdp },
-      }))
-    } catch (e) {
-      console.warn('[spatial-voice] createOffer 失败', peerId, e)
-    }
-  }, [userId, wsRef])
+  // ===== 降级回调：展示"语音不可用，已切换文字" =====
+  const handleFallback = useCallback((_peerId: string, reason: RtcFallbackReason) => {
+    const text = reason === 'no_media'
+      ? '麦克风不可用，已切换文字聊天'
+      : '语音不可用，已切换文字聊天'
+    setFallbackNotice(text)
+  }, [])
 
-  // ===== 挂接 WS 信令监听（与 Plaza3D 的 onmessage 共存） =====
+  // ===== 创建单对端 RtcPeerManager =====
+  const createManager = useCallback((peerId: string): RtcPeerManager | null => {
+    if (!userId) return null
+    const existing = peerManagers.current.get(peerId)
+    if (existing) return existing
+
+    const manager = new RtcPeerManager({
+      myUserId: userId,
+      peerId,
+      transport: {
+        send: (msg) => {
+          const ws = wsRef.current
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(msg))
+          }
+        },
+      },
+      iceServers: iceServersRef.current,
+      iAmOfferer: userId < peerId,
+      localStream: micStreamRef.current,
+      events: {
+        onRemoteStream: (_pid, stream) => attachRemoteStream(peerId, stream as MediaStream),
+        onFallback: handleFallback,
+        onConnected: () => { /* 连通后清除降级提示（对端单独重连成功） */ },
+      },
+    })
+    peerManagers.current.set(peerId, manager)
+    manager.start()
+    return manager
+  }, [userId, wsRef, attachRemoteStream, handleFallback])
+
+  // ===== 关闭单个 peer 的 manager 与音频图 =====
+  const closePeer = useCallback((peerId: string, notify: boolean) => {
+    const manager = peerManagers.current.get(peerId)
+    if (manager) {
+      peerManagers.current.delete(peerId)
+      manager.close(notify)
+    }
+    const graph = audioGraphMap.current.get(peerId)
+    if (graph) {
+      audioGraphMap.current.delete(peerId)
+      try { graph.source.disconnect() } catch { /* noop */ }
+      try { graph.panner.disconnect() } catch { /* noop */ }
+      try { graph.gain.disconnect() } catch { /* noop */ }
+      try { graph.analyser.disconnect() } catch { /* noop */ }
+    }
+  }, [])
+
+  // ===== 挂接 WS 信令监听 =====
   const wireWs = useCallback(() => {
     const ws = wsRef.current
     if (!ws || ws === wiredWsRef.current) return
 
     const onMessage = (ev: MessageEvent) => {
-      let msg: { type?: string; from?: string; to?: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }
+      let msg: { type?: string; from?: string; to?: string; sdp?: { type: string; sdp: string }; candidate?: unknown; attempt?: number; reason?: string; suggestText?: boolean }
       try { msg = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data)) } catch { return }
-      if (!msg || msg.to !== userId) return // 只处理发给自己的信令
+      if (!msg || !msg.type || msg.to !== userId || !msg.from) return
 
-      if (msg.type === 'rtc_sdp' && msg.from && msg.sdp) {
-        void handleIncomingSdp(msg.from, msg.sdp)
-      } else if (msg.type === 'rtc_ice' && msg.from && msg.candidate) {
-        void handleIncomingIce(msg.from, msg.candidate)
-      } else if (msg.type === 'rtc_bye' && msg.from) {
-        closePeer(msg.from, false)
+      // 收到对端 offer 时本端可能还没建 manager（answerer 侧），按需创建
+      if (msg.type === 'rtc_sdp' && msg.sdp?.type === 'offer' && !peerManagers.current.has(msg.from)) {
+        createManager(msg.from)
       }
+      const manager = peerManagers.current.get(msg.from)
+      manager?.handleSignal(msg as Parameters<typeof manager.handleSignal>[0])
     }
 
     ws.addEventListener('message', onMessage)
     wiredWsRef.current = ws
-  }, [wsRef, userId, closePeer])
+  }, [wsRef, userId, createManager])
 
-  // ===== 处理收到的 SDP（offer 或 answer） =====
-  const handleIncomingSdp = useCallback(async (peerId: string, sdp: RTCSessionDescriptionInit) => {
-    let pc = pcMap.current.get(peerId)
-    if (!pc) {
-      // 收到 offer：本端是 userId 较大的一方，创建 PC 并回 answer
-      pc = createPeerConnection(peerId)
-    }
-    try {
-      await pc.setRemoteDescription(new RTCSessionDescription(sdp))
-      if (sdp.type === 'offer') {
-        const answer = await pc.createAnswer()
-        await pc.setLocalDescription(answer)
-        const ws = wsRef.current
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'rtc_sdp',
-            from: userId,
-            to: peerId,
-            sdp: { type: pc.localDescription!.type, sdp: pc.localDescription!.sdp },
-          }))
-        }
-      }
-    } catch (e) {
-      console.warn('[spatial-voice] SDP 协商失败', peerId, e)
-    }
-  }, [createPeerConnection, userId, wsRef])
-
-  // ===== 处理收到的 ICE candidate =====
-  const handleIncomingIce = useCallback(async (peerId: string, candidate: RTCIceCandidateInit) => {
-    const pc = pcMap.current.get(peerId)
-    if (!pc) return
-    try {
-      await pc.addIceCandidate(new RTCIceCandidate(candidate))
-    } catch {
-      // ICE candidate 可能在 remoteDescription 之前到达，忽略即可
-    }
-  }, [])
-
-  // ===== 请求麦克风（对外）：包装 useMicrophone，并在授权后重建 PC 以携带本地轨 =====
+  // ===== 请求麦克风（对外） =====
   const requestMic = useCallback(async (): Promise<boolean> => {
     const ok = await mic.requestMic()
     if (ok && mic.stream) {
       micStreamRef.current = mic.stream
-      // 授权前已建的 PC 是 recvonly；关闭后由节拍重建，新 PC 会 addTrack
-      for (const peerId of [...pcMap.current.keys()]) {
+      // 授权前已建的连接是 recvonly：更新本地流后关闭，由节拍重建
+      for (const manager of peerManagers.current.values()) {
+        manager.setLocalStream(mic.stream)
+      }
+      for (const peerId of [...peerManagers.current.keys()]) {
         closePeer(peerId, true)
       }
+      setFallbackNotice(null)
       applyLocalSendGate()
     } else {
       setError(mic.error)
+      // 麦克被拒/无设备 → 降级文字
+      for (const manager of peerManagers.current.values()) {
+        manager.notifyNoMedia()
+      }
+      setFallbackNotice('麦克风不可用，已切换文字聊天')
     }
     return ok
   }, [mic, closePeer, applyLocalSendGate])
 
-  // 同步 mic 错误到对外 error
+  // 手动重试语音：清除降级提示，重建所有 peer manager
+  const retryVoice = useCallback(() => {
+    setFallbackNotice(null)
+    for (const peerId of [...peerManagers.current.keys()]) {
+      closePeer(peerId, false)
+    }
+    // 节拍会在 300ms 内重建
+  }, [closePeer])
+
   useEffect(() => {
     if (mic.error) setError(mic.error)
   }, [mic.error])
@@ -402,20 +339,15 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
       }
       const desired = new Set(pickSubscribers(localPos, peersForSubscription, maxSubscribers, maxDistance))
 
-      // 关闭超出订阅范围的 PC
-      for (const peerId of [...pcMap.current.keys()]) {
+      // 关闭超出订阅范围的连接
+      for (const peerId of [...peerManagers.current.keys()]) {
         if (!desired.has(peerId)) closePeer(peerId, true)
       }
 
-      // 为目标 peer 建连（仅字典序小的一方发 offer）
+      // 为目标 peer 建连（manager.start 内部按 iAmOfferer 决定是否发 offer）
       for (const peerId of desired) {
-        if (!pcMap.current.has(peerId)) {
-          const pc = createPeerConnection(peerId)
-          void maybeSendOffer(peerId)
-          void pc // maybeSendOffer 内部读 pcMap
-        } else {
-          // 已存在：若本端是 offerer 且处于 stable（例如刚对端 bye 后重建），补一次 offer
-          void maybeSendOffer(peerId)
+        if (!peerManagers.current.has(peerId)) {
+          createManager(peerId)
         }
       }
 
@@ -432,7 +364,6 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
       }
 
       // 更新每个已连接 peer 的 Panner 位置与距离增益
-      let anySpeakingLocal = false
       const newSpeaking = new Set<string>()
       for (const [peerId, graph] of audioGraphMap.current) {
         const pos = peersForSubscription.get(peerId)
@@ -452,7 +383,6 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
           : 0
         graph.gain.gain.value = gain
 
-        // 远端说话检测
         const data = new Uint8Array(graph.analyser.fftSize)
         graph.analyser.getByteTimeDomainData(data)
         let sum = 0
@@ -464,11 +394,9 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
         if (rms > SPEAKING_THRESHOLD) newSpeaking.add(peerId)
       }
 
-      // 本地说话指示
-      if (mic.level > SPEAKING_THRESHOLD && enabledRef.current && !mutedRef.current) anySpeakingLocal = true
+      const anySpeakingLocal = mic.level > SPEAKING_THRESHOLD && enabledRef.current && !mutedRef.current
       setIsSpeaking(anySpeakingLocal)
 
-      // 仅在集合变化时更新 state，避免每节拍重渲染
       setSpeakingPeers((prev) => {
         if (prev.size === newSpeaking.size && [...prev].every((p) => newSpeaking.has(p))) return prev
         return newSpeaking
@@ -476,9 +404,8 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
     }, TICK_MS)
 
     return () => window.clearInterval(tick)
-  }, [wireWs, localPosRef, playersRef, userId, maxDistance, maxSubscribers, createPeerConnection, maybeSendOffer, closePeer, mic.level])
+  }, [wireWs, localPosRef, playersRef, userId, maxDistance, maxSubscribers, createManager, closePeer, mic.level])
 
-  // 全局 enabled 变化时立即应用发送闸门
   useEffect(() => {
     enabledRef.current = enabled
     applyLocalSendGate()
@@ -487,14 +414,15 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
   // ===== 卸载清理 =====
   useEffect(() => {
     return () => {
-      for (const peerId of [...pcMap.current.keys()]) closePeer(peerId, false)
+      for (const manager of peerManagers.current.values()) manager.close(false)
+      peerManagers.current.clear()
       mic.cleanup()
       if (audioCtxRef.current) {
         audioCtxRef.current.close().catch(() => { /* noop */ })
         audioCtxRef.current = null
       }
     }
-  }, [closePeer, mic])
+  }, [mic])
 
   return {
     muted,
@@ -506,5 +434,8 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
     error,
     requestMic,
     setPushing,
+    fallbackActive: fallbackNotice !== null,
+    fallbackNotice,
+    retryVoice,
   }
 }

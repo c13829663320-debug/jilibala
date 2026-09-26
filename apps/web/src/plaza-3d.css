@@ -489,3 +489,33 @@
 .owner-panel-sub { color: #888; margin-bottom: 6px; }
 .owner-panel-member { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
 .owner-panel-member > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== WebRTC 语音降级横幅 ===== */
+.voice-fallback-banner {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(20,16,8,0.92);
+  border: 1px solid #FFD600;
+  color: #FFD600;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.voice-fallback-retry {
+  border: 1px solid #FFD600;
+  background: transparent;
+  color: #FFD600;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.voice-fallback-retry:hover { background: rgba(255,214,0,0.15); }

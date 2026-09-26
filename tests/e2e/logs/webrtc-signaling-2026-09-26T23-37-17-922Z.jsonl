@@ -1,0 +1,9 @@
+{"ts":"2026-09-26T23:37:17.926Z","step":"suite_start","logFile":"/home/user/Doubao/chats/38444190639093762/wt-webrtc/tests/e2e/logs/webrtc-signaling-2026-09-26T23-37-17-922Z.jsonl","note":"裸 node WS 客户端验证信令面；媒体面需浏览器真机"}
+{"ts":"2026-09-26T23:37:18.616Z","step":"server_listening","base":"http://127.0.0.1:40927"}
+{"ts":"2026-09-26T23:37:18.664Z","step":"rtc_config_received","iceServers":[{"urls":"stun:stun.l.google.com:19302"}]}
+{"ts":"2026-09-26T23:37:18.775Z","step":"sdp_offer_relayed","from":"e2eA","to":"e2eB","seq":11}
+{"ts":"2026-09-26T23:37:18.778Z","step":"sdp_answer_relayed","from":"e2eB","to":"e2eA"}
+{"ts":"2026-09-26T23:37:18.884Z","step":"rtc_error_online_check","code":"rtc_target_offline","reqSeq":21}
+{"ts":"2026-09-26T23:37:18.991Z","step":"rtc_retry_relayed","attempt":2,"reason":"ice_failed"}
+{"ts":"2026-09-26T23:37:19.099Z","step":"rtc_fallback_relayed","reason":"ice_failed","suggestText":true}
+{"ts":"2026-09-26T23:37:19.103Z","step":"suite_end","logCount":8}

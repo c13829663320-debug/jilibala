@@ -508,9 +508,18 @@ export type WSMessage =
   | { type: 'gym_checkin_broadcast'; userId: string; nickname: string; exerciseName: string; createdAt: string }
   | { type: 'plaza_event'; event: PlazaLiveEvent }
   // —— 社交临场感：WebRTC 语音信令（服务端只转发，不处理内容） ——
-  | { type: 'rtc_sdp'; from: string; to: string; sdp: RtcSdpJson }
-  | { type: 'rtc_ice'; from: string; to: string; candidate: RtcIceJson }
+  | { type: 'rtc_sdp'; from: string; to: string; sdp: RtcSdpJson; seq?: number }
+  | { type: 'rtc_ice'; from: string; to: string; candidate: RtcIceJson; seq?: number }
   | { type: 'rtc_bye'; from: string; to: string }
+  // —— WebRTC 健壮性扩展（向后兼容：旧客户端忽略未知 type 即可） ——
+  /** 服务端→客户端：下发 ICE 服务器配置（STUN + 可选 TURN），welcome 后单发 */
+  | { type: 'rtc_config'; iceServers: import('./network-protocol.js').IceServerConfig[] }
+  /** 服务端→发起方：目标不在线 / 信令冲突等错误（替代静默丢弃） */
+  | { type: 'rtc_error'; from: string; to: string; code: string; message: string; reqSeq?: number }
+  /** 信令重试通知（服务端透传，不解析内容） */
+  | { type: 'rtc_retry'; from: string; to: string; attempt: number; reason: string }
+  /** 语音降级通知（服务端透传）：双方切文字聊天 */
+  | { type: 'rtc_fallback'; from: string; to: string; reason: string; suggestText: boolean }
   // —— 社交临场感：表情/手势/说话强度 ——
   | { type: 'emote'; userId: string; emote: EmoteType; durationMs?: number }
   | { type: 'talking'; userId: string; intensity: number }

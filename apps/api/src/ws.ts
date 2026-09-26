@@ -17,7 +17,12 @@ import {
   type HeartbeatConfig,
   type SessionToken,
   type StateSyncConfig,
+  type IceServerConfig,
+  type RtcPairState,
+  type RtcSdpJson,
+  type RtcIceJson,
   NetErrorCode,
+  RtcErrorCode,
 } from "@balabala/shared";
 import { getCourtCase } from "./db.js";
 import {
@@ -82,13 +87,46 @@ export type Room = {
   sceneState?: SceneRoomState;
   // —— 房间权限分片（仅 social 房间使用，向后兼容可选） ——
   kickedUsers?: Set<string>;
-  /** 房主断线后等待重连的定时器；窗口期内不转移房主。 */
   ownerTransferTimer?: NodeJS.Timeout;
-  /** 最近离开的用户（userId -> 离开时间戳）；用于锁房后允许老成员在重连窗口内回来。 */
   recentUsers?: Map<string, number>;
   /** presence 聚合器：按固定 tick 聚合本房间的高频状态更新。 */
   presence: RoomPresenceAggregator;
+  /** 每对用户的 WebRTC 信令状态（防止重复 offer / glare 冲突）。 */
+  rtcPairs?: Map<string, RtcPairRecord>;
 };
+
+/** 一对用户的服务端信令状态记录。 */
+export type RtcPairRecord = {
+  state: RtcPairState;
+  offerer: string;
+  answerer: string;
+  updatedAt: number;
+};
+
+/** 无序对 key（与房间内连接绑定，不跨房间）。 */
+function rtcPairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/**
+ * 构建下发给客户端的 ICE 服务器列表。
+ * - 始终包含公共 STUN；
+ * - 若环境变量 WEBRTC_TURN_URL 配置了 TURN，则附带 TURN 凭据。
+ * 注意：TURN 凭据属敏感信息，绝不写入日志。
+ */
+export function buildRtcIceServers(): IceServerConfig[] {
+  const servers: IceServerConfig[] = [{ urls: "stun:stun.l.google.com:19302" }];
+  const turnUrl = (process.env.WEBRTC_TURN_URL ?? "").trim();
+  if (turnUrl) {
+    const entry: IceServerConfig = { urls: turnUrl };
+    const username = (process.env.WEBRTC_TURN_USERNAME ?? "").trim();
+    const credential = (process.env.WEBRTC_TURN_CREDENTIAL ?? "").trim();
+    if (username) entry.username = username;
+    if (credential) entry.credential = credential;
+    servers.push(entry);
+  }
+  return servers;
+}
 
 /** 锁房后允许老成员在重连窗口内重连的记忆时长（与协议重连窗口一致）。 */
 const RECENT_REMEMBER_MS = 120_000;
@@ -116,7 +154,7 @@ export function _setOwnerGraceMsForTest(ms: number): void {
   OWNER_GRACE_MS = ms;
 }
 
-/** 供测试使用：清空所有房间，保证用例隔离。 */
+/** 供测试使用：清空所有房间与信令状态，保证用例隔离。 */
 export function _resetRoomsForTest(): void {
   for (const r of rooms.values()) {
     if (r.ownerTransferTimer) clearTimeout(r.ownerTransferTimer);
@@ -610,6 +648,8 @@ export function registerWebSocket(app: FastifyInstance): void {
           heartbeat: outcome.heartbeat, sessionToken: token,
           stateSync: DEFAULT_STATE_SYNC_CONFIG,
         } satisfies WSMessage);
+        // WebRTC：下发 ICE 服务器配置（STUN + 可选 TURN）
+        safeSend(socket, { type: "rtc_config", iceServers: buildRtcIceServers() } satisfies WSMessage);
         safeSend(socket, makeProgress("done", 1, "恢复完成"));
         safeSend(socket, {
           type: "reconnect_response", accepted: true, sessionId: session.sessionId, progress: 1, users,
@@ -657,6 +697,8 @@ export function registerWebSocket(app: FastifyInstance): void {
         stateSync: DEFAULT_STATE_SYNC_CONFIG,
       };
       safeSend(socket, welcome);
+      // WebRTC：下发 ICE 服务器配置（STUN + 可选 TURN）
+      safeSend(socket, { type: "rtc_config", iceServers: buildRtcIceServers() } satisfies WSMessage);
     }
 
     // ===== 以下仅全新加入时执行；恢复路径已在上面完成快照/补发 =====
@@ -891,36 +933,137 @@ export function registerWebSocket(app: FastifyInstance): void {
           break;
         }
         case "rtc_sdp": {
-          // 社交临场感：WebRTC SDP 信令转发（offer/answer），服务端不解析内容
+          // WebRTC 健壮性：SDP 信令转发 + 目标在线校验 + 每对用户信令状态机。
           const to = String(data.to ?? "");
+          const sdp = data.sdp as RtcSdpJson | undefined;
+          const reqSeq = typeof data.seq === "number" ? data.seq : undefined;
+          if (!to || !sdp) return;
           const target = room.users.get(to);
-          if (!target) return;
+          // 目标不在线：回复 rtc_error 给发起方，而非静默丢弃。
+          if (!target) {
+            safeSend(socket, {
+              type: "rtc_error",
+              from: to,
+              to: userId,
+              code: RtcErrorCode.TARGET_OFFLINE,
+              message: `目标用户 ${to} 不在线或已离开房间`,
+              ...(reqSeq !== undefined ? { reqSeq } : {}),
+            } satisfies WSMessage);
+            break;
+          }
+          if (!room.rtcPairs) room.rtcPairs = new Map();
+          const key = rtcPairKey(userId, to);
+          const existing = room.rtcPairs.get(key);
+
+          if (sdp.type === "offer") {
+            // glare 冲突：对方已向我发 offer 且在等我 answer，我却又发新 offer → 拒绝后到者。
+            if (existing && existing.state === "answering" && existing.offerer === to) {
+              safeSend(socket, {
+                type: "rtc_error",
+                from: to,
+                to: userId,
+                code: RtcErrorCode.OFFER_CONFLICT,
+                message: "双方同时发起 offer（glare），请等待对方 answer 后重试",
+                ...(reqSeq !== undefined ? { reqSeq } : {}),
+              } satisfies WSMessage);
+              break;
+            }
+            // 同一 offerer 在等待 answer 期间重发 offer（重试/重协商）：允许刷新，转发并更新状态。
+            room.rtcPairs.set(key, { state: "answering", offerer: userId, answerer: to, updatedAt: now });
+          } else if (sdp.type === "answer") {
+            // answer 到达：与等待中的 offer 配对成功 → connected；配对不上也照常转发（向后兼容）。
+            if (existing && existing.state === "answering") {
+              room.rtcPairs.set(key, {
+                state: "connected",
+                offerer: existing.offerer,
+                answerer: userId,
+                updatedAt: now,
+              });
+            }
+          }
+
           safeSend(target.socket, {
             type: "rtc_sdp",
             from: userId,
             to,
-            sdp: data.sdp as { type: "offer" | "answer" | "pranswer" | "rollback"; sdp: string },
+            sdp,
+            ...(reqSeq !== undefined ? { seq: reqSeq } : {}),
           } satisfies WSMessage);
           break;
         }
         case "rtc_ice": {
-          // 社交临场感：WebRTC ICE candidate 转发
+          // WebRTC 健壮性：ICE candidate 转发 + 目标在线校验。
           const to = String(data.to ?? "");
+          const candidate = data.candidate as RtcIceJson | undefined;
+          const reqSeq = typeof data.seq === "number" ? data.seq : undefined;
+          if (!to || !candidate) return;
           const target = room.users.get(to);
-          if (!target) return;
+          if (!target) {
+            safeSend(socket, {
+              type: "rtc_error",
+              from: to,
+              to: userId,
+              code: RtcErrorCode.TARGET_OFFLINE,
+              message: `目标用户 ${to} 不在线或已离开房间`,
+              ...(reqSeq !== undefined ? { reqSeq } : {}),
+            } satisfies WSMessage);
+            break;
+          }
           safeSend(target.socket, {
             type: "rtc_ice",
             from: userId,
             to,
-            candidate: data.candidate as { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null },
+            candidate,
+            ...(reqSeq !== undefined ? { seq: reqSeq } : {}),
           } satisfies WSMessage);
           break;
         }
+        case "rtc_retry": {
+          // 重试通知透传（ICE 失败重试时通知对端）：在线校验后转发，不解析内容。
+          const to = String(data.to ?? "");
+          const attempt = Number(data.attempt ?? 0);
+          const reason = String(data.reason ?? "");
+          if (!to) return;
+          const target = room.users.get(to);
+          if (!target) {
+            safeSend(socket, {
+              type: "rtc_error",
+              from: to,
+              to: userId,
+              code: RtcErrorCode.TARGET_OFFLINE,
+              message: `重试目标用户 ${to} 不在线`,
+            } satisfies WSMessage);
+            break;
+          }
+          safeSend(target.socket, { type: "rtc_retry", from: userId, to, attempt, reason } satisfies WSMessage);
+          break;
+        }
+        case "rtc_fallback": {
+          // 语音降级透传（回落文字）：在线校验后转发，并标记该对信令为 failed。
+          const to = String(data.to ?? "");
+          const reason = String(data.reason ?? "");
+          const suggestText = data.suggestText !== false;
+          if (!to) return;
+          const target = room.users.get(to);
+          if (!target) break; // 对端已离线：无需通知，静默即可
+          if (room.rtcPairs) {
+            const key = rtcPairKey(userId, to);
+            const rec = room.rtcPairs.get(key);
+            if (rec) room.rtcPairs.set(key, { ...rec, state: "failed", updatedAt: now });
+          }
+          safeSend(target.socket, { type: "rtc_fallback", from: userId, to, reason, suggestText } satisfies WSMessage);
+          break;
+        }
         case "rtc_bye": {
-          // 社交临场感：通知对方关闭 PeerConnection
+          // 通知对方关闭 PeerConnection；对端在线则转发并标记信令 failed，离线则无需通知。
           const to = String(data.to ?? "");
           const target = room.users.get(to);
-          if (!target) return;
+          if (!target) break;
+          if (room.rtcPairs) {
+            const key = rtcPairKey(userId, to);
+            const rec = room.rtcPairs.get(key);
+            if (rec) room.rtcPairs.set(key, { ...rec, state: "failed", updatedAt: now });
+          }
           safeSend(target.socket, { type: "rtc_bye", from: userId, to } satisfies WSMessage);
           break;
         }
@@ -1066,6 +1209,13 @@ export function registerWebSocket(app: FastifyInstance): void {
       // 房间权限：记录最近离开，锁房后允许其在重连窗口内回来。
       if (roomId.startsWith("social:")) {
         rememberUserLeave(r, userId);
+      }
+
+      // WebRTC：清理涉及本用户的信令状态，避免残留 offering 状态阻塞后续新对。
+      if (r.rtcPairs) {
+        for (const [key, rec] of r.rtcPairs) {
+          if (rec.offerer === userId || rec.answerer === userId) r.rtcPairs.delete(key);
+        }
       }
 
       const sess = transport.getSessionByUser(roomId, userId);
