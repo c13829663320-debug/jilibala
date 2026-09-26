@@ -14,12 +14,22 @@ import {
   type Perspective,
   type EmoteType,
   type SocialRoom,
+  type StateSyncConfig,
+  NetErrorCode,
 } from "@balabala/shared";
 import { getCourtCase } from "./db.js";
 import { getSocialRoom } from "./room-routes.js";
 import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
+import {
+  DEFAULT_STATE_SYNC_CONFIG,
+  SeqTracker,
+  SlidingWindowRateLimiter,
+  RoomPresenceAggregator,
+  batchPlayersBySize,
+  type BroadcastPlayerState,
+} from "./state-sync-server.js";
 
 // ===== 房间数据结构 =====
 export type RoomUser = {
@@ -39,6 +49,9 @@ export type RoomUser = {
   headTarget?: { x: number; z: number } | null;
   lastEmote?: number;
   lastTalkingBroadcast?: number;
+  // —— 实时状态同步：序号去重/乱序检测 + 发送频率限流（每用户） ——
+  seqTracker: SeqTracker;
+  rateLimiter: SlidingWindowRateLimiter;
 };
 
 export type Room = {
@@ -46,6 +59,8 @@ export type Room = {
   users: Map<string, RoomUser>;
   courtState?: CourtRoomState;
   sceneState?: SceneRoomState;
+  /** presence 聚合器：按固定 tick 聚合本房间的高频状态更新。 */
+  presence: RoomPresenceAggregator;
 };
 
 /** 供测试使用：清空所有房间，保证用例隔离。 */
@@ -82,7 +97,7 @@ const randomPos = () => (Math.random() * 20 - 10);
 export function getOrCreateRoom(roomId: string): Room {
   let room = rooms.get(roomId);
   if (!room) {
-    room = { id: roomId, users: new Map() };
+    room = { id: roomId, users: new Map(), presence: new RoomPresenceAggregator() };
     // 法庭房间初始化 courtState
     if (roomId.startsWith("court:")) {
       room.courtState = {
@@ -166,6 +181,82 @@ export function getRoomPlayerCount(roomId: string): number {
   return rooms.get(roomId)?.users.size ?? 0;
 }
 
+// ===== 实时状态同步：presence 聚合广播 / 快照 / 错误下发 =====
+
+/** 把 RoomUser 序列化为带 serverTs + lastKnownSeq 的广播状态。 */
+function toBroadcastPlayerState(u: RoomUser, now: number): BroadcastPlayerState {
+  return {
+    userId: u.userId,
+    x: u.x,
+    z: u.z,
+    rotation: u.rotation,
+    ...(u.talkingIntensity !== undefined ? { talkingIntensity: u.talkingIntensity } : {}),
+    ...(u.animation !== undefined ? { animation: u.animation } : {}),
+    ...(u.expression !== undefined ? { expression: u.expression } : {}),
+    ...(u.headTarget !== undefined ? { headTarget: u.headTarget } : {}),
+    serverTs: now,
+    // 携带服务端已知该用户的最新 seq，供客户端检测 gap 并请求快照。
+    ...(u.seqTracker.lastSeq !== undefined ? { lastKnownSeq: u.seqTracker.lastSeq } : {}),
+  };
+}
+
+/**
+ * flush 一个房间的 presence：若本 tick 有状态变化，按 4KB 分批广播聚合后的玩家状态。
+ * 返回本 tick 实际发送的批次数（测试观测用）。
+ */
+export function flushRoomPresence(roomId: string): number {
+  const room = rooms.get(roomId);
+  if (!room || !room.presence.takeDirty()) return 0;
+  const now = Date.now();
+  const players = [...room.users.values()].map((u) => toBroadcastPlayerState(u, now));
+  const batches = batchPlayersBySize(players, DEFAULT_STATE_SYNC_CONFIG.maxMessageBytes);
+  for (const batch of batches) {
+    // 保留现有客户端读取的 users 字段，新增 serverTs（向后兼容）。
+    broadcastToRoom(roomId, { type: "presence", users: batch, serverTs: now } satisfies Record<string, unknown>);
+  }
+  return batches.length;
+}
+
+/** 服务端权威频率超限 / 协议错误下发。 */
+function sendNetError(socket: WebSocket, code: number, message: string, reqSeq?: number): void {
+  try {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(JSON.stringify({ type: "error", code, message, reqSeq }));
+    }
+  } catch {
+    // 忽略
+  }
+}
+
+let presenceTicker: NodeJS.Timeout | null = null;
+
+/** 启动全局 presence 聚合 ticker（默认 10Hz）。幂等：重复调用不重复启动。 */
+export function startPresenceTicker(): void {
+  if (presenceTicker) return;
+  const intervalMs = Math.max(1, Math.round(1000 / DEFAULT_STATE_SYNC_CONFIG.serverTickHz));
+  presenceTicker = setInterval(() => {
+    for (const roomId of rooms.keys()) {
+      try {
+        flushRoomPresence(roomId);
+      } catch {
+        // 单房间失败不影响其他房间
+      }
+    }
+  }, intervalMs);
+  // 不阻止进程退出
+  if (typeof presenceTicker === "object" && presenceTicker && "unref" in presenceTicker) {
+    (presenceTicker as unknown as { unref: () => void }).unref();
+  }
+}
+
+/** 供测试停止 ticker。 */
+export function _stopPresenceTickerForTest(): void {
+  if (presenceTicker) {
+    clearInterval(presenceTicker);
+    presenceTicker = null;
+  }
+}
+
 /** 局部更新法庭房间状态。 */
 export function updateCourtState(caseId: string, patch: Partial<CourtRoomState>): void {
   const roomId = `court:${caseId}`;
@@ -214,6 +305,8 @@ export function broadcastSceneEvent(scene: SceneId, sessionId: string, event: Re
 
 // ===== 注册 WebSocket 路由 =====
 export function registerWebSocket(app: FastifyInstance): void {
+  // 启动全局 presence 聚合 ticker（10Hz），把高频 move 聚合成定时广播。
+  startPresenceTicker();
   app.get("/api/ws", { websocket: true }, (socket: WebSocket, req) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     const userId = url.searchParams.get("userId") ?? "";
@@ -259,6 +352,11 @@ export function registerWebSocket(app: FastifyInstance): void {
       return;
     }
 
+    // 加入房间。若该 userId 已存在旧连接（同用户多标签/重连），先关闭旧 socket 再替换，避免连接泄漏。
+    const existingUser = room.users.get(userId);
+
+    // 新会话：序号跟踪与发送频率限流器。复用旧会话的 seqTracker 可避免重连首包被判乱序，
+    // 但旧客户端不带 seq，全新实例也能向后兼容。
     const roomUser: RoomUser = {
       userId,
       nickname,
@@ -269,24 +367,25 @@ export function registerWebSocket(app: FastifyInstance): void {
       rotation: 0,
       lastMove: 0,
       socket,
+      seqTracker: existingUser?.seqTracker ?? new SeqTracker(),
+      rateLimiter: new SlidingWindowRateLimiter(DEFAULT_STATE_SYNC_CONFIG.clientSendMaxHz),
     };
 
-    // 加入房间。若该 userId 已存在旧连接（同用户多标签/重连），先关闭旧 socket 再替换，避免连接泄漏。
-    const existingUser = room.users.get(userId);
     if (existingUser && existingUser.socket !== socket) {
       try { existingUser.socket.close(); } catch { /* noop */ }
     }
     room.users.set(userId, roomUser);
 
-    // 发送 welcome 快照
-    const welcome: WSMessage = {
+    // 发送 welcome 快照（携带状态同步配置，供客户端启用插值/外推）
+    const welcome: Record<string, unknown> = {
       type: "welcome",
       roomId,
       users: [...room.users.values()].map(wsUserOf),
+      stateSync: DEFAULT_STATE_SYNC_CONFIG satisfies StateSyncConfig,
       ...(room.courtState ? { courtState: room.courtState } : {}),
       ...(room.sceneState ? { sceneState: room.sceneState } : {}),
     };
-    safeSend(socket, welcome);
+    safeSend(socket, welcome as WSMessage);
 
     // Round3: social 房间——向新连接单发房间元数据（playerCount 取当前在线数）
     if (socialMeta) {
@@ -369,32 +468,46 @@ export function registerWebSocket(app: FastifyInstance): void {
           const x = Number(data.x ?? 0);
           const z = Number(data.z ?? 0);
           const rotation = Number(data.rotation ?? 0);
-          // 10Hz 节流：距上次 <100ms 丢弃
-          if (now - roomUser.lastMove < 100) return;
+          // —— 发送频率限流（服务端权威）：滑动窗口 15Hz，超限丢弃并回 RATE_LIMITED ——
+          if (!roomUser.rateLimiter.allow(now)) {
+            sendNetError(socket, NetErrorCode.RATE_LIMITED, "发送频率超过 15Hz", typeof data.seq === "number" ? data.seq : undefined);
+            return;
+          }
+          // —— 序号去重 / 乱序检测：seq<=lastSeq 的重复/乱序旧包丢弃 ——
+          const seq = typeof data.seq === "number" ? data.seq : undefined;
+          const obs = roomUser.seqTracker.observe(seq);
+          if (obs.dropped) return;
+          // obs.gap>0 表示检测到丢包（乱序跳跃），仍应用最新状态，presence 会携带 lastKnownSeq 供客户端补偿。
           roomUser.x = x;
           roomUser.z = z;
           roomUser.rotation = rotation;
+          if (typeof data.talkingIntensity === "number") roomUser.talkingIntensity = data.talkingIntensity;
+          if (typeof data.animation === "string") roomUser.animation = data.animation;
+          if (typeof data.expression === "string") roomUser.expression = data.expression;
+          if ("headTarget" in data) roomUser.headTarget = (data.headTarget as { x: number; z: number } | null) ?? null;
           roomUser.lastMove = now;
           if (roomId.startsWith("gym:")) {
+            // gym 域保留既有即时广播（不同消息类型，不在本分片聚合范围内）。
             const gymUsers = [...room.users.values()]
               .filter((u) => u.userId !== userId)
               .map((u) => ({ userId: u.userId, x: u.x, z: u.z, rotation: u.rotation }));
             broadcastToRoom(roomId, { type: "gym_presence", users: gymUsers } satisfies WSMessage);
           } else {
-            // 广播给房间内其他人（携带社交临场感扩展字段）
-            const others = [...room.users.values()]
-              .filter((u) => u.userId !== userId)
-              .map((u) => ({
-                userId: u.userId,
-                x: u.x,
-                z: u.z,
-                rotation: u.rotation,
-                ...(u.talkingIntensity !== undefined ? { talkingIntensity: u.talkingIntensity } : {}),
-                ...(u.animation !== undefined ? { animation: u.animation } : {}),
-                ...(u.expression !== undefined ? { expression: u.expression } : {}),
-                ...(u.headTarget !== undefined ? { headTarget: u.headTarget } : {}),
-              }));
-            broadcastToRoom(roomId, { type: "presence", users: others } satisfies WSMessage);
+            // 社交/广场域：不再收到即广播，仅标记脏，由 10Hz ticker 聚合成一条 presence。
+            room.presence.markDirty();
+          }
+          break;
+        }
+        case "request_state": {
+          // —— 丢包补偿：客户端依据 presence 中 lastKnownSeq 检测到 gap 后，请求完整房间快照 ——
+          const nowTs = Date.now();
+          const players = [...room.users.values()].map((u) => toBroadcastPlayerState(u, nowTs));
+          try {
+            if (socket.readyState === socket.OPEN) {
+              socket.send(JSON.stringify({ type: "state_snapshot", players, serverTs: nowTs }));
+            }
+          } catch {
+            // 忽略
           }
           break;
         }
@@ -536,11 +649,15 @@ export function registerWebSocket(app: FastifyInstance): void {
           // 社交临场感：表情/手势动作，节流后广播给房间其他人
           const emote = String(data.emote ?? "");
           if (!VALID_EMOTES.has(emote)) return;
+          // 序号去重（与 move 共享每用户 lastSeq）
+          const obs = roomUser.seqTracker.observe(typeof data.seq === "number" ? data.seq : undefined);
+          if (obs.dropped) return;
           if (roomUser.lastEmote && now - roomUser.lastEmote < EMOTE_THROTTLE_MS) return;
           roomUser.lastEmote = now;
           roomUser.animation = emote;
           if (emote === "laugh") roomUser.expression = "happy";
           else if (emote === "surprised") roomUser.expression = "surprised";
+          room.presence.markDirty();
           const durationMs = typeof data.durationMs === "number" ? Math.min(Math.max(data.durationMs, 300), 5000) : 1500;
           // 广播给其他人（不含自己）
           for (const u of room.users.values()) {
@@ -551,10 +668,13 @@ export function registerWebSocket(app: FastifyInstance): void {
         }
         case "talking": {
           // 社交临场感：说话强度更新，节流后广播给房间其他人
+          const obs = roomUser.seqTracker.observe(typeof data.seq === "number" ? data.seq : undefined);
+          if (obs.dropped) return;
           const intensity = Math.min(Math.max(Number(data.intensity ?? 0), 0), 1);
           roomUser.talkingIntensity = intensity;
           if (intensity > 0.05) roomUser.animation = "talking";
           else if (roomUser.animation === "talking") roomUser.animation = "idle";
+          room.presence.markDirty();
           // 节流广播，避免高频刷屏
           if (!roomUser.lastTalkingBroadcast || now - roomUser.lastTalkingBroadcast >= TALKING_BROADCAST_MS) {
             roomUser.lastTalkingBroadcast = now;
