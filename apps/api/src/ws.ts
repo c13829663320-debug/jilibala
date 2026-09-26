@@ -39,6 +39,8 @@ import {
   markRead,
   ChatError,
 } from "./chat.js";
+// R4-08: 内容治理（敏感词过滤 / 禁言 / 举报阈值自动禁言）
+import { moderateText, isMuted, registerReport } from "./moderation.js";
 
 // ===== 房间数据结构 =====
 export type RoomUser = {
@@ -151,7 +153,11 @@ const GYM_CHECKIN_BUFFER_MAX = 5;
 
 /** 社交临场感：emote 最小间隔（ms），防止刷屏 */
 const EMOTE_THROTTLE_MS = 300;
-const VALID_EMOTES: ReadonlySet<string> = new Set(["wave", "nod", "shake", "point", "clap", "laugh", "surprised"]);
+// R4-08: emote 从 7 种扩充至 15 种（与 shared EmoteType 对齐）。
+const VALID_EMOTES: ReadonlySet<string> = new Set([
+  "wave", "nod", "shake", "point", "clap", "laugh", "surprised",
+  "dance", "bow", "cheer", "cry", "angry", "think", "salute", "heart",
+]);
 /** talking 消息最小广播间隔（ms），说话强度变化频繁时节流 */
 const TALKING_BROADCAST_MS = 120;
 
@@ -754,18 +760,21 @@ export function registerWebSocket(app: FastifyInstance): void {
           break;
         }
         case "chat": {
-          const text = String(data.text ?? "").slice(0, 500);
-          if (!text) return;
+          // R4-08: 禁言拒收；文本过敏感词过滤（命中替换为 ***，不改消息 ID/时间戳）
+          if (isMuted(userId)) return;
+          const raw = String(data.text ?? "").slice(0, 500);
+          if (!raw) return;
+          const mod = moderateText(userId, raw);
           broadcastToRoom(roomId, {
             type: "chat",
             userId,
             nickname,
-            text,
+            text: mod.text,
           } satisfies WSMessage);
 
           // ===== R4-07: 房间内 @提及解析 =====
           // 匹配 @昵称（昵称不含空白），与本房间在线用户昵称做精确匹配。
-          const mentionTokens = text.match(/@(\S+)/g) ?? [];
+          const mentionTokens = mod.text.match(/@(\S+)/g) ?? [];
           if (mentionTokens.length > 0) {
             const mentionedUserIds: string[] = [];
             for (const token of mentionTokens) {
@@ -783,7 +792,7 @@ export function registerWebSocket(app: FastifyInstance): void {
                 ...(roomId.startsWith("social:") ? { roomCode: roomId.slice("social:".length) } : {}),
                 fromUserId: userId,
                 fromNickname: nickname,
-                text,
+                text: mod.text,
                 mentionedUserIds,
                 timestamp: new Date().toISOString(),
               };
@@ -823,13 +832,15 @@ export function registerWebSocket(app: FastifyInstance): void {
           break;
         }
         case "user_speech": {
-          const text = String(data.text ?? "").slice(0, 500);
-          if (!text) return;
+          if (isMuted(userId)) return;
+          const raw = String(data.text ?? "").slice(0, 500);
+          if (!raw) return;
+          const mod = moderateText(userId, raw);
           broadcastToRoom(roomId, {
             type: "user_speech",
             userId,
             nickname,
-            text,
+            text: mod.text,
           } satisfies WSMessage);
           break;
         }
@@ -884,15 +895,17 @@ export function registerWebSocket(app: FastifyInstance): void {
           break;
         }
         case "gym_cheer": {
-          // M11: 健身加油广播
+          // M11: 健身加油广播（R4-08 同样过敏感词/禁言）
           if (!roomId.startsWith("gym:")) return;
-          const text = String(data.text ?? "").slice(0, 200);
-          if (!text) return;
+          if (isMuted(userId)) return;
+          const raw = String(data.text ?? "").slice(0, 200);
+          if (!raw) return;
+          const mod = moderateText(userId, raw);
           broadcastToRoom(roomId, {
             type: "gym_cheer",
             userId,
             nickname,
-            text,
+            text: mod.text,
           } satisfies WSMessage);
           break;
         }
@@ -908,6 +921,21 @@ export function registerWebSocket(app: FastifyInstance): void {
             nickname,
             exerciseName,
             createdAt: entry.createdAt,
+          } satisfies WSMessage);
+          break;
+        }
+        case "text_shout": {
+          // R4-08: 3D 头顶文字喊话（语音不可用时的回落），过敏感词/禁言
+          if (isMuted(userId)) return;
+          const raw = String(data.text ?? "").slice(0, 80);
+          if (!raw) return;
+          const mod = moderateText(userId, raw);
+          broadcastToRoom(roomId, {
+            type: "text_shout",
+            userId,
+            nickname,
+            text: mod.text,
+            at: Date.now(),
           } satisfies WSMessage);
           break;
         }
@@ -1016,6 +1044,8 @@ export function registerWebSocket(app: FastifyInstance): void {
             category,
             room: roomId,
           });
+          // R4-08: 该 target 24h 内被举报达到阈值 → 自动临时禁言 10 分钟
+          registerReport(targetUserId);
           safeSend(socket, { type: "report_ack", accepted: true, reportedAt: new Date().toISOString() } satisfies WSMessage);
           break;
         }

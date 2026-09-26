@@ -1463,11 +1463,30 @@ export function getCourtPlayerInputs(caseId: string): CourtPlayerInput[] {
 // apps/api/.data/profiles/<userId>.json，服务重启不丢失；
 // PROFILES_DIR 环境变量可覆盖（测试指向临时目录）。
 import { readFileSync, writeFileSync } from "node:fs";
-import type { ServerProfile } from "@balabala/shared";
+import type { ServerProfile, MatchStats } from "@balabala/shared";
 
 const PROFILES_DIR =
   process.env.PROFILES_DIR || resolve(process.cwd(), ".data", "profiles");
 mkdirSync(PROFILES_DIR, { recursive: true });
+
+/** 规范化一份玩法战绩快照（容错：缺字段补 0）。 */
+function normalizeStats(s: unknown): Record<'court' | 'werewolf' | 'bar', MatchStats> | undefined {
+  if (!s || typeof s !== "object") return undefined;
+  const src = s as Record<string, unknown>;
+  const out: Partial<Record<'court' | 'werewolf' | 'bar', MatchStats>> = {};
+  for (const key of ['court', 'werewolf', 'bar'] as const) {
+    const v = src[key];
+    if (!v || typeof v !== "object") continue;
+    const o = v as Record<string, unknown>;
+    out[key] = {
+      played: Math.max(0, Math.floor(Number(o.played) || 0)),
+      wins: Math.max(0, Math.floor(Number(o.wins) || 0)),
+      bestStreak: Math.max(0, Math.floor(Number(o.bestStreak) || 0)),
+      currentStreak: Math.max(0, Math.floor(Number(o.currentStreak) || 0)),
+    };
+  }
+  return out as Record<'court' | 'werewolf' | 'bar', MatchStats>;
+}
 
 function defaultServerProfile(userId: string): ServerProfile {
   return {
@@ -1508,6 +1527,7 @@ export function loadServerProfile(userId: string): ServerProfile {
         parsed.dailyChallenge && typeof parsed.dailyChallenge === "object"
           ? (parsed.dailyChallenge as Record<string, number>)
           : {},
+      ...(normalizeStats(parsed.stats) ? { stats: normalizeStats(parsed.stats) } : {}),
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
     };
   } catch {

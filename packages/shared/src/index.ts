@@ -437,7 +437,11 @@ export type PlazaLiveEvent =
   | { kind: "comment_created"; id: string; comment: ContentComment };
 
 // ===== 社交临场感 (social-presence): 表情/手势/口型同步 =====
-export type EmoteType = 'wave' | 'nod' | 'shake' | 'point' | 'clap' | 'laugh' | 'surprised'
+// R4-08: emote 从 7 种扩充至 15 种（原 wave/nod/shake/point/clap/laugh/surprised +
+// 新增 dance/bow/cheer/cry/angry/think/salute/heart）。
+export type EmoteType =
+  | 'wave' | 'nod' | 'shake' | 'point' | 'clap' | 'laugh' | 'surprised'
+  | 'dance' | 'bow' | 'cheer' | 'cry' | 'angry' | 'think' | 'salute' | 'heart'
 export type AvatarExpression = 'neutral' | 'happy' | 'surprised' | 'angry'
 export type AvatarAnimation = 'idle' | 'talking' | EmoteType
 
@@ -998,6 +1002,18 @@ export interface PlayerProfile {
   updatedAt: string | null;
 }
 
+// ===== R4-08: 单玩法战绩快照（每个场景一份） =====
+export interface MatchStats {
+  /** 总场次 */
+  played: number;
+  /** 胜场 */
+  wins: number;
+  /** 最高连胜 */
+  bestStreak: number;
+  /** 当前连胜 */
+  currentStreak: number;
+}
+
 /** 服务端档案（apps/api/.data/profiles/<userId>.json）：跨设备/重启不丢。 */
 export interface ServerProfile {
   userId: string;
@@ -1009,7 +1025,56 @@ export interface ServerProfile {
   achievements: string[];
   /** 每日挑战进度：challengeId -> 0~100 */
   dailyChallenge: Record<string, number>;
+  /** R4-08: 各玩法战绩快照（court/werewolf/bar 等） */
+  stats?: Partial<Record<'court' | 'werewolf' | 'bar', MatchStats>>;
   updatedAt: string;
+}
+
+// ===== R4-08: 排行榜 =====
+/** 排行榜分榜维度：全服 / 法庭 / 狼人杀 / 酒吧。 */
+export type LeaderboardScope = 'global' | 'court' | 'werewolf' | 'bar';
+
+/** 排行榜单条记录（REST 返回）。 */
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  nickname: string;
+  xp: number;
+  tier: ServerProfile['rank'];
+  avatarType: string;
+  avatarRef: string;
+  /** 该分榜依据的战绩（global 为 xp；分榜为对应玩法胜场/胜率）。 */
+  score: number;
+  stats?: Partial<Record<'court' | 'werewolf' | 'bar', MatchStats>>;
+}
+
+// ===== R4-08: 活动公告 / 主题房间 =====
+/** 一条可展示的活动公告（服务端聚合当前主题房间生成）。 */
+export interface Announcement {
+  id: string;
+  title: string;
+  description: string;
+  /** 活动开始 ISO */
+  startsAt: string;
+  /** 活动结束 ISO */
+  endsAt: string;
+  /** 对应主题房间码（点击跳转加入）；无房间时为空串 */
+  roomCode: string;
+  /** 主题标签，如 #周末法庭 #狼人杀之夜 */
+  tags: string[];
+}
+
+// ===== R4-08: 内容治理 =====
+/** 内容治理动作结果（聊天/喊话/房间名过滤后回执给调用方）。 */
+export interface ModerationAction {
+  /** 原始文本是否命中敏感词 */
+  hit: boolean;
+  /** 过滤后的文本（命中处替换为 ***）；未命中时与原文一致 */
+  text: string;
+  /** 当前发送者是否被临时禁言 */
+  muted: boolean;
+  /** 若被禁言，禁言截止时间戳 ms */
+  mutedUntil?: number;
 }
 
 // ===== 人物馆 · 真实名人 =====

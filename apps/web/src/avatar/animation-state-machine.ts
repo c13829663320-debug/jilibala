@@ -5,7 +5,11 @@
 
 import type { EmoteType } from '@balabala/shared'
 
-export type AnimState = 'idle' | 'talking' | 'wave' | 'nod' | 'shake' | 'point' | 'clap' | 'laugh' | 'surprised'
+export type AnimState =
+  | 'idle' | 'talking'
+  | 'wave' | 'nod' | 'shake' | 'point' | 'clap' | 'laugh' | 'surprised'
+  // R4-08: 新增程序化动画（无新模型，由姿势曲线映射）
+  | 'dance' | 'bow' | 'cheer' | 'cry' | 'angry' | 'think' | 'salute' | 'heart'
 
 /** 状态机事件 */
 export type AnimEvent =
@@ -25,6 +29,14 @@ export const EMOTE_DEFAULT_DURATION: Record<EmoteType, number> = {
   clap: 1600,
   laugh: 1600,
   surprised: 1500,
+  dance: 2200,
+  bow: 1500,
+  cheer: 1600,
+  cry: 1800,
+  angry: 1600,
+  think: 2000,
+  salute: 1200,
+  heart: 1600,
 }
 
 const EMOTE_TO_STATE: Record<EmoteType, AnimState> = {
@@ -35,6 +47,14 @@ const EMOTE_TO_STATE: Record<EmoteType, AnimState> = {
   clap: 'clap',
   laugh: 'laugh',
   surprised: 'surprised',
+  dance: 'dance',
+  bow: 'bow',
+  cheer: 'cheer',
+  cry: 'cry',
+  angry: 'angry',
+  think: 'think',
+  salute: 'salute',
+  heart: 'heart',
 }
 
 interface MachineInternal {
@@ -71,8 +91,11 @@ export function createAnimationMachine(): AnimationMachine {
     emoteDuration: 0,
   }
 
-  const inEmote = () => m.state === 'wave' || m.state === 'nod' || m.state === 'shake' ||
-    m.state === 'point' || m.state === 'clap' || m.state === 'laugh' || m.state === 'surprised'
+  const inEmote = () =>
+    m.state === 'wave' || m.state === 'nod' || m.state === 'shake' ||
+    m.state === 'point' || m.state === 'clap' || m.state === 'laugh' || m.state === 'surprised' ||
+    m.state === 'dance' || m.state === 'bow' || m.state === 'cheer' || m.state === 'cry' ||
+    m.state === 'angry' || m.state === 'think' || m.state === 'salute' || m.state === 'heart'
 
   return {
     get state() {
@@ -205,6 +228,76 @@ export function getPose(state: AnimState, elapsedMs: number): Pose {
       pose.jawOpen = 0.7
       pose.bodyLean = 0.2
       pose.eyeOpen = 1.1
+      break
+    }
+    case 'dance': {
+      // 跳舞：左右摇摆 + 双臂摆动 + 身体起伏
+      const t = elapsedMs / 300
+      pose.bodyLean = 0.15 + Math.sin(t) * 0.1
+      pose.headRoll = Math.sin(t) * 0.3
+      pose.armRaiseL = 0.5
+      pose.armRaiseR = 0.5
+      pose.armSwingL = Math.sin(t) * 0.7
+      pose.armSwingR = -Math.sin(t) * 0.7
+      pose.bounce = Math.abs(Math.sin(t)) * 0.15
+      break
+    }
+    case 'bow': {
+      // 鞠躬：身体前倾下压
+      pose.bodyLean = 0.4 + Math.sin(elapsedMs / 200) * 0.05
+      pose.headTilt = 0.3
+      break
+    }
+    case 'cheer': {
+      // 欢呼：双臂高举上下挥动
+      pose.armRaiseL = 1
+      pose.armRaiseR = 1
+      pose.armSwingL = Math.sin(elapsedMs / 100) * 0.5
+      pose.armSwingR = -Math.sin(elapsedMs / 100) * 0.5
+      pose.browRaise = 0.6
+      break
+    }
+    case 'cry': {
+      // 哭：低头、皱眉、身体微缩
+      pose.headTilt = 0.3
+      pose.bodyLean = 0.15
+      pose.browRaise = -0.5
+      pose.armRaiseL = 0.15
+      pose.armRaiseR = 0.15
+      break
+    }
+    case 'angry': {
+      // 生气：皱眉、前倾、双臂抱胸感
+      pose.headTilt = 0.2
+      pose.bodyLean = 0.3
+      pose.browRaise = -0.8
+      pose.armSwingL = -0.3
+      pose.armSwingR = 0.3
+      break
+    }
+    case 'think': {
+      // 思考：歪头、单手托腮
+      pose.headTilt = 0.2
+      pose.headRoll = 0.2
+      pose.armRaiseR = 0.4
+      pose.browRaise = 0.3
+      break
+    }
+    case 'salute': {
+      // 敬礼：右臂举至额前
+      pose.armRaiseR = 0.9
+      pose.armSwingR = 0.1
+      pose.headTilt = 0.1
+      break
+    }
+    case 'heart': {
+      // 比心：双臂胸前弯心
+      pose.armRaiseL = 0.6
+      pose.armRaiseR = 0.6
+      pose.armSwingL = -0.5
+      pose.armSwingR = 0.5
+      pose.browRaise = 0.5
+      pose.headTilt = -0.1
       break
     }
   }
