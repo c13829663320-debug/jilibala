@@ -27,8 +27,74 @@ export interface OnboardingProgress {
   playedScenes: SceneId[]
   /** 用户曾主动跳过兴趣选择；之后不再弹 InterestPicker。 */
   interestSkipped: boolean
+  /** R4-06: 多人新手引导进度（5 步） */
+  multiplayerTour: MultiplayerTourProgress
   updatedAt: string | null
 }
+
+/** R4-06 多人引导单步高亮目标 */
+export type MultiplayerTourTarget =
+  | 'lobby-create'      // 大厅创建房间按钮
+  | 'room-code'         // 房间码复制按钮
+  | 'voice-or-chat'     // 语音/文字喊话
+  | 'emote-wheel'       // 表情动作轮盘
+  | 'safety-menu'       // 静音/屏蔽/举报
+
+export interface MultiplayerTourStep {
+  id: number
+  target: MultiplayerTourTarget
+  title: string
+  body: string
+}
+
+export interface MultiplayerTourProgress {
+  /** 当前进行到第几步（0-based） */
+  step: number
+  /** 是否已完成全部 5 步 */
+  done: boolean
+  /** 用户主动跳过整个多人引导 */
+  skipped: boolean
+}
+
+export const EMPTY_MULTIPLAYER_TOUR: MultiplayerTourProgress = {
+  step: 0,
+  done: false,
+  skipped: false,
+}
+
+/** R4-06 多人模式 5 步引导序列。 */
+export const MULTIPLAYER_TOUR_STEPS: MultiplayerTourStep[] = [
+  {
+    id: 0,
+    target: 'lobby-create',
+    title: '创建你的第一个房间',
+    body: '点这里开一个专属房间，朋友进来就能和你在同一个广场碰面。',
+  },
+  {
+    id: 1,
+    target: 'room-code',
+    title: '邀请朋友',
+    body: '房间码是进入房间的钥匙，点一下复制，发给朋友就能一起玩。',
+  },
+  {
+    id: 2,
+    target: 'voice-or-chat',
+    title: '语音与文字喊话',
+    body: '点右下角麦克风开麦聊天；不方便开麦时，用文字喊话也能让附近的人看到你。',
+  },
+  {
+    id: 3,
+    target: 'emote-wheel',
+    title: '表情动作',
+    body: '按数字键 1-7 做挥手、鼓掌、大笑等动作，不用说话也能打招呼。',
+  },
+  {
+    id: 4,
+    target: 'safety-menu',
+    title: '安全功能',
+    body: '点任意玩家可以静音、屏蔽或举报。你的社区体验，我们一起守护。',
+  },
+]
 
 export const ONBOARDING_STORAGE_KEY = 'balabala.onboarding.v1'
 
@@ -36,6 +102,7 @@ export const EMPTY_PROGRESS: OnboardingProgress = {
   selectedInterest: null,
   playedScenes: [],
   interestSkipped: false,
+  multiplayerTour: { ...EMPTY_MULTIPLAYER_TOUR },
   updatedAt: null,
 }
 
@@ -118,7 +185,13 @@ function defaultStorage(): Storage | null {
 
 /** 每次都返回全新对象（playedScenes 数组不可跨调用共享，避免 push 污染）。 */
 function freshProgress(): OnboardingProgress {
-  return { selectedInterest: null, playedScenes: [], interestSkipped: false, updatedAt: null }
+  return {
+    selectedInterest: null,
+    playedScenes: [],
+    interestSkipped: false,
+    multiplayerTour: { ...EMPTY_MULTIPLAYER_TOUR },
+    updatedAt: null,
+  }
 }
 
 /** 从 localStorage 读取进度；损坏 / 缺失时返回空进度（视为新用户）。 */
@@ -129,12 +202,18 @@ export function loadProgress(storage?: Storage | null): OnboardingProgress {
     const raw = store.getItem(ONBOARDING_STORAGE_KEY)
     if (!raw) return freshProgress()
     const parsed = JSON.parse(raw) as Partial<OnboardingProgress>
+    const mt = parsed.multiplayerTour
     return {
       selectedInterest: typeof parsed.selectedInterest === 'string' ? (parsed.selectedInterest as InterestId) : null,
       playedScenes: Array.isArray(parsed.playedScenes)
         ? (parsed.playedScenes.filter((s): s is SceneId => typeof s === 'string') as SceneId[])
         : [],
       interestSkipped: parsed.interestSkipped === true,
+      multiplayerTour: {
+        step: typeof mt?.step === 'number' ? Math.max(0, Math.min(MULTIPLAYER_TOUR_STEPS.length - 1, Math.floor(mt.step))) : 0,
+        done: mt?.done === true,
+        skipped: mt?.skipped === true,
+      },
       updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : null,
     }
   } catch {
@@ -205,4 +284,56 @@ export function hasPlayedScene(scene: SceneId, storage?: Storage | null): boolea
 export function getRecommendedScene(storage?: Storage | null): SceneId | null {
   const interest = loadProgress(storage).selectedInterest
   return interest ? INTEREST_SCENE_MAP[interest] : null
+}
+
+// ===== R4-06: 多人新手引导（5 步） =====
+
+/** 是否需要展示多人引导（未完成且未跳过）。 */
+export function needsMultiplayerTour(storage?: Storage | null): boolean {
+  const p = loadProgress(storage)
+  return !p.multiplayerTour.done && !p.multiplayerTour.skipped
+}
+
+/** 前进到下一步；走完最后一步自动标记 done。返回最新进度。 */
+export function advanceMultiplayerTour(storage?: Storage | null): OnboardingProgress {
+  const p = loadProgress(storage)
+  const nextStep = p.multiplayerTour.step + 1
+  p.multiplayerTour = {
+    step: nextStep,
+    done: nextStep >= MULTIPLAYER_TOUR_STEPS.length,
+    skipped: false,
+  }
+  saveProgress(p, storage)
+  return p
+}
+
+/** 手动完成多人引导。 */
+export function completeMultiplayerTour(storage?: Storage | null): OnboardingProgress {
+  const p = loadProgress(storage)
+  p.multiplayerTour = { step: MULTIPLAYER_TOUR_STEPS.length - 1, done: true, skipped: false }
+  saveProgress(p, storage)
+  return p
+}
+
+/** 跳过多人引导。 */
+export function skipMultiplayerTour(storage?: Storage | null): OnboardingProgress {
+  const p = loadProgress(storage)
+  p.multiplayerTour = { ...p.multiplayerTour, skipped: true, done: true }
+  saveProgress(p, storage)
+  return p
+}
+
+/** 设置里「重置多人引导」：下次进入房间重新弹。 */
+export function resetMultiplayerTour(storage?: Storage | null): OnboardingProgress {
+  const p = loadProgress(storage)
+  p.multiplayerTour = { step: 0, done: false, skipped: false }
+  saveProgress(p, storage)
+  return p
+}
+
+/** 当前应展示的多人引导步骤（无则 null）。 */
+export function currentMultiplayerStep(storage?: Storage | null): MultiplayerTourStep | null {
+  const p = loadProgress(storage)
+  if (p.multiplayerTour.done || p.multiplayerTour.skipped) return null
+  return MULTIPLAYER_TOUR_STEPS[p.multiplayerTour.step] ?? null
 }

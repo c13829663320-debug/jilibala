@@ -829,6 +829,64 @@ export type SocialRoomWsMessage =
   | { type: 'room_owner_changed'; oldOwnerId: string; newOwnerId: string }
   | { type: 'room_lock_changed'; isLocked: boolean };
 
+// ===== R4-06: 玩家档案持久化字段（本地 localStorage + 服务端 JSON 双写） =====
+// 注：OutfitState 复用 R4-03 已有的 `Record<OutfitLayer, string>` 类型（见上方）。
+
+/** 玩家本地设置（音量 / 画质等）。 */
+export interface PlayerSettings {
+  /** 主音量 0~1 */
+  volume: number;
+  /** 空间语音开关 */
+  voiceEnabled: boolean;
+  /** 画质档位：low 跳过高分辨率纹理 / high 保持原画质 */
+  quality: 'low' | 'high' | 'auto';
+  /** 是否开启阴影 */
+  shadows: boolean;
+}
+
+/** 多人新手引导（R4-06）完成进度。 */
+export interface MultiplayerTourState {
+  /** 5 步引导是否已全部完成 */
+  done: boolean;
+  /** 当前进行到第几步（0-based） */
+  step: number;
+  /** 用户主动跳过 */
+  skipped: boolean;
+  /** 完成时间 */
+  completedAt?: string;
+}
+
+/**
+ * 玩家完整档案（本地持久化 key=balabala_profile_v1）。
+ * 所有字段可选/带默认值，以便老存档缺字段时向前兼容迁移。
+ */
+export interface PlayerProfile {
+  nickname: string;
+  avatarType: User['avatarType'];
+  avatarRef: string;
+  /** 已选换装（R4-03 outfit）；未选过的层缺省。 */
+  outfit: Partial<OutfitState>;
+  settings: PlayerSettings;
+  multiplayerTour: MultiplayerTourState;
+  /** 最近所在房间码（sessionStorage 另存一份做刷新恢复） */
+  lastRoomCode: string | null;
+  updatedAt: string | null;
+}
+
+/** 服务端档案（apps/api/.data/profiles/<userId>.json）：跨设备/重启不丢。 */
+export interface ServerProfile {
+  userId: string;
+  /** 经验值 */
+  xp: number;
+  /** 段位 */
+  rank: 'rookie' | 'bronze' | 'silver' | 'gold' | 'platinum';
+  /** 已解锁成就 id */
+  achievements: string[];
+  /** 每日挑战进度：challengeId -> 0~100 */
+  dailyChallenge: Record<string, number>;
+  updatedAt: string;
+}
+
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";
 export * from "./character-voices.js";

@@ -3,6 +3,7 @@
 // 编辑模式：传入 sceneId 时从 getScene 加载已有蓝图，直接进入 Step 3。
 // ============================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createDraftSaver } from '../persistence/draft-store'
 import {
   ArrowLeft, Check, Loader2, MessageCircle, Plus, Save, Send, Sparkles, Trash2, X,
 } from 'lucide-react'
@@ -127,6 +128,31 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
 
   const abortRef = useRef<AbortController | null>(null)
   const saveTimerRef = useRef<number | null>(null)
+
+  // ===== R4-06: 未发布草稿自动保存（localStorage, debounce 3s） =====
+  const draftSaverRef = useRef(createDraftSaver<{
+    description: string
+    theme: TerrainTheme | undefined
+    gameplay: GameplayTemplate | undefined
+  }>({ debounceMs: 3000 }))
+
+  // 进入工作室时恢复上次未发布草稿（编辑模式 sceneId 优先服务端记录，不恢复草稿）
+  useEffect(() => {
+    if (sceneId) return
+    const d = draftSaverRef.current.load()
+    if (d) {
+      if (d.description) setDescription(d.description)
+      if (d.theme) setTheme(d.theme)
+      if (d.gameplay) setGameplay(d.gameplay)
+    }
+    return () => draftSaverRef.current.flush()
+  }, [sceneId])
+
+  // 描述/主题/玩法变化 → debounce 3s 自动存草稿
+  useEffect(() => {
+    if (sceneId) return
+    draftSaverRef.current.schedule({ description, theme, gameplay })
+  }, [description, theme, gameplay, sceneId])
 
   // 编辑模式：加载已有场景
   useEffect(() => {
