@@ -744,3 +744,6 @@ export * from "./library-quiz.js";
 
 // ===== 自定义场景工作室 =====
 export * from "./scene-studio.js";
+
+// ===== 多人网络专项 · 共享协议基座 =====
+export * from "./network-protocol.js";
