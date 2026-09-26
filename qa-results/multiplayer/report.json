@@ -1,0 +1,41 @@
+{
+  "results": [
+    {
+      "name": "A 进入多人房间大厅",
+      "pass": true,
+      "detail": "01-lobby.png"
+    },
+    {
+      "name": "1.1 A 创建房间进入广场",
+      "pass": true,
+      "detail": "房间码=JGC6RY WS=ws://localhost:5173/api/ws?userId=e91a717e-6fe0-469e-83a2-b13877b32fe0&room=social:JGC6RY"
+    },
+    {
+      "name": "1.2 B 用房间码加入同一房间",
+      "pass": true,
+      "detail": "B信息条=\"2 人在线房间码 JGC6RY 离开房间\""
+    },
+    {
+      "name": "2. 双化身同房间可见(WS 感知对端)",
+      "pass": true,
+      "detail": "A 的 userId=e91a717e-6fe0-469e-83a2-b13877b32fe0（在线人数=2 + 截图佐证）"
+    },
+    {
+      "name": "3.1 WASD 位置同步",
+      "pass": false,
+      "detail": "A发出move 0 条; B侧 A位置 (undefined,undefined) → (undefined,undefined) Δ=0.00"
+    },
+    {
+      "name": "3.2 数字键1 wave 手势同步",
+      "pass": false,
+      "detail": "B 侧 WS 收到 {type:emote, emote:wave}"
+    },
+    {
+      "name": "4. WebRTC 信令交换(offer/answer)",
+      "pass": false,
+      "detail": "A: sdp=0 offers=0 err=[] PC=23; B: sdp=0 offers=17 err=[] PC=14"
+    }
+  ],
+  "roomCode": "JGC6RY",
+  "ts": "2026-09-26T01:55:23.021Z"
+}
