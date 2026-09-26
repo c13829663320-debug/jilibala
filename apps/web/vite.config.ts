@@ -58,7 +58,8 @@ export default defineConfig({
         // 只 precache 构建产物（html/js/css）+ includeAssets 中的小图。
         // public 下的 .glb 大模型不进 precache（默认 globPatterns 不含 .glb）。
         globPatterns: ['**/*.{html,js,css,ico,jpg,png,svg,woff,woff2}'],
-        globIgnores: ['**/*.glb', '**/models/**'],
+        globIgnores: ['**/*.glb', '**/models/**', '**/promo/**'],
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
             // 3D 大模型：永不缓存，每次走网络（避免占用磁盘 + 版本更新及时）
