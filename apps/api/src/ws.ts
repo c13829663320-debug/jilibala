@@ -24,7 +24,9 @@ import { getCourtCase } from "./db.js";
 import { getSocialRoom, verifyRoomPassword, isUserKicked, sanitizeRoom } from "./room-routes.js";
 import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
-import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
+import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot, replaceHumanWithAI as werewolfReplaceHuman } from "./werewolf-orchestrator.js";
+import { getMultiplayerCourt } from "./court-orchestrator.js";
+import { getMultiplayerBar } from "./bar-orchestrator.js";
 
 // ===== 房间数据结构 =====
 export type RoomUser = {
@@ -313,6 +315,24 @@ export function getSceneState(scene: SceneId, sessionId: string): SceneRoomState
 /** 向场景房间广播事件。 */
 export function broadcastSceneEvent(scene: SceneId, sessionId: string, event: Record<string, unknown>): void {
   broadcastToRoom(`${scene}:${sessionId}`, { type: "scene_event", scene, event });
+}
+
+/**
+ * R4-05: 真人玩家永久离开某玩法房间——通知对应编排器让 AI 接管其角色位，
+ * 避免夜晚/发言/投票阶段因为等一个不会再操作的真人而卡死。
+ */
+function notifyGameplayPlayerLeft(roomId: string, userId: string): void {
+  try {
+    if (roomId.startsWith("court:")) {
+      getMultiplayerCourt(roomId.slice("court:".length))?.leaveRole(userId);
+    } else if (roomId.startsWith("bar:")) {
+      getMultiplayerBar(roomId.slice("bar:".length))?.leaveSide(userId);
+    } else if (roomId.startsWith("werewolf:")) {
+      werewolfReplaceHuman(roomId.slice("werewolf:".length), userId);
+    }
+  } catch {
+    // 编排器不存在或已结束，忽略
+  }
 }
 
 // ===== Round4 R4-03：安全模块 · 举报日志 =====
@@ -707,6 +727,25 @@ export function registerWebSocket(app: FastifyInstance): void {
           werewolfHandleAction(gameId, userId, action);
           break;
         }
+        case "court_player_speech": {
+          // R4-05: 法庭真人玩家当庭发言，纳入多人庭审流程（轮到该真人时上屏，否则缓冲）。
+          if (!roomId.startsWith("court:")) return;
+          const caseId = roomId.slice("court:".length);
+          const text = String(data.text ?? "").slice(0, 400);
+          if (!text) return;
+          getMultiplayerCourt(caseId)?.submitSpeech(userId, text);
+          break;
+        }
+        case "bar_player_speech": {
+          // R4-05: 酒吧真人辩手发言。
+          if (!roomId.startsWith("bar:")) return;
+          const sessionId = roomId.slice("bar:".length);
+          const side = data.side === "pro" || data.side === "con" ? data.side : null;
+          const text = String(data.text ?? "").slice(0, 400);
+          if (!side || !text) return;
+          getMultiplayerBar(sessionId)?.submitSpeech(userId, side, text);
+          break;
+        }
         case "gym_cheer": {
           // M11: 健身加油广播
           if (!roomId.startsWith("gym:")) return;
@@ -885,6 +924,8 @@ export function registerWebSocket(app: FastifyInstance): void {
           if (roomId.startsWith("social:")) {
             broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: r.users.size });
           }
+          // R4-05: 真人永久离开，AI 接管其玩法角色位
+          notifyGameplayPlayerLeft(roomId, userId);
           // 房间空了可清理（保留 court 房间状态以便重连）
           if (r.users.size === 0 && roomId === "plaza") {
             rooms.delete(roomId);
@@ -904,6 +945,8 @@ export function registerWebSocket(app: FastifyInstance): void {
         if (roomId.startsWith("social:")) {
           broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: r.users.size });
         }
+        // R4-05: 真人立即离开，AI 接管其玩法角色位
+        notifyGameplayPlayerLeft(roomId, userId);
         // 房间空了可清理（保留 court 房间状态以便重连）
         if (r.users.size === 0 && roomId === "plaza") {
           rooms.delete(roomId);

@@ -233,6 +233,7 @@ function toPublic(p: InternalPlayer): WerewolfPublicPlayer {
     avatarRef: p.avatarRef,
     alive: p.alive,
     isAI: p.isAI,
+    playerType: p.isAI ? "ai" : "human",
   };
 }
 
@@ -435,6 +436,55 @@ export function startGame(gameId: string, hostUserId: string): void {
 
 export function getGame(gameId: string): WerewolfGame | undefined {
   return games.get(gameId);
+}
+
+/**
+ * R4-05：真人玩家中途离开（断线且不打算回来），把他的座位交给 AI 接管，
+ * 避免夜晚/投票阶段因为等一个不会再操作的真人而卡死。
+ * AI 接管后：换名人 persona、isAI=true、userId=ai:<seat>；若正等他行动，
+ * 立即用一个被动默认值唤醒等待中的流程。
+ * 返回是否成功接管（该 userId 原本是否是真人玩家）。
+ */
+export function replaceHumanWithAI(gameId: string, userId: string): boolean {
+  const game = games.get(gameId);
+  if (!game || game.phase === "ended") return false;
+  const me = playerByUserId(game, userId);
+  if (!me || me.isAI) return false;
+
+  // 换一位 AI 名人接管这个座位。
+  const celeb = pickAICelebrity();
+  me.isAI = true;
+  me.userId = `ai:${me.seat}`;
+  if (celeb) {
+    me.celebrityId = celeb.id;
+    me.nickname = celeb.name;
+    me.avatarType = "celebrity";
+    me.avatarRef = celeb.portrait;
+  } else {
+    me.nickname = `AI玩家${me.seat + 1}`;
+  }
+
+  // 若正在等该真人行动，给一个被动默认值解除阻塞。
+  if (game.phase === "night") {
+    if (game.nightStage === "wolf" && game.awaiters.wolf) {
+      // 不投票，让其他狼人票结算；仅唤醒等待。
+      game.awaiters.wolf.onVote(me.seat);
+    } else if (game.nightStage === "seer" && game.awaiters.seer) {
+      const cands = game.players.filter((p) => p.alive && p.seat !== me.seat);
+      const pick = cands[Math.floor(Math.random() * cands.length)];
+      game.awaiters.seer.resolve(pick ? pick.seat : me.seat);
+    } else if (game.nightStage === "witch" && game.awaiters.witch) {
+      game.awaiters.witch.resolve({ heal: false, poison: null });
+    }
+  } else if (game.phase === "vote" && game.awaiters.vote) {
+    game.dayState.votes.set(me.seat, null);
+    game.awaiters.vote.onVote(me.seat);
+  } else if (game.phase === "day_announce" && game.hunterPending === me.seat && game.awaiters.hunter) {
+    game.awaiters.hunter.resolve(null);
+  }
+
+  pushSnapshotsAll(game);
+  return true;
 }
 
 // ===== 导出：玩家视角快照（关键：按视角过滤）=====

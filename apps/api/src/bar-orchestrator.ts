@@ -621,3 +621,205 @@ export const createDebateSession = (
     },
   };
 };
+
+// ===== Round4 R4-05: 多人酒吧辩论 — 真人辩手混入 AI =====
+// 真人可加入正方/反方任一辩席；对方辩席由 AI 名人担任。
+// 真人轮到发言时通过 WS bar_player_speech 提交；超时/离线则 AI 补位。
+// 观众投票环节：真人票与 AI 观众票合并统计。
+import { AiFillManager } from "./ai-fill-manager.js";
+
+export interface MultiplayerBarOpts {
+  topic: string;
+  chat: ChatFn;
+  onEvent: (e: Record<string, unknown>) => void;
+  /** 真人发言等待超时（默认 15s）。测试可缩短。 */
+  speechTimeoutMs?: number;
+  pollMs?: number;
+  /** 交替发言轮数（默认 3）。 */
+  rounds?: number;
+  /** AI 观众票数（默认 5）。 */
+  aiAudienceCount?: number;
+}
+
+const BAR_FALLBACK: Record<DebateSide, string> = {
+  pro: "（AI 补位）我方坚定支持这一方，理由很充分。",
+  con: "（AI 补位）我方持保留意见，事情没那么简单。",
+};
+
+/**
+ * 多人酒吧辩论。无真人时正反双方都由 AI 自动发言（纯 AI 模式，向后兼容）。
+ */
+export class MultiplayerBarDebate {
+  private readonly fill: AiFillManager;
+  private readonly chat: ChatFn;
+  private readonly onEvent: (e: Record<string, unknown>) => void;
+  private readonly topic: string;
+  private readonly timeoutMs: number;
+  private readonly pollMs: number;
+  private readonly rounds: number;
+  private readonly aiAudience: number;
+  private speechBuffer = new Map<string, string>();
+  private humanVotes = new Map<string, DebateSide>();
+  private speakCount: Record<DebateSide, number> = { pro: 0, con: 0 };
+  private awaitingSide: DebateSide | null = null;
+  private finished = false;
+
+  constructor(opts: MultiplayerBarOpts) {
+    this.topic = opts.topic;
+    this.chat = opts.chat;
+    this.onEvent = opts.onEvent;
+    this.timeoutMs = opts.speechTimeoutMs ?? 15_000;
+    this.pollMs = opts.pollMs ?? 200;
+    this.rounds = opts.rounds ?? 3;
+    this.aiAudience = opts.aiAudienceCount ?? 5;
+    this.fill = new AiFillManager();
+    this.fill.registerSlot("pro", "正方", "AI 正方辩手");
+    this.fill.registerSlot("con", "反方", "AI 反方辩手");
+  }
+
+  broadcastParticipants(): void {
+    this.onEvent({ type: "bar_participants", participants: this.fill.toParticipants() });
+  }
+
+  /** 真人加入某一方辩席。 */
+  joinSide(userId: string, nickname: string, side: DebateSide): boolean {
+    const slot = this.fill.humanJoin(side, userId, nickname);
+    if (!slot) return false;
+    this.broadcastParticipants();
+    return true;
+  }
+
+  leaveSide(userId: string): void {
+    const slot = this.fill.slotOfUser(userId);
+    if (slot) {
+      this.fill.humanLeave(slot.slotId);
+      this.broadcastParticipants();
+    }
+  }
+
+  /** WS bar_player_speech：真人提交发言。 */
+  submitSpeech(userId: string, side: DebateSide, text: string): boolean {
+    const clean = text.trim().slice(0, 400);
+    if (!clean) return false;
+    const slot = this.fill.slotOfUser(userId);
+    if (!slot || slot.slotId !== side) return false;
+    this.fill.markActive(userId);
+    // 轮到本 side 时 waitHuman 会轮询取用；提前打字则缓冲。
+    this.speechBuffer.set(userId, clean);
+    return true;
+  }
+
+  castVote(userId: string, vote: DebateSide): boolean {
+    this.humanVotes.set(userId, vote);
+    this.fill.markActive(userId);
+    return true;
+  }
+
+  private async waitHuman(side: DebateSide, userId: string): Promise<{ text: string; byHuman: boolean }> {
+    const buffered = this.speechBuffer.get(userId);
+    if (buffered) {
+      this.speechBuffer.delete(userId);
+      return { text: buffered, byHuman: true };
+    }
+    this.awaitingSide = side;
+    this.onEvent({ type: "awaiting_bar_speech", side, deadlineMs: this.timeoutMs });
+    const deadline = Date.now() + this.timeoutMs;
+    while (Date.now() < deadline) {
+      const pending = this.speechBuffer.get(userId);
+      if (pending) {
+        this.speechBuffer.delete(userId);
+        this.awaitingSide = null;
+        return { text: pending, byHuman: true };
+      }
+      await sleep(this.pollMs);
+    }
+    this.awaitingSide = null;
+    return { text: BAR_FALLBACK[side], byHuman: false };
+  }
+
+  private async aiSpeak(side: DebateSide): Promise<string> {
+    const actor: ResolvedCharacter = {
+      id: `ai-${side}`,
+      name: side === "pro" ? "AI 正方" : "AI 反方",
+      title: "酒吧客人",
+      intro: "酒吧里的热心客人",
+      tags: ["酒吧", "辩论"],
+      persona: side === "pro"
+        ? "你是酒吧里坚定支持这一方的客人，口语化、有梗。"
+        : "你是酒吧里持反对意见的客人，喜欢抬杠但讲理。",
+      greeting: BAR_FALLBACK[side],
+      portrait: "",
+      isCustom: false,
+    };
+    try {
+      const r = await debateSpeech(actor, this.topic, side, [], this.chat);
+      return r.text;
+    } catch {
+      return BAR_FALLBACK[side];
+    }
+  }
+
+  async run(): Promise<{ participants: ReturnType<AiFillManager["toParticipants"]>; votes: Record<string, number> }> {
+    this.broadcastParticipants();
+    this.onEvent({ type: "bar_multi_stage", stage: "open", topic: this.topic });
+
+    for (let round = 1; round <= this.rounds; round += 1) {
+      for (const side of ["pro", "con"] as DebateSide[]) {
+        const slot = this.fill.get(side)!;
+        let text: string;
+        let byHuman = false;
+        if (slot.playerType === "human" && slot.userId) {
+          const r = await this.waitHuman(side, slot.userId);
+          text = r.text;
+          byHuman = r.byHuman;
+        } else {
+          text = await this.aiSpeak(side);
+        }
+        this.speakCount[side] += 1;
+        this.onEvent({
+          type: "bar_multiplayer_speech",
+          side,
+          // 真人超时 AI 补位时发言实为 AI，按 byHuman 区分徽章。
+          playerType: byHuman ? "human" : "ai",
+          nickname: slot.nickname,
+          text,
+        });
+      }
+    }
+
+    const result = this.finalizeVotes();
+    this.finished = true;
+    this.onEvent({ type: "bar_multi_vote_result", result });
+    return { participants: this.fill.toParticipants(), votes: result.votes };
+  }
+
+  finalizeVotes(): { votes: Record<string, number>; humanVotes: number; aiVotes: number; leading?: string } {
+    const votes: Record<string, number> = { pro: 0, con: 0 };
+    for (const v of this.humanVotes.values()) votes[v] += 1;
+    const humanVotes = this.humanVotes.size;
+    // AI 观众：发言更多的一方略占优。
+    let aiPro = 0;
+    let aiCon = 0;
+    if (this.speakCount.pro > this.speakCount.con) aiPro = this.aiAudience;
+    else if (this.speakCount.con > this.speakCount.pro) aiCon = this.aiAudience;
+    else { aiPro = Math.ceil(this.aiAudience / 2); aiCon = Math.floor(this.aiAudience / 2); }
+    votes.pro += aiPro;
+    votes.con += aiCon;
+    const leading = votes.pro > votes.con ? "pro" : votes.con > votes.pro ? "con" : undefined;
+    return { votes, humanVotes, aiVotes: this.aiAudience, leading };
+  }
+
+  isFinished(): boolean { return this.finished; }
+}
+
+// ===== 模块级注册表 =====
+const multiBarSessions = new Map<string, MultiplayerBarDebate>();
+export function registerMultiplayerBar(sessionId: string, debate: MultiplayerBarDebate): void {
+  multiBarSessions.set(sessionId, debate);
+}
+export function getMultiplayerBar(sessionId: string): MultiplayerBarDebate | undefined {
+  return multiBarSessions.get(sessionId);
+}
+export function _resetMultiBarsForTest(): void {
+  multiBarSessions.clear();
+}

@@ -454,3 +454,149 @@ describe("court-orchestrator 预制牌 + 天平", () => {
     expect(events.filter((e) => e.type === "court_card_resolved").length).toBe(2);
   });
 });
+
+// ===== R4-05: 多人庭审 — 真人混入 AI（WS court: 房间数据层）=====
+describe("MultiplayerCourtTrial 真人混入", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  function makeChat(): ChatFn {
+    return vi.fn(async () => "（AI 发言）这是一句 AI 生成的庭审陈述。");
+  }
+
+  it("无真人玩家：三角色全 AI 发言，向后兼容纯 AI 模式", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const events: Array<Record<string, unknown>> = [];
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "测试案", userInput: "案情", chat: makeChat(),
+      onEvent: (e) => events.push(e), rounds: 1, speechTimeoutMs: 300, pollMs: 20,
+    });
+    const { participants, votes } = await t.run();
+    // 三个角色位全是 ai
+    expect(participants.every((p) => p.playerType === "ai")).toBe(true);
+    // 有发言事件
+    const speeches = events.filter((e) => e.type === "court_multiplayer_speech");
+    expect(speeches.length).toBeGreaterThanOrEqual(3);
+    // 有投票结果
+    const voteEv = events.find((e) => e.type === "court_multi_vote_result") as { result: { aiVotes: number } };
+    expect(voteEv.result.aiVotes).toBe(3);
+    expect(votes.plaintiff + votes.defendant).toBe(3);
+  });
+
+  it("真人当原告：提前打字缓冲 → 轮到时上屏，playerType=human", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const events: Array<Record<string, unknown>> = [];
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "测试案", userInput: "案情", chat: makeChat(),
+      onEvent: (e) => events.push(e), rounds: 1, speechTimeoutMs: 500, pollMs: 20,
+    });
+    t.joinAsRole("u-真人", "张三", "plaintiff");
+    // 提前把发言塞进缓冲
+    expect(t.submitSpeech("u-真人", "我是真人原告，我的主张很充分")).toBe(true);
+
+    await t.run();
+    const speeches = events.filter((e) => e.type === "court_multiplayer_speech") as Array<{
+      slotId: string; playerType: string; nickname: string; text: string;
+    }>;
+    const plaintiffSpeech = speeches.find((s) => s.slotId === "plaintiff")!;
+    expect(plaintiffSpeech.playerType).toBe("human");
+    expect(plaintiffSpeech.nickname).toBe("张三");
+    expect(plaintiffSpeech.text).toContain("我是真人原告");
+  });
+
+  it("真人超时未发言：AI 自动接管填充，庭审不卡死", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const events: Array<Record<string, unknown>> = [];
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "测试案", userInput: "案情", chat: makeChat(),
+      onEvent: (e) => events.push(e), rounds: 1, speechTimeoutMs: 120, pollMs: 20,
+    });
+    t.joinAsRole("u-挂机", "挂机玩家", "defendant");
+    // 不提交任何发言
+    await t.run();
+    const speeches = events.filter((e) => e.type === "court_multiplayer_speech") as Array<{
+      slotId: string; playerType: string; text: string;
+    }>;
+    const def = speeches.find((s) => s.slotId === "defendant")!;
+    // 超时后用 AI 兜底（playerType=ai，文本是 AI 代述）
+    expect(def.playerType).toBe("ai");
+    expect(def.text).toContain("AI 代述");
+    // 庭审正常结束
+    expect(events.some((e) => e.type === "court_multi_vote_result")).toBe(true);
+  });
+
+  it("真人投票与 AI 陪审员票合并统计", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const events: Array<Record<string, unknown>> = [];
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "测试案", userInput: "案情", chat: makeChat(),
+      onEvent: (e) => events.push(e), rounds: 1, speechTimeoutMs: 100, pollMs: 20, aiJurorCount: 3,
+    });
+    t.joinAsRole("u-1", "观众甲", "witness");
+    t.castVote("u-1", "plaintiff");
+    t.castVote("u-2", "defendant"); // 未认领角色也能投票（陪审员/观众）
+    const { votes } = await t.run();
+    // 真人 2 票（1 原告 1 被告）+ AI 3 票（双方各发言一次平票→1/2 分）
+    expect(votes.plaintiff).toBe(1 + 2);
+    expect(votes.defendant).toBe(1 + 1);
+    const voteEv = events.find((e) => e.type === "court_multi_vote_result") as { result: { humanVotes: number; aiVotes: number } };
+    expect(voteEv.result.humanVotes).toBe(2);
+    expect(voteEv.result.aiVotes).toBe(3);
+  });
+
+  it("leaveRole：真人离开后该角色位 AI 重新接管", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "案", userInput: "", chat: makeChat(), onEvent: () => {}, rounds: 1,
+    });
+    t.joinAsRole("u-1", "我", "plaintiff");
+    expect(t["fill"].get("plaintiff")!.playerType).toBe("human");
+    t.leaveRole("u-1");
+    expect(t["fill"].get("plaintiff")!.playerType).toBe("ai");
+  });
+
+  it("court_participants 事件携带真人徽章 playerType=human", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const events: Array<Record<string, unknown>> = [];
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "案", userInput: "", chat: makeChat(), onEvent: (e) => events.push(e), rounds: 1,
+    });
+    t.joinAsRole("u-9", "真人王", "witness");
+    const ev = events.find((e) => e.type === "court_participants") as { participants: Array<{ slotId: string; playerType: string; nickname: string }> };
+    expect(ev).toBeDefined();
+    const w = ev.participants.find((p) => p.slotId === "witness")!;
+    expect(w.playerType).toBe("human");
+    expect(w.nickname).toBe("真人王");
+  });
+
+  it("submitSpeech 防御：空文本 / 未认领角色 返回 false", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "案", userInput: "", chat: makeChat(), onEvent: () => {}, rounds: 1,
+    });
+    expect(t.submitSpeech("nobody", "你好")).toBe(false);
+    expect(t.submitSpeech("nobody", "")).toBe(false);
+  });
+
+  it("真人分别担任原告与被告：双方真人发言交替上屏", async () => {
+    const { MultiplayerCourtTrial } = await import("./court-orchestrator.js");
+    const events: Array<Record<string, unknown>> = [];
+    const t = new MultiplayerCourtTrial({
+      caseTitle: "双真人案", userInput: "案情", chat: makeChat(),
+      onEvent: (e) => events.push(e), rounds: 1, speechTimeoutMs: 400, pollMs: 20,
+    });
+    t.joinAsRole("u-原", "原告真人", "plaintiff");
+    t.joinAsRole("u-被", "被告真人", "defendant");
+    t.submitSpeech("u-原", "原告真人陈述：责任在被告");
+    t.submitSpeech("u-被", "被告真人辩护：我无过错");
+    await t.run();
+    const speeches = events.filter((e) => e.type === "court_multiplayer_speech") as Array<{
+      slotId: string; playerType: string; text: string;
+    }>;
+    const pro = speeches.find((s) => s.slotId === "plaintiff")!;
+    const def = speeches.find((s) => s.slotId === "defendant")!;
+    expect(pro.playerType).toBe("human");
+    expect(pro.text).toContain("责任在被告");
+    expect(def.playerType).toBe("human");
+    expect(def.text).toContain("我无过错");
+  });
+});

@@ -625,3 +625,107 @@ describe("werewolf Round2：自由窗口动作牌 / 幽灵观战 / 复盘", () =
     expect(report.myKeyActions.length).toBeGreaterThan(0);
   });
 });
+
+// ===== R4-05: 真人混入 AI — 角色标识 / 真人离开 AI 接管 / 真人行动 =====
+describe("werewolf R4-05 真人混入", () => {
+  let ctx: { mod: WerewolfModule; dbmod: DbModule; dir: string; broadcast: ReturnType<typeof vi.fn>; sendToUser: ReturnType<typeof vi.fn> };
+
+  beforeEach(async () => { ctx = await loadWerewolf(); });
+  afterAll(() => {
+    try { ctx.dbmod.db.close(); } catch { /* ignore */ }
+    delete process.env.DB_PATH;
+    try { rmSync(ctx.dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it("真人入座后公开快照带 playerType=human，AI 座位为 ai", () => {
+    const gameId = ctx.mod.createGame("host-1");
+    ctx.mod.joinGame(gameId, "host-1", { nickname: "主人", avatarType: "capsule", avatarRef: "" });
+    ctx.mod.startGame(gameId, "host-1");
+    const snap = ctx.mod.getSnapshotForPlayer(gameId, "host-1");
+    const me = snap.players.find((p) => p.userId === "host-1")!;
+    expect(me.isAI).toBe(false);
+    expect(me.playerType).toBe("human");
+    // 其余 8 个 AI 座位
+    const ais = snap.players.filter((p) => p.isAI);
+    expect(ais.length).toBe(8);
+    expect(ais.every((p) => p.playerType === "ai")).toBe(true);
+  });
+
+  it("startGame：真人不足 9 人时自动用 AI 名人填满座位", () => {
+    const gameId = ctx.mod.createGame("host-1");
+    ctx.mod.joinGame(gameId, "host-1", { nickname: "主人", avatarType: "capsule", avatarRef: "" });
+    ctx.mod.startGame(gameId, "host-1");
+    const snap = ctx.mod.getSnapshotForPlayer(gameId, "host-1");
+    expect(snap.players.length).toBe(9);
+    // 至少 1 真人 + 8 AI
+    expect(snap.players.filter((p) => !p.isAI).length).toBe(1);
+    expect(snap.players.filter((p) => p.isAI).length).toBe(8);
+  });
+
+  it("replaceHumanWithAI：真人中途离开，座位交 AI 接管（isAI/playerType 翻转）", () => {
+    const gameId = ctx.mod.createGame("host-1");
+    ctx.mod.joinGame(gameId, "host-1", { nickname: "主人", avatarType: "capsule", avatarRef: "" });
+    ctx.mod.startGame(gameId, "host-1");
+    const ok = ctx.mod.replaceHumanWithAI(gameId, "host-1");
+    expect(ok).toBe(true);
+    const snap = ctx.mod.getSnapshotForPlayer(gameId, "host-1");
+    // host-1 已变成 ai:0，公开列表里不再有 userId=host-1
+    expect(snap.players.some((p) => p.userId === "host-1")).toBe(false);
+    const seat0 = snap.players.find((p) => p.seat === 0)!;
+    expect(seat0.isAI).toBe(true);
+    expect(seat0.playerType).toBe("ai");
+    expect(seat0.userId).toBe("ai:0");
+  });
+
+  it("replaceHumanWithAI：对 AI 玩家 / 不存在用户 返回 false", () => {
+    const gameId = ctx.mod.createGame("host-1");
+    ctx.mod.joinGame(gameId, "host-1", { nickname: "主人", avatarType: "capsule", avatarRef: "" });
+    ctx.mod.startGame(gameId, "host-1");
+    expect(ctx.mod.replaceHumanWithAI(gameId, "ghost-user")).toBe(false);
+    // 第一次接管 host-1 -> true
+    expect(ctx.mod.replaceHumanWithAI(gameId, "host-1")).toBe(true);
+    // 已变成 AI，再次调用返回 false
+    expect(ctx.mod.replaceHumanWithAI(gameId, "host-1")).toBe(false);
+  });
+
+  it("真人夜晚刀人：human 为狼时 night_kill 记录狼人票", () => {
+    const gameId = ctx.mod.createGame("host-1");
+    ctx.mod.joinGame(gameId, "host-1", { nickname: "主人", avatarType: "capsule", avatarRef: "" });
+    ctx.mod.startGame(gameId, "host-1");
+    // 强制把 host-1 设为狼、夜晚狼阶段
+    const g = getInternal(ctx.mod, gameId);
+    const me = g.players.find((p) => p.userId === "host-1")!;
+    me.role = "werewolf";
+    g.phase = "night";
+    g.nightStage = "wolf";
+    // 找一个非狼存活目标
+    const target = g.players.find((p) => p.seat !== me.seat && p.role !== "werewolf")!;
+    ctx.mod.handleAction(gameId, "host-1", { type: "night_kill", targetSeat: target.seat });
+    expect(g.nightState.wolfVotes.get(me.seat)).toBe(target.seat);
+  });
+
+  it("真人白天投票：day_vote 记录真人票并广播 vote_cast", () => {
+    const gameId = ctx.mod.createGame("host-1");
+    ctx.mod.joinGame(gameId, "host-1", { nickname: "主人", avatarType: "capsule", avatarRef: "" });
+    ctx.mod.startGame(gameId, "host-1");
+    const g = getInternal(ctx.mod, gameId);
+    g.phase = "vote";
+    const me = g.players.find((p) => p.userId === "host-1")!;
+    me.alive = true;
+    const target = g.players.find((p) => p.seat !== me.seat)!;
+    ctx.mod.handleAction(gameId, "host-1", { type: "day_vote", targetSeat: target.seat });
+    const votes = (g as unknown as { dayState: { votes: Map<number, number | null> } }).dayState.votes;
+    expect(votes.get(me.seat)).toBe(target.seat);
+    expect(ctx.broadcast).toHaveBeenCalledWith(gameId, expect.objectContaining({ type: "vote_cast", seat: me.seat }));
+  });
+
+  it("真人白天发言：day_speech 广播 speech 事件", () => {
+    const gameId = ctx.mod.createGame("host-1");
+    ctx.mod.joinGame(gameId, "host-1", { nickname: "主人", avatarType: "capsule", avatarRef: "" });
+    ctx.mod.startGame(gameId, "host-1");
+    const g = getInternal(ctx.mod, gameId);
+    g.phase = "speech";
+    ctx.mod.handleAction(gameId, "host-1", { type: "day_speech", text: "我是好人，我觉得 3 号像狼" });
+    expect(ctx.broadcast).toHaveBeenCalledWith(gameId, expect.objectContaining({ type: "speech", text: expect.stringContaining("3 号像狼") }));
+  });
+});
