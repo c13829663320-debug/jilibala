@@ -4,9 +4,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   ArrowLeft, Copy, Check, RefreshCw, Users, Plus, Hash, Loader2, LogIn,
+  Lock, KeyRound,
 } from 'lucide-react'
 import type { CreateRoomRequest, RoomScene, SocialRoom } from '@balabala/shared'
 import { SCENE_LABELS } from './onboarding/onboardingProgress'
+import { setRoomPassword } from './room-permissions/roomAuthStore'
 import './multiplayer-lobby.css'
 
 type Tab = 'list' | 'create' | 'join'
@@ -67,6 +69,7 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
   const [scene, setScene] = useState<RoomScene>('plaza')
   const [isPublic, setIsPublic] = useState(true)
   const [maxPlayers, setMaxPlayers] = useState(8)
+  const [password, setPassword] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
@@ -74,6 +77,16 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
   const [code, setCode] = useState('')
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState('')
+
+  // —— R4-02: 密码房加入弹窗 ——
+  const [pendingJoinRoom, setPendingJoinRoom] = useState<SocialRoom | null>(null)
+  const [joinPw, setJoinPw] = useState('')
+  const [joinPwError, setJoinPwError] = useState('')
+
+  const enterRoom = (room: SocialRoom, pw?: string) => {
+    if (pw !== undefined) setRoomPassword(pw)
+    onEnterRoom(room.id)
+  }
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault()
@@ -83,6 +96,7 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
     setCreating(true)
     try {
       const body: CreateRoomRequest = { name: trimmed, scene, isPublic, maxPlayers }
+      if (password.trim()) body.password = password.trim()
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,12 +131,27 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
         throw new Error('加入房间失败')
       }
       const data = (await res.json()) as { room: SocialRoom }
-      onEnterRoom(data.room.id)
+      // R4-02: 密码房需先输入密码
+      if (data.room.hasPassword) {
+        setPendingJoinRoom(data.room)
+        setJoinPw('')
+        setJoinPwError('')
+      } else {
+        enterRoom(data.room)
+      }
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : '加入房间失败')
     } finally {
       setJoining(false)
     }
+  }
+
+  const handlePasswordJoin = (e: FormEvent) => {
+    e.preventDefault()
+    setJoinPwError('')
+    if (!pendingJoinRoom) return
+    if (!joinPw.trim()) { setJoinPwError('请输入密码'); return }
+    enterRoom(pendingJoinRoom, joinPw.trim())
   }
 
   return (
@@ -189,7 +218,15 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
             ) : (
               <div className="mp-room-grid">
                 {rooms.map((room) => (
-                  <RoomCard key={room.id} room={room} onJoin={() => onEnterRoom(room.id)} />
+                  <RoomCard key={room.id} room={room} onJoin={(r) => {
+                    if (r.hasPassword) {
+                      setPendingJoinRoom(r)
+                      setJoinPw('')
+                      setJoinPwError('')
+                    } else {
+                      enterRoom(r)
+                    }
+                  }} />
                 ))}
               </div>
             )}
@@ -250,6 +287,19 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
               </div>
             </div>
 
+            <label className="mp-field">
+              <span className="mp-label">房间密码（可选）</span>
+              <input
+                className="mp-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="留空则无密码"
+                maxLength={24}
+              />
+              <span className="mp-switch-hint">设置后，加入房间需输入密码</span>
+            </label>
+
             {createError && <div className="mp-error">{createError}</div>}
 
             <button type="submit" className="mp-primary-btn mp-submit" disabled={creating}>
@@ -283,11 +333,64 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
           </form>
         )}
       </div>
+
+      {/* R4-02: 密码房加入弹窗 */}
+      {pendingJoinRoom && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.7)',
+        }}>
+          <form onSubmit={handlePasswordJoin} style={{
+            background: '#1a1a1a', border: '1px solid #333', borderRadius: 12,
+            padding: 24, width: 320, color: '#fff',
+          }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>
+              <KeyRound size={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />
+              输入房间密码
+            </h3>
+            <p style={{ margin: '0 0 16px', color: '#888', fontSize: 12 }}>
+              「{pendingJoinRoom.name}」需要密码才能加入
+            </p>
+            <input
+              autoFocus
+              className="mp-input"
+              type="password"
+              value={joinPw}
+              onChange={(e) => setJoinPw(e.target.value)}
+              placeholder="房间密码"
+              style={{ width: '100%', marginBottom: 8 }}
+            />
+            {joinPwError && <div style={{ color: '#ff6b6b', fontSize: 12, marginBottom: 8 }}>{joinPwError}</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => setPendingJoinRoom(null)}
+                style={{
+                  flex: 1, background: '#333', color: '#fff', border: 'none',
+                  borderRadius: 8, padding: '8px 0', cursor: 'pointer',
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                style={{
+                  flex: 1, background: '#FFD600', color: '#000', border: 'none',
+                  borderRadius: 8, padding: '8px 0', cursor: 'pointer', fontWeight: 700,
+                }}
+              >
+                加入
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
 
-function RoomCard({ room, onJoin }: { room: SocialRoom; onJoin: () => void }) {
+function RoomCard({ room, onJoin }: { room: SocialRoom; onJoin: (room: SocialRoom) => void }) {
   const [copied, setCopied] = useState(false)
   const full = room.playerCount >= room.maxPlayers
 
@@ -305,7 +408,11 @@ function RoomCard({ room, onJoin }: { room: SocialRoom; onJoin: () => void }) {
   return (
     <div className="mp-room-card">
       <div className="mp-room-head">
-        <b className="mp-room-name">{room.name}</b>
+        <b className="mp-room-name">
+          {room.name}
+          {room.isLocked && <Lock size={12} style={{ marginLeft: 4, verticalAlign: '-1px', color: '#ff6b6b' }} />}
+          {room.hasPassword && <KeyRound size={12} style={{ marginLeft: 4, verticalAlign: '-1px', color: '#FFD600' }} />}
+        </b>
         <span className={`mp-room-status ${full ? 'is-full' : ''}`}>
           {full ? '已满' : `${room.playerCount}/${room.maxPlayers}`}
         </span>
@@ -321,7 +428,7 @@ function RoomCard({ room, onJoin }: { room: SocialRoom; onJoin: () => void }) {
             {copied ? <Check size={12} /> : <Copy size={12} />}
             {room.code}
           </button>
-          <button className="mp-join-btn" onClick={onJoin} disabled={full}>
+          <button className="mp-join-btn" onClick={() => onJoin(room)} disabled={full}>
             {full ? '已满' : '加入'}
           </button>
         </div>

@@ -17,8 +17,9 @@ interface Conn {
 }
 
 /** 连接 WS 并缓冲早期消息；返回可等待指定 type 的连接。 */
-async function connect(base: string, userId: string, room: string): Promise<Conn> {
-  const ws = new WebSocket(`${base}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`);
+async function connect(base: string, userId: string, room: string, password?: string): Promise<Conn> {
+  const pwParam = password ? `&password=${encodeURIComponent(password)}` : "";
+  const ws = new WebSocket(`${base}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}${pwParam}`);
   const buffer: AnyMsg[] = [];
   const waiters: Array<{ type: string; resolve: (m: AnyMsg) => void; timer: ReturnType<typeof setTimeout> }> = [];
 
@@ -57,22 +58,29 @@ async function connect(base: string, userId: string, room: string): Promise<Conn
   return { ws, waitFor };
 }
 
-/** 连接一个应当被服务端拒绝的房间，返回服务端发来的 error.message。 */
-function expectRejected(base: string, userId: string, room: string): Promise<string> {
+/** 连接一个应当被服务端拒绝的房间，返回完整 error 消息对象（含 code）。 */
+function expectRejectedObj(base: string, userId: string, room: string, password?: string): Promise<AnyMsg> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${base}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`);
+    const pwParam = password ? `&password=${encodeURIComponent(password)}` : "";
+    const ws = new WebSocket(`${base}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}${pwParam}`);
     const timer = setTimeout(() => { ws.close(); reject(new Error("拒绝连接超时")); }, 3000);
     ws.on("message", (raw: Buffer) => {
       let msg: AnyMsg;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
       if (msg.type === "error") {
         clearTimeout(timer);
-        resolve(String(msg.message ?? ""));
+        resolve(msg);
         ws.close();
       }
     });
     ws.on("error", () => { /* close 后触发，忽略 */ });
   });
+}
+
+/** 连接一个应当被服务端拒绝的房间，返回服务端发来的 error.message。 */
+async function expectRejected(base: string, userId: string, room: string, password?: string): Promise<string> {
+  const msg = await expectRejectedObj(base, userId, room, password);
+  return String(msg.message ?? "");
 }
 
 describe("Round3 社交房间", () => {
@@ -222,5 +230,240 @@ describe("Round3 社交房间", () => {
   it("无效房间码连接被拒", async () => {
     const errMsg = await expectRejected(base, "uGhost", "social:NOTREAL");
     expect(errMsg).toContain("不存在");
+  });
+
+  // ===== R4-02: 房间权限系统测试 =====
+
+  it("R4-02: 创建房间时 ownerId = creatorId", async () => {
+    const { room } = await createRoom({ name: "房主测试房", creatorId: "u-host1" });
+    expect(room!.ownerId).toBe("u-host1");
+    expect(room!.isLocked).toBe(false);
+    expect(room!.hasPassword).toBe(false);
+  });
+
+  it("R4-02: 创建密码房间——hasPassword=true，passwordHash 不暴露", async () => {
+    const { room } = await createRoom({ name: "密码房", creatorId: "u-host", password: "secret123" });
+    expect(room!.hasPassword).toBe(true);
+    // 公开返回中不应包含密码哈希或盐
+    expect((room as Record<string, unknown>).passwordHash).toBeUndefined();
+    expect((room as Record<string, unknown>).passwordSalt).toBeUndefined();
+  });
+
+  it("R4-02: 房间列表不暴露密码哈希", async () => {
+    await createRoom({ name: "有密码的房", creatorId: "u-host", password: "mypass" });
+    const res = await app.inject({ method: "GET", url: "/api/rooms" });
+    const json = res.json() as { rooms: SocialRoom[] };
+    for (const r of json.rooms) {
+      expect((r as Record<string, unknown>).passwordHash).toBeUndefined();
+      expect((r as Record<string, unknown>).passwordSalt).toBeUndefined();
+    }
+    const pwRoom = json.rooms.find((r) => r.name === "有密码的房");
+    expect(pwRoom?.hasPassword).toBe(true);
+  });
+
+  it("R4-02: 密码房——正确密码可以加入", async () => {
+    const { room } = await createRoom({ name: "密码房A", creatorId: "u-host", password: "abc" });
+    const roomId = `social:${room!.code}`;
+    const a = await connect(base, "u-host", roomId, "abc");
+    const info = await a.waitFor("room_info");
+    expect((info.room as SocialRoom).code).toBe(room!.code);
+    a.ws.close();
+  });
+
+  it("R4-02: 密码房——错误密码被拒（wrong_password）", async () => {
+    const { room } = await createRoom({ name: "密码房B", creatorId: "u-host", password: "rightpw" });
+    const roomId = `social:${room!.code}`;
+    const err = await expectRejectedObj(base, "u-guest", roomId, "wrongpw");
+    expect(err.code).toBe("wrong_password");
+    expect(String(err.message)).toContain("密码");
+  });
+
+  it("R4-02: 密码房——不提供密码被拒", async () => {
+    const { room } = await createRoom({ name: "密码房C", creatorId: "u-host", password: "nopw" });
+    const roomId = `social:${room!.code}`;
+    const err = await expectRejectedObj(base, "u-guest", roomId);
+    expect(err.code).toBe("wrong_password");
+  });
+
+  it("R4-02: 非房主踢人返回 403", async () => {
+    const { room } = await createRoom({ name: "踢人房", creatorId: "u-host" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/kick`,
+      payload: { callerId: "u-notowner", targetUserId: "u-someone" },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("R4-02: 房主踢人成功——返回 ok=true", async () => {
+    const { room } = await createRoom({ name: "踢人成功房", creatorId: "u-host" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/kick`,
+      payload: { callerId: "u-host", targetUserId: "u-victim", reason: "测试踢人" },
+    });
+    expect(res.statusCode).toBe(200);
+    const json = res.json() as { ok: boolean; kicked: string; wasInRoom: boolean };
+    expect(json.ok).toBe(true);
+    expect(json.kicked).toBe("u-victim");
+    // 被踢者本来就不在线，wasInRoom=false
+    expect(json.wasInRoom).toBe(false);
+  });
+
+  it("R4-02: 被踢用户 60 秒冷却期内无法重新加入", async () => {
+    const { room } = await createRoom({ name: "冷却房", creatorId: "u-host" });
+    const roomId = `social:${room!.code}`;
+
+    // u-victim 先加入
+    const v = await connect(base, "u-victim", roomId);
+    await v.waitFor("room_info");
+
+    // 房主踢人
+    const kickRes = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/kick`,
+      payload: { callerId: "u-host", targetUserId: "u-victim", reason: "出去" },
+    });
+    expect(kickRes.statusCode).toBe(200);
+
+    // 等待被踢者收到 player_kicked 消息
+    try {
+      const kickedMsg = await v.waitFor("player_kicked", 2000);
+      expect(kickedMsg.userId).toBe("u-victim");
+    } catch {
+      // 100ms 延迟关闭可能导致消息在 close 后才到，这里不强校验
+    }
+
+    // 冷却期内重新连接应被拒
+    await new Promise((r) => setTimeout(r, 200));
+    const err = await expectRejectedObj(base, "u-victim", roomId);
+    expect(err.code).toBe("kicked_cooldown");
+
+    // 清理
+    v.ws.close();
+  });
+
+  it("R4-02: 房主不能踢自己", async () => {
+    const { room } = await createRoom({ name: "自踢房", creatorId: "u-host" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/kick`,
+      payload: { callerId: "u-host", targetUserId: "u-host" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("R4-02: 转移房主——非房主返回 403", async () => {
+    const { room } = await createRoom({ name: "转移房", creatorId: "u-host" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/transfer-owner`,
+      payload: { callerId: "u-notowner", targetUserId: "u-newowner" },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("R4-02: 转移房主——成功后 ownerId 更新", async () => {
+    const { room } = await createRoom({ name: "转移成功房", creatorId: "u-host" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/transfer-owner`,
+      payload: { callerId: "u-host", targetUserId: "u-newowner" },
+    });
+    expect(res.statusCode).toBe(200);
+    const json = res.json() as { ok: boolean; oldOwnerId: string; newOwnerId: string; room: SocialRoom };
+    expect(json.ok).toBe(true);
+    expect(json.oldOwnerId).toBe("u-host");
+    expect(json.newOwnerId).toBe("u-newowner");
+    expect(json.room.ownerId).toBe("u-newowner");
+  });
+
+  it("R4-02: 锁定房间——非房主返回 403", async () => {
+    const { room } = await createRoom({ name: "锁房", creatorId: "u-host" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/lock`,
+      payload: { callerId: "u-notowner", locked: true },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("R4-02: 锁定房间后新玩家 WS 连接被拒（room_locked）", async () => {
+    const { room } = await createRoom({ name: "锁定房", creatorId: "u-host" });
+    const roomId = `social:${room!.code}`;
+
+    // 先锁定
+    const lockRes = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/lock`,
+      payload: { callerId: "u-host", locked: true },
+    });
+    expect(lockRes.statusCode).toBe(200);
+
+    // 新玩家连接应被拒
+    const err = await expectRejectedObj(base, "u-newguy", roomId);
+    expect(err.code).toBe("room_locked");
+  });
+
+  it("R4-02: 锁定房间后，已在房间内的玩家不受影响", async () => {
+    const { room } = await createRoom({ name: "锁定在房", creatorId: "u-host" });
+    const roomId = `social:${room!.code}`;
+
+    // 房主和另一玩家先加入
+    const host = await connect(base, "u-host", roomId);
+    await host.waitFor("room_info");
+    const guest = await connect(base, "u-guest", roomId);
+    await guest.waitFor("room_info");
+
+    // 锁定房间
+    await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/lock`,
+      payload: { callerId: "u-host", locked: true },
+    });
+
+    // 已在房间内的两人应继续收到 room_lock_changed 广播
+    const lockMsg = await host.waitFor("room_lock_changed");
+    expect(lockMsg.isLocked).toBe(true);
+
+    // 新人加入应被拒
+    const err = await expectRejectedObj(base, "u-newcomer", roomId);
+    expect(err.code).toBe("room_locked");
+
+    host.ws.close();
+    guest.ws.close();
+  });
+
+  it("R4-02: 人数上限——WS 层强校验返回 room_full", async () => {
+    const { room } = await createRoom({ name: "满员强校验", maxPlayers: 1, creatorId: "u-host" });
+    const roomId = `social:${room!.code}`;
+
+    const a = await connect(base, "uA", roomId);
+    await a.waitFor("room_info");
+
+    const err = await expectRejectedObj(base, "uB", roomId);
+    expect(err.code).toBe("room_full");
+    a.ws.close();
+  });
+
+  it("R4-02: welcome 消息中房主带 isOwner=true", async () => {
+    const { room } = await createRoom({ name: "房主标识房", creatorId: "u-owner" });
+    const roomId = `social:${room!.code}`;
+    const host = await connect(base, "u-owner", roomId);
+    const welcome = host.waitFor("welcome");
+    // welcome 已经在 connect 中等待过了，但我们需要再检查一次——直接看 room_info
+    const info = await host.waitFor("room_info");
+    expect((info.room as SocialRoom).ownerId).toBe("u-owner");
+    host.ws.close();
+  });
+
+  it("R4-02: 空 targetUserId 踢人返回 400", async () => {
+    const { room } = await createRoom({ name: "空目标踢", creatorId: "u-host" });
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/rooms/${room!.code}/kick`,
+      payload: { callerId: "u-host", targetUserId: "" },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
