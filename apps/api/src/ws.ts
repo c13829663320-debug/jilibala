@@ -2,6 +2,9 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   type WSUser,
   type CourtRoomState,
@@ -15,6 +18,7 @@ import {
   type Perspective,
   type EmoteType,
   type SocialRoom,
+  type ReportCategory,
 } from "@balabala/shared";
 import { getCourtCase } from "./db.js";
 import { getSocialRoom, verifyRoomPassword, isUserKicked, sanitizeRoom } from "./room-routes.js";
@@ -309,6 +313,41 @@ export function getSceneState(scene: SceneId, sessionId: string): SceneRoomState
 /** 向场景房间广播事件。 */
 export function broadcastSceneEvent(scene: SceneId, sessionId: string, event: Record<string, unknown>): void {
   broadcastToRoom(`${scene}:${sessionId}`, { type: "scene_event", scene, event });
+}
+
+// ===== Round4 R4-03：安全模块 · 举报日志 =====
+/**
+ * reports.log 路径：apps/api/.data/reports.log（相对本文件 src/ws.ts 上一级）。
+ * 用 import.meta.url 定位，避免依赖 process.cwd()。
+ */
+const REPORTS_LOG_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".data", "reports.log");
+
+/** 合法举报分类白名单（与前端 normalizeCategory 对齐） */
+const VALID_REPORT_CATEGORIES: ReadonlySet<string> = new Set([
+  "harassment", "spam", "abuse", "cheating", "other",
+]);
+
+export interface ReportLogEntry {
+  reportedAt: string;
+  reporterUserId: string;
+  reporterNickname: string;
+  targetUserId: string;
+  reason: string;
+  category: ReportCategory;
+  room: string;
+}
+
+/**
+ * 追加一条举报到 reports.log（每行一个 JSON）。
+ * 目录不存在时自动创建；写入失败不影响主流程（吞掉异常）。
+ */
+export function appendReportLog(entry: ReportLogEntry): void {
+  try {
+    mkdirSync(dirname(REPORTS_LOG_PATH), { recursive: true });
+    appendFileSync(REPORTS_LOG_PATH, JSON.stringify(entry) + "\n", "utf-8");
+  } catch (e) {
+    console.warn("[ws] 写入 reports.log 失败:", e);
+  }
 }
 
 // ===== 注册 WebSocket 路由 =====
@@ -780,6 +819,28 @@ export function registerWebSocket(app: FastifyInstance): void {
               safeSend(u.socket, { type: "talking", userId, intensity } satisfies WSMessage);
             }
           }
+          break;
+        }
+        case "report_user": {
+          // Round4 R4-03：安全模块举报 —— 记录到 .data/reports.log（每行 JSON）
+          const targetUserId = String(data.targetUserId ?? "").trim();
+          if (!targetUserId) {
+            safeSend(socket, { type: "report_ack", accepted: false } satisfies WSMessage);
+            return;
+          }
+          const reason = String(data.reason ?? "").slice(0, 500);
+          const rawCategory = String(data.category ?? "other");
+          const category = (VALID_REPORT_CATEGORIES.has(rawCategory) ? rawCategory : "other") as ReportCategory;
+          appendReportLog({
+            reportedAt: new Date().toISOString(),
+            reporterUserId: userId,
+            reporterNickname: nickname,
+            targetUserId,
+            reason,
+            category,
+            room: roomId,
+          });
+          safeSend(socket, { type: "report_ack", accepted: true, reportedAt: new Date().toISOString() } satisfies WSMessage);
           break;
         }
         case "ping": {

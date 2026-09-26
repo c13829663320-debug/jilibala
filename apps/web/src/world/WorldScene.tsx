@@ -224,9 +224,13 @@ interface WorldSceneProps {
   manifest: WorldManifest | null
   playersRef: MutableRefObject<Map<string, RemotePlayer>>
   remoteUserIds: string[]
+  /** 本地玩家位置（R4-03 LOD 距离分级） */
+  localPosRef?: MutableRefObject<{ x: number; z: number }>
+  /** 点击远端玩家时触发（R4-03 弹出玩家上下文菜单） */
+  onRemotePlayerSelect?: (userId: string, clientX: number, clientY: number) => void
 }
 
-export default function WorldScene({ world, manifest, playersRef, remoteUserIds }: WorldSceneProps) {
+export default function WorldScene({ world, manifest, playersRef, remoteUserIds, localPosRef, onRemotePlayerSelect }: WorldSceneProps) {
   // 在 manifest 里按 assetId 找建筑资产
   const assetFor = (building: BuildingConfig) =>
     manifest?.assets.find((a) => a.id === building.assetId) ?? undefined
@@ -287,9 +291,15 @@ export default function WorldScene({ world, manifest, playersRef, remoteUserIds 
       {/* 边界山（一圈大锥，视觉上封闭世界） */}
       <BoundaryMountains />
 
-      {/* 远端玩家 */}
+      {/* 远端玩家（R4-03：传入本地位置做 LOD 分级；点击弹上下文菜单） */}
       {remoteUserIds.map((uid) => (
-        <RemoteAvatar key={uid} userId={uid} playersRef={playersRef} />
+        <RemoteAvatar
+          key={uid}
+          userId={uid}
+          playersRef={playersRef}
+          localPosRef={localPosRef}
+          onSelect={onRemotePlayerSelect}
+        />
       ))}
     </>
   )

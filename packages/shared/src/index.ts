@@ -536,12 +536,46 @@ export type WSMessage =
   | { type: 'player_reconnecting'; userId: string; graceMs: number }
   /** 宽限期已过、玩家确认离开：此时才真正从房间移除（与旧版 user_left 并存，旧客户端走 user_left）。 */
   | { type: 'player_left'; userId: string }
+  // —— Round4 R4-03：安全模块举报（客户端→服务端，服务端记录到 reports.log 后回执） ——
+  | { type: 'report_user'; targetUserId: string; reason: string; category: ReportCategory }
+  | { type: 'report_ack'; accepted: boolean; reportedAt?: string }
   | { type: 'pong' }
   // —— Round4 R4-02: 房间权限系统 ——
   | { type: 'player_kicked'; userId: string; reason: string }
   | { type: 'room_owner_changed'; oldOwnerId: string; newOwnerId: string }
   | { type: 'room_lock_changed'; isLocked: boolean }
   | { type: 'error'; message: string; code?: string };
+
+// ===== Round4 R4-03：化身换装分层系统 =====
+/** 化身装备分层：每层一个可选项 id，叠加渲染。 */
+export type OutfitLayer = 'base' | 'top' | 'bottom' | 'accessory' | 'hair'
+
+/** 某一层里一个可选装备的元数据（目录用，纯展示） */
+export interface OutfitOption {
+  /** 装备 id（在该层内唯一） */
+  id: string
+  /** 中文展示名 */
+  label: string
+  /** 色板（程序化占位渲染时用的主色） */
+  swatch: string
+}
+
+/** 当前穿戴：每层 → 选中的 option id */
+export type OutfitState = Record<OutfitLayer, string>
+
+// ===== Round4 R4-03：安全模块（静音 / 屏蔽 / 举报） =====
+/** 对某玩家可执行的安全操作 */
+export type SafetyAction = 'mute' | 'unmute' | 'block' | 'unblock' | 'report'
+
+/** 举报分类（与服务端 reports.log 的 category 对齐） */
+export type ReportCategory = 'harassment' | 'spam' | 'abuse' | 'cheating' | 'other'
+
+/** 客户端发送举报时携带的结构化信息（report_user WS 消息的载荷） */
+export interface ReportPayload {
+  targetUserId: string
+  reason: string
+  category: ReportCategory
+}
 
 
 // ===== M13: 趣味法庭 · 全屏 3D + 完整案件状态机 =====
