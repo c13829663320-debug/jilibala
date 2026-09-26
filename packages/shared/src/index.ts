@@ -540,10 +540,15 @@ export type WSMessage =
   | { type: 'report_user'; targetUserId: string; reason: string; category: ReportCategory }
   | { type: 'report_ack'; accepted: boolean; reportedAt?: string }
   | { type: 'pong' }
+  | { type: 'pong' }
   // —— Round4 R4-02: 房间权限系统 ——
   | { type: 'player_kicked'; userId: string; reason: string }
   | { type: 'room_owner_changed'; oldOwnerId: string; newOwnerId: string }
   | { type: 'room_lock_changed'; isLocked: boolean }
+  // —— Round4 R4-04：语音不可用时的文字喊话回落（3D 头顶气泡） ——
+  | { type: 'text_shout'; userId: string; nickname: string; text: string; at: number }
+  // —— Round4 R4-04：客户端渲染/运行时错误上报（可选） ——
+  | { type: 'client_error'; userId?: string; message: string; componentStack?: string; at: number }
   | { type: 'error'; message: string; code?: string };
 
 // ===== Round4 R4-03：化身换装分层系统 =====

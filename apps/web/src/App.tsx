@@ -11,6 +11,7 @@ import TopNav, { type TopView } from './TopNav'
 import CourtroomShell, { type EvidenceMeta } from './CourtroomShell'
 import { IdentityProvider, useIdentity } from './identity'
 import ErrorBoundary from './ErrorBoundary'
+import GlobalErrorBoundary from './error-boundary/GlobalErrorBoundary'
 import LoadingFallback from './LoadingFallback'
 import InterestPicker from './onboarding/InterestPicker'
 import QuickStartCard from './onboarding/QuickStartCard'
@@ -430,11 +431,14 @@ function ApiHealthBanner() {
 
 function App() {
   return (
-    <IdentityProvider>
-      <ErrorBoundary>
-        <AppInner />
-      </ErrorBoundary>
-    </IdentityProvider>
+    // R4-04: 最外层全局错误边界——任何子树渲染崩溃都不白屏，显示品牌化错误页
+    <GlobalErrorBoundary>
+      <IdentityProvider>
+        <ErrorBoundary>
+          <AppInner />
+        </ErrorBoundary>
+      </IdentityProvider>
+    </GlobalErrorBoundary>
   )
 }
 

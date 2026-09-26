@@ -20,6 +20,19 @@ import { useSpatialVoice } from './voice/useSpatialVoice'
 import { getRoomPassword, clearRoomPassword } from './room-permissions/roomAuthStore'
 import { useSafety } from './safety/use-safety'
 import PlayerContextMenu, { type PlayerTarget } from './safety/PlayerContextMenu'
+import TextShoutLayer, { type ActiveShout } from './voice/text-shout'
+import MicPermissionGuide from './voice/MicPermissionGuide'
+import {
+  VoiceFallbackMachine,
+  type VoiceFallbackState,
+} from './voice/voice-fallback'
+import {
+  initialWsErrorState,
+  reduceWsError,
+  wsBannerText,
+  canMutate,
+  type WsErrorState,
+} from './error-boundary/ws-error-handler'
 import './plaza-3d.css'
 import './onboarding/onboarding.css'
 
@@ -64,6 +77,27 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const [roomInfo, setRoomInfo] = useState<SocialRoom | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
 
+  // ===== R4-04: 文字喊话气泡（userId → 活跃喊话）=====
+  const [shouts, setShouts] = useState<Map<string, ActiveShout>>(() => new Map())
+  // ===== R4-04: 语音→文字 回落状态机 =====
+  const voiceMachineRef = useRef(new VoiceFallbackMachine())
+  const [voiceFallback, setVoiceFallback] = useState<VoiceFallbackState>(voiceMachineRef.current.getState())
+  const dispatchVoice = useCallback((ev: Parameters<VoiceFallbackMachine['send']>[0]) => {
+    setVoiceFallback(voiceMachineRef.current.send(ev))
+  }, [])
+  const [shoutDraft, setShoutDraft] = useState('')
+  // ===== R4-04: WS 连接错误状态（离线只读 / 横幅 / 手动重连）=====
+  const [wsErr, setWsErr] = useState<WsErrorState>(() => initialWsErrorState())
+  const dispatchWs = useCallback((ev: Parameters<typeof reduceWsError>[1]) => {
+    setWsErr((s) => reduceWsError(s, ev))
+  }, [])
+  const [reconnectTick, setReconnectTick] = useState(0)
+  // R4-04: 离线只读——keydown/高频回调里读 ref，避免 effect 反复重订阅
+  const wsOnlineRef = useRef(true)
+  useEffect(() => {
+    wsOnlineRef.current = canMutate(wsErr)
+  }, [wsErr])
+
   // ===== 开放世界运行时（mutable ref，高频读写不走 React state） =====
   const [world] = useState<WorldRuntime>(() => createWorldRuntime())
   const [colliders] = useState(() => buildColliders())
@@ -76,6 +110,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<number | null>(null)
   const shouldReconnect = useRef(true)
+  const wsFailuresRef = useRef(0)
   // 本地玩家位置（供空间音频 AudioListener 使用）
   const localPosRef = useRef({ x: world.player.x, z: world.player.z })
   // 本地说话强度上报节流
@@ -216,13 +251,40 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         const m = msg as unknown as {
           type: string
           userId?: string
+          nickname?: string
           emote?: EmoteType
           durationMs?: number
           intensity?: number
           room?: SocialRoom
           playerCount?: number
+          text?: string
         }
-        if (m.type === 'emote' && m.userId && m.emote) {
+        // —— R4-04: 文字喊话 → 在该玩家头顶 3D 气泡显示 3s ——
+        if (m.type === 'text_shout' && m.userId && typeof m.text === 'string') {
+          const now = performance.now()
+          const id = `${m.userId}-${now}`
+          setShouts((prev) => {
+            const next = new Map(prev)
+            next.set(m.userId!, {
+              id,
+              userId: m.userId!,
+              nickname: m.nickname ?? '',
+              text: m.text!,
+              createdAt: now,
+              expiresAt: now + 3000,
+            })
+            return next
+          })
+          window.setTimeout(() => {
+            setShouts((prev) => {
+              const cur = prev.get(m.userId!)
+              if (!cur || cur.id !== id) return prev
+              const next = new Map(prev)
+              next.delete(m.userId!)
+              return next
+            })
+          }, 3000)
+        } else if (m.type === 'emote' && m.userId && m.emote) {
           const p = playersRef.current.get(m.userId)
           if (p) {
             p.emote = m.emote
@@ -245,10 +307,18 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         }
       }
 
+      ws.onopen = () => {
+        wsFailuresRef.current = 0
+        dispatchWs({ type: 'OPEN' })
+      }
       ws.onclose = () => {
         wsRef.current = null
-        if (shouldReconnect.current) {
-          reconnectTimer.current = window.setTimeout(connect, 3000)
+        wsFailuresRef.current += 1
+        dispatchWs({ type: 'CLOSE' })
+        // R4-04: 指数退避自动重连（1s→2s→…→30s）；失败 5 次后进入离线只读，等手动重连
+        if (shouldReconnect.current && wsFailuresRef.current < 5) {
+          const delay = Math.min(1000 * Math.pow(2, wsFailuresRef.current - 1), 30000)
+          reconnectTimer.current = window.setTimeout(connect, delay)
         }
       }
       ws.onerror = () => { ws.close() }
@@ -261,7 +331,14 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [user?.userId, showDiscuss, roomId, upsertPlayer, removePlayer, toast])
+  }, [user?.userId, showDiscuss, roomId, upsertPlayer, removePlayer, toast, dispatchWs, reconnectTick])
+
+  // R4-04: 手动重连（离线横幅按钮）——重置失败计数并重跑连接 effect
+  const manualReconnect = useCallback(() => {
+    wsFailuresRef.current = 0
+    dispatchWs({ type: 'MANUAL_RETRY' })
+    setReconnectTick((n) => n + 1)
+  }, [dispatchWs])
 
   // ===== 节流 WS 位置上报（PlayerController 每帧回调） =====
   const handleSync = useCallback((x: number, z: number, rotation: number) => {
@@ -347,6 +424,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
 
       const emote = KEY_EMOTES[e.key]
       if (emote) {
+        // R4-04: 离线只读模式下禁止发手势
+        if (!wsOnlineRef.current) return
         const ws = wsRef.current
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'emote', emote, durationMs: 1500 }))
@@ -382,12 +461,35 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       if (ok) {
         setMicRequested(true)
         voice.setMuted(false)
+        dispatchVoice({ type: 'MIC_GRANTED' })
+      } else {
+        // R4-04: 麦克风失败 → 回落文字喊话 + 引导弹窗
+        const err = voice.error ?? ''
+        if (err.includes('未检测到') || err.includes('占用') || err.includes('不支持')) {
+          dispatchVoice({ type: 'MIC_NO_DEVICE' })
+        } else {
+          dispatchVoice({ type: 'MIC_DENIED' })
+        }
       }
       return
     }
-    // 已授权：切换静音
+    // 已授权：切换静音；关麦时回落文字喊话
     voice.setMuted(!voice.muted)
-  }, [voice, micRequested])
+    dispatchVoice({ type: 'USER_MUTE_CHANGED', muted: !voice.muted })
+  }, [voice, micRequested, dispatchVoice])
+
+  // R4-04: 发送文字喊话（语音回落时的沟通方式）
+  const sendShout = useCallback(() => {
+    const text = shoutDraft.trim()
+    if (!text) return
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      toast('离线中，暂时发不出去')
+      return
+    }
+    ws.send(JSON.stringify({ type: 'text_shout', text }))
+    setShoutDraft('')
+  }, [shoutDraft, toast])
 
   const copyCode = useCallback(async () => {
     if (!roomInfo?.code) return
@@ -415,8 +517,26 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           <PlayerController world={world} colliders={colliders} onSync={handleSync} />
           <CameraRig world={world} colliders={colliders} />
           <Interaction world={world} onEnter={enterHandlers} onPrompt={setPrompt} toast={toast} />
+          {/* R4-04: 头顶文字喊话气泡（3D 世界空间，随玩家移动 3s 淡出） */}
+          <TextShoutLayer shouts={shouts} playersRef={playersRef} />
         </Suspense>
       </SafeCanvas>
+
+      {/* R4-04: WS 离线/重连横幅（顶部明黄色，离线时点按手动重连） */}
+      {wsBannerText(wsErr) && (
+        <div
+          onClick={wsErr.status === 'offline' ? manualReconnect : undefined}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99998,
+            background: '#FFD600', color: '#111', padding: '8px 16px',
+            fontSize: 13, fontWeight: 700, textAlign: 'center',
+            cursor: wsErr.status === 'offline' ? 'pointer' : 'default',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          {wsBannerText(wsErr)}
+        </div>
+      )}
 
       {/* 顶部栏 */}
       <div className="plaza-3d-topbar">
@@ -501,7 +621,49 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         {voice.pushToTalk && (
           <div className="voice-ptt-hint">按住 <b>空格</b> 说话</div>
         )}
+        {/* R4-04: 语音不可用时的文字喊话输入框 */}
+        {voiceFallback.mode === 'text' && (
+          <div style={{
+            marginTop: 8, display: 'flex', gap: 6, width: 220,
+            background: 'rgba(0,0,0,0.7)', border: '1px solid #FFD600',
+            borderRadius: 10, padding: 6,
+          }}>
+            <input
+              value={shoutDraft}
+              onChange={(e) => setShoutDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') sendShout() }}
+              placeholder="文字喊话…"
+              maxLength={60}
+              style={{
+                flex: 1, minWidth: 0, background: 'transparent', border: 0,
+                outline: 0, color: '#FFD600', fontSize: 13,
+              }}
+            />
+            <button
+              onClick={sendShout}
+              style={{
+                border: 0, borderRadius: 6, background: '#FFD600', color: '#111',
+                fontWeight: 700, fontSize: 12, padding: '4px 10px', cursor: 'pointer',
+              }}
+            >
+              喊
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* R4-04: 麦克风权限引导弹窗 */}
+      {voiceFallback.showMicGuide && (
+        <MicPermissionGuide
+          reason={voiceFallback.reason === 'mic_denied' ? 'denied' : 'webrtc_failed'}
+          onClose={() => dispatchVoice({ type: 'DISMISS_GUIDE' })}
+          onRetry={() => {
+            dispatchVoice({ type: 'USER_RETRY_VOICE' })
+            setMicRequested(false)
+          }}
+          onUseText={() => dispatchVoice({ type: 'USER_CHOOSE_TEXT' })}
+        />
+      )}
 
       {/* 手势快捷键提示 */}
       {!touch && (
