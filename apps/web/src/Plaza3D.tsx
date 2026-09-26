@@ -1,8 +1,8 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, MessagesSquare, Users, Mic, MicOff, Copy, Check, LogOut, Hand } from 'lucide-react'
 import { Plaza } from './Plaza'
 import { useIdentity } from './identity'
-import type { EmoteType, SocialRoom, WSMessage, WSUser } from '@balabala/shared'
+import type { EmoteType, ReportCategory, SocialRoom, WSMessage, WSUser } from '@balabala/shared'
 import SafeCanvas from './SafeCanvas'
 import {
   createWorldRuntime, buildColliders,
@@ -17,6 +17,8 @@ import MobileControls, { isTouchDevice } from './world/MobileControls'
 import SceneSelect from './world/SceneSelect'
 import { SCENE_LABELS } from './onboarding/onboardingProgress'
 import { useSpatialVoice } from './voice/useSpatialVoice'
+import { useSafety } from './safety/use-safety'
+import PlayerContextMenu, { type PlayerTarget } from './safety/PlayerContextMenu'
 import './plaza-3d.css'
 import './onboarding/onboarding.css'
 
@@ -74,6 +76,42 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   // 本地说话强度上报节流
   const lastTalkingSentRef = useRef(-1)
   const localTalkingLevelRef = useRef(0)
+
+  // ===== R4-03 安全模块：静音/屏蔽/举报 =====
+  // 被静音/屏蔽的 peer 集合（ref 传给 useSpatialVoice，tick 内读取以禁用远端语音）
+  const mutedPeersRef = useRef<Set<string>>(new Set())
+  // 当前弹出上下文菜单的目标玩家（null = 关闭）
+  const [menuState, setMenuState] = useState<{ target: PlayerTarget; x: number; y: number } | null>(null)
+  const safety = useSafety({
+    userId: user?.userId,
+    roomId,
+    send: (msg) => {
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+    },
+  })
+
+  // 同步静音/屏蔽集合 → mutedPeersRef（屏蔽者天然也禁声）
+  useEffect(() => {
+    mutedPeersRef.current = new Set([...safety.state.muted, ...safety.state.blocked])
+  }, [safety.state.muted, safety.state.blocked])
+
+  // 供 WS onmessage 闭包读取的实时安全判定（避免 effect 重连）
+  const safetyRef = useRef(safety)
+  useEffect(() => { safetyRef.current = safety }, [safety])
+
+  /** 点击远端化身 → 弹出上下文菜单 */
+  const handleRemotePlayerSelect = useCallback((uid: string, clientX: number, clientY: number) => {
+    if (uid === user?.userId) return
+    const p = playersRef.current.get(uid)
+    setMenuState({ target: { userId: uid, nickname: p?.nickname ?? '玩家' }, x: clientX, y: clientY })
+  }, [user?.userId])
+
+  /** 过滤掉被屏蔽的远端玩家（不渲染化身、不显示在列表） */
+  const visibleUserIds = useMemo(
+    () => remoteUserIds.filter((id) => safety.canSeeAvatar(id)),
+    [remoteUserIds, safety],
+  )
 
   const toast = useCallback((msg: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current)
@@ -160,7 +198,10 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             break
           }
           case 'chat':
-            toast(`${msg.nickname}: ${msg.text}`)
+            // R4-03 安全：被屏蔽者的文字消息直接丢弃
+            if (safetyRef.current.canReceiveText(msg.userId)) {
+              toast(`${msg.nickname}: ${msg.text}`)
+            }
             break
           case 'error':
             break
@@ -261,6 +302,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
     playersRef,
     localPosRef,
     enabled: true,
+    // R4-03：静音/屏蔽者的远端语音在 tick 内禁用
+    mutedPeersRef,
   })
 
   // 本地说话强度 → 节流广播给远端（驱动远端口型）
@@ -360,7 +403,9 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
             world={world}
             manifest={manifest}
             playersRef={playersRef}
-            remoteUserIds={remoteUserIds}
+            remoteUserIds={visibleUserIds}
+            localPosRef={localPosRef}
+            onRemotePlayerSelect={handleRemotePlayerSelect}
           />
           <PlayerController world={world} colliders={colliders} onSync={handleSync} />
           <CameraRig world={world} colliders={colliders} />
@@ -475,6 +520,25 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         <div className="plaza-3d-discuss-overlay">
           <Plaza onBack={() => setShowDiscuss(false)} />
         </div>
+      )}
+
+      {/* R4-03：玩家上下文菜单（静音/屏蔽/举报/查看档案） */}
+      {menuState && (
+        <PlayerContextMenu
+          target={menuState.target}
+          x={menuState.x}
+          y={menuState.y}
+          isMuted={safety.isMuted(menuState.target.userId)}
+          isBlocked={safety.isBlocked(menuState.target.userId)}
+          onToggleMute={() => safety.toggleMute(menuState.target.userId)}
+          onToggleBlock={() => safety.toggleBlock(menuState.target.userId)}
+          onReport={(category: ReportCategory, reason: string) => {
+            safety.report(menuState.target.userId, reason, category, menuState.target.nickname)
+            toast('已提交举报，感谢反馈')
+          }}
+          onViewProfile={() => toast('查看档案（即将开放）')}
+          onClose={() => setMenuState(null)}
+        />
       )}
     </div>
   )

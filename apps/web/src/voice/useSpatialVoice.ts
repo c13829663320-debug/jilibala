@@ -48,6 +48,12 @@ export type SpatialVoiceOptions = {
   maxDistance?: number
   /** 最多同时建立的语音连接数，默认 8 */
   maxSubscribers?: number
+  /**
+   * 【R4-03 安全】被静音的 peer id 集合（ref）。
+   * 命中的远端语音：远端 audio track.enabled=false（WebRTC 轨禁用）+ gain=0，
+   * PC 保持连接，取消静音即时恢复，无需重协商。
+   */
+  mutedPeersRef?: RefObject<Set<string>>
 }
 
 export type SpatialVoiceResult = {
@@ -98,6 +104,8 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
     maxDistance = 15,
     maxSubscribers = 8,
   } = opts
+  // R4-03：被静音 peer 集合（ref 稳定，tick 内读取，避免重开 interval）
+  const mutedPeersRef = opts.mutedPeersRef
 
   // —— 麦克风采集（含电平分析） ——
   const mic = useMicrophone()
@@ -439,6 +447,18 @@ export function useSpatialVoice(opts: SpatialVoiceOptions): SpatialVoiceResult {
         if (!pos || !desired.has(peerId)) {
           graph.gain.gain.value = 0
           continue
+        }
+        // R4-03 安全：被静音的 peer → 远端轨禁用 + gain=0，不做说话检测。
+        // 仍保留 PC（取消静音立即恢复）。
+        const isPeerMuted = mutedPeersRef?.current?.has(peerId) ?? false
+        if (isPeerMuted) {
+          graph.gain.gain.value = 0
+          for (const t of graph.stream.getAudioTracks()) t.enabled = false
+          continue
+        }
+        // 取消静音后恢复远端轨
+        for (const t of graph.stream.getAudioTracks()) {
+          if (!t.enabled) t.enabled = true
         }
         try {
           if (typeof graph.panner.positionX !== 'undefined') {

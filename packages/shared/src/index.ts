@@ -499,8 +499,42 @@ export type WSMessage =
   // —— 社交临场感：表情/手势/说话强度 ——
   | { type: 'emote'; userId: string; emote: EmoteType; durationMs?: number }
   | { type: 'talking'; userId: string; intensity: number }
+  // —— Round4 R4-03：安全模块举报（客户端→服务端，服务端记录到 reports.log 后回执） ——
+  | { type: 'report_user'; targetUserId: string; reason: string; category: ReportCategory }
+  | { type: 'report_ack'; accepted: boolean; reportedAt?: string }
   | { type: 'pong' }
   | { type: 'error'; message: string };
+
+// ===== Round4 R4-03：化身换装分层系统 =====
+/** 化身装备分层：每层一个可选项 id，叠加渲染。 */
+export type OutfitLayer = 'base' | 'top' | 'bottom' | 'accessory' | 'hair'
+
+/** 某一层里一个可选装备的元数据（目录用，纯展示） */
+export interface OutfitOption {
+  /** 装备 id（在该层内唯一） */
+  id: string
+  /** 中文展示名 */
+  label: string
+  /** 色板（程序化占位渲染时用的主色） */
+  swatch: string
+}
+
+/** 当前穿戴：每层 → 选中的 option id */
+export type OutfitState = Record<OutfitLayer, string>
+
+// ===== Round4 R4-03：安全模块（静音 / 屏蔽 / 举报） =====
+/** 对某玩家可执行的安全操作 */
+export type SafetyAction = 'mute' | 'unmute' | 'block' | 'unblock' | 'report'
+
+/** 举报分类（与服务端 reports.log 的 category 对齐） */
+export type ReportCategory = 'harassment' | 'spam' | 'abuse' | 'cheating' | 'other'
+
+/** 客户端发送举报时携带的结构化信息（report_user WS 消息的载荷） */
+export interface ReportPayload {
+  targetUserId: string
+  reason: string
+  category: ReportCategory
+}
 
 
 // ===== M13: 趣味法庭 · 全屏 3D + 完整案件状态机 =====
