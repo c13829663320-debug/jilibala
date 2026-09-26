@@ -1,3 +1,12 @@
+// 多人网络专项协议类型（在本文件 WSMessage 联合中被引用，需显式导入以进入本模块作用域）。
+import type {
+  HeartbeatConfig,
+  SessionToken,
+  ReconnectProgress,
+  ReconnectResponse,
+  NetEnvelope,
+} from "./network-protocol.js";
+
 export const TRIAL_STAGES = ["立案", "开庭", "举证", "辩论", "判决", "执行"] as const;
 export type TrialStage = typeof TRIAL_STAGES[number];
 export type CourtRole = "judge" | "plaintiff" | "defendant" | "witness";
@@ -467,9 +476,15 @@ export interface PresenceUser {
 }
 
 export type WSMessage =
-  | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState; sceneState?: SceneRoomState }
+  | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState; sceneState?: SceneRoomState; heartbeat?: HeartbeatConfig; sessionToken?: SessionToken; resumed?: boolean }
   | { type: 'user_joined'; user: WSUser }
   | { type: 'user_left'; userId: string }
+  // —— 传输层/断线重连（多人网络专项） ——
+  | { type: 'player_disconnecting'; userId: string; reconnectWindowMs: number }
+  | { type: 'player_reconnected'; userId: string }
+  | { type: 'reconnect_progress'; stage: ReconnectProgress['stage']; progress: number; message?: string }
+  | { type: 'reconnect_response'; accepted: boolean; sessionId: string; reason?: ReconnectResponse['reason']; missedMessages?: NetEnvelope[]; users?: WSUser[]; progress?: number }
+  | { type: 'room_owner_changed'; oldOwnerId: string; newOwnerId: string }
   | { type: 'presence'; users: PresenceUser[] }
   | { type: 'chat'; userId: string; nickname: string; text: string }
   | { type: 'user_speech'; userId: string; nickname: string; text: string }
@@ -499,7 +514,7 @@ export type WSMessage =
   // —— 社交临场感：表情/手势/说话强度 ——
   | { type: 'emote'; userId: string; emote: EmoteType; durationMs?: number }
   | { type: 'talking'; userId: string; intensity: number }
-  | { type: 'pong' }
+  | { type: 'pong'; clientSeq?: number; serverTs?: number; playerCount?: number }
   | { type: 'error'; message: string };
 
 
