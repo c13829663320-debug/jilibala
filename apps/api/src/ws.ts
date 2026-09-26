@@ -16,7 +16,7 @@ import {
   type SocialRoom,
 } from "@balabala/shared";
 import { getCourtCase } from "./db.js";
-import { getSocialRoom } from "./room-routes.js";
+import { getSocialRoom, verifyRoomPassword, isUserKicked, sanitizeRoom } from "./room-routes.js";
 import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
@@ -114,7 +114,7 @@ export function getOrCreateRoom(roomId: string): Room {
   return room;
 }
 
-function wsUserOf(u: RoomUser): WSUser {
+function wsUserOf(u: RoomUser, isOwner = false): WSUser {
   return {
     userId: u.userId,
     nickname: u.nickname,
@@ -123,6 +123,7 @@ function wsUserOf(u: RoomUser): WSUser {
     x: u.x,
     z: u.z,
     rotation: u.rotation,
+    ...(isOwner ? { isOwner: true } : {}),
   };
 }
 
@@ -164,6 +165,38 @@ export function sendToUserInRoom(roomId: string, userId: string, msg: WSMessage)
 /** Round3: 获取某房间当前在线人数（供 REST 房间列表实时同步 playerCount）。 */
 export function getRoomPlayerCount(roomId: string): number {
   return rooms.get(roomId)?.users.size ?? 0;
+}
+
+/** R4-02: 向房间广播事件（供 REST 路由触发后调用）。 */
+export function broadcastRoomEvent(roomId: string, message: unknown): void {
+  broadcastToRoom(roomId, message);
+}
+
+/**
+ * R4-02: 踢用户出房间——广播 player_kicked 给全房间，然后关闭被踢用户的 socket。
+ * 返回被踢用户是否确实在房间内。
+ */
+export function kickUserFromRoom(roomId: string, targetUserId: string, reason: string): boolean {
+  const room = rooms.get(roomId);
+  if (!room) return false;
+  const target = room.users.get(targetUserId);
+  if (!target) return false;
+
+  // 广播 player_kicked 给全房间（含被踢者）
+  broadcastToRoom(roomId, {
+    type: "player_kicked",
+    userId: targetUserId,
+    reason,
+  });
+
+  // 关闭被踢用户的 socket（稍延迟，让消息先送达）
+  try {
+    setTimeout(() => {
+      try { target.socket.close(); } catch { /* noop */ }
+    }, 100);
+  } catch { /* noop */ }
+
+  return true;
 }
 
 /** 局部更新法庭房间状态。 */
@@ -218,6 +251,7 @@ export function registerWebSocket(app: FastifyInstance): void {
     const url = new URL(req.url ?? "/", "http://localhost");
     const userId = url.searchParams.get("userId") ?? "";
     const roomId = url.searchParams.get("room") ?? "";
+    const password = url.searchParams.get("password") ?? "";
 
     if (!userId || !roomId) {
       safeSend(socket, { type: "error", message: "缺少 userId 或 room 参数" });
@@ -238,7 +272,29 @@ export function registerWebSocket(app: FastifyInstance): void {
       const code = roomId.slice("social:".length);
       socialMeta = getSocialRoom(code);
       if (!socialMeta) {
-        safeSend(socket, { type: "error", message: "房间不存在或已解散" });
+        safeSend(socket, { type: "error", message: "房间不存在或已解散", code: "room_not_found" });
+        socket.close();
+        return;
+      }
+
+      // R4-02: 被踢冷却检查（同 userId 重连例外——但被踢后不应有旧连接）
+      if (isUserKicked(code, userId)) {
+        safeSend(socket, { type: "error", message: "你已被房主移出房间，请稍后再试", code: "kicked_cooldown" });
+        socket.close();
+        return;
+      }
+
+      // R4-02: 锁房间检查（已在房间内的重连用户不受影响）
+      const existingConn = rooms.get(roomId)?.users.has(userId);
+      if (socialMeta.isLocked && !existingConn) {
+        safeSend(socket, { type: "error", message: "房间已锁定，暂不允许新玩家加入", code: "room_locked" });
+        socket.close();
+        return;
+      }
+
+      // R4-02: 密码校验
+      if (socialMeta.hasPassword && !verifyRoomPassword(code, password || undefined)) {
+        safeSend(socket, { type: "error", message: "房间密码错误", code: "wrong_password" });
         socket.close();
         return;
       }
@@ -253,8 +309,9 @@ export function registerWebSocket(app: FastifyInstance): void {
     const room = getOrCreateRoom(roomId);
 
     // Round3: social 房间人数上限（同 userId 重连替换旧连接不占新名额）
+    // R4-02: 强校验——之前仅 REST 层有上限但 WS 未强校验
     if (socialMeta && !room.users.has(userId) && room.users.size >= socialMeta.maxPlayers) {
-      safeSend(socket, { type: "error", message: "房间已满" });
+      safeSend(socket, { type: "error", message: "房间已满", code: "room_full" });
       socket.close();
       return;
     }
@@ -278,19 +335,24 @@ export function registerWebSocket(app: FastifyInstance): void {
     }
     room.users.set(userId, roomUser);
 
+    // R4-02: 获取当前房间房主 ID（用于在用户列表中标记 isOwner）
+    const roomOwnerId = socialMeta ? (socialMeta.ownerId || socialMeta.creatorId) : undefined;
+    const isRoomOwner = roomOwnerId === userId;
+
     // 发送 welcome 快照
     const welcome: WSMessage = {
       type: "welcome",
       roomId,
-      users: [...room.users.values()].map(wsUserOf),
+      users: [...room.users.values()].map((u) => wsUserOf(u, u.userId === roomOwnerId)),
       ...(room.courtState ? { courtState: room.courtState } : {}),
       ...(room.sceneState ? { sceneState: room.sceneState } : {}),
     };
     safeSend(socket, welcome);
 
     // Round3: social 房间——向新连接单发房间元数据（playerCount 取当前在线数）
+    // R4-02: 剥离密码哈希等敏感字段
     if (socialMeta) {
-      const roomInfo: SocialRoom = { ...socialMeta, playerCount: room.users.size };
+      const roomInfo = sanitizeRoom({ ...socialMeta, playerCount: room.users.size });
       try {
         if (socket.readyState === socket.OPEN) {
           socket.send(JSON.stringify({ type: "room_info", room: roomInfo }));
@@ -345,7 +407,7 @@ export function registerWebSocket(app: FastifyInstance): void {
         user: { userId, nickname, avatarType, avatarRef, x: roomUser.x, z: roomUser.z, rotation: roomUser.rotation },
       } satisfies WSMessage);
     } else {
-      broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser) } satisfies WSMessage);
+      broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser, isRoomOwner) } satisfies WSMessage);
     }
 
     // Round3: social 房间——全员（含自己）广播实时人数

@@ -403,6 +403,8 @@ export interface WSUser {
   x: number;
   z: number;
   rotation: number;
+  /** Round4 R4-02: 是否为房间房主（房主徽章） */
+  isOwner?: boolean;
 }
 
 export interface CourtRoomState {
@@ -500,7 +502,11 @@ export type WSMessage =
   | { type: 'emote'; userId: string; emote: EmoteType; durationMs?: number }
   | { type: 'talking'; userId: string; intensity: number }
   | { type: 'pong' }
-  | { type: 'error'; message: string };
+  // —— Round4 R4-02: 房间权限系统 ——
+  | { type: 'player_kicked'; userId: string; reason: string }
+  | { type: 'room_owner_changed'; oldOwnerId: string; newOwnerId: string }
+  | { type: 'room_lock_changed'; isLocked: boolean }
+  | { type: 'error'; message: string; code?: string };
 
 
 // ===== M13: 趣味法庭 · 全屏 3D + 完整案件状态机 =====
@@ -719,6 +725,16 @@ export interface SocialRoom {
   createdAt: string;
   /** 当前在线人数（由 WS 实时维护，REST 查询时也返回） */
   playerCount: number;
+  /** Round4 R4-02: 当前房主 userId（旧房间默认 = creatorId） */
+  ownerId: string;
+  /** Round4 R4-02: 房间是否锁定（锁定后拒绝新玩家加入） */
+  isLocked: boolean;
+  /** Round4 R4-02: 是否设有密码（列表可见，不暴露哈希） */
+  hasPassword: boolean;
+  /** Round4 R4-02: 密码 SHA-256 哈希（内部存储，REST 返回前必须剥离） */
+  passwordHash?: string;
+  /** Round4 R4-02: 密码盐（内部存储，REST 返回前必须剥离） */
+  passwordSalt?: string;
 }
 
 /** 创建房间请求 */
@@ -727,12 +743,17 @@ export interface CreateRoomRequest {
   scene?: RoomScene;
   isPublic?: boolean;
   maxPlayers?: number;
+  /** Round4 R4-02: 房间密码（明文传入，服务端哈希存储） */
+  password?: string;
 }
 
 /** 房间相关 WS 消息（在已有 WSMessage 联合类型之外，通过 type 区分） */
 export type SocialRoomWsMessage =
   | { type: 'room_info'; room: SocialRoom }
-  | { type: 'room_player_update'; roomId: string; playerCount: number };
+  | { type: 'room_player_update'; roomId: string; playerCount: number }
+  | { type: 'player_kicked'; userId: string; reason: string }
+  | { type: 'room_owner_changed'; oldOwnerId: string; newOwnerId: string }
+  | { type: 'room_lock_changed'; isLocked: boolean };
 
 // ===== 人物馆 · 真实名人 =====
 export * from "./celebrities.js";

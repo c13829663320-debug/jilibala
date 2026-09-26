@@ -17,6 +17,7 @@ import MobileControls, { isTouchDevice } from './world/MobileControls'
 import SceneSelect from './world/SceneSelect'
 import { SCENE_LABELS } from './onboarding/onboardingProgress'
 import { useSpatialVoice } from './voice/useSpatialVoice'
+import { getRoomPassword, clearRoomPassword } from './room-permissions/roomAuthStore'
 import './plaza-3d.css'
 import './onboarding/onboarding.css'
 
@@ -30,7 +31,11 @@ const TALKING_REPORT_MS = 120
 
 function buildWsUrl(room: string, userId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
+  const base = `${proto}://${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&room=${encodeURIComponent(room)}`
+  // R4-02: 密码房——从 auth store 读取临时密码
+  const pw = getRoomPassword()
+  if (pw) return `${base}&password=${encodeURIComponent(pw)}`
+  return base
 }
 
 export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, recommendedScene, roomId = 'plaza', onLeaveRoom }: {
