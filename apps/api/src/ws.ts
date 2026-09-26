@@ -1,6 +1,7 @@
 // ===== M7: WebSocket 实时多人 =====
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
+import { randomUUID } from "node:crypto";
 import {
   type WSUser,
   type CourtRoomState,
@@ -39,6 +40,19 @@ export type RoomUser = {
   headTarget?: { x: number; z: number } | null;
   lastEmote?: number;
   lastTalkingBroadcast?: number;
+  // ===== R4-01: 断线重连与会话恢复 =====
+  /** 服务端签发的会话 token；首次连接下发，重连时 ?sessionToken= 带回以恢复位置。 */
+  sessionToken?: string;
+  /** 宽限期内：socket 已断但记录保留，等待重连。 */
+  reconnecting?: boolean;
+  /** 宽限期计时器：超时后真正移除并广播 player_left。 */
+  graceTimer?: NodeJS.Timeout;
+  /** 断线期间缓冲的房间广播消息（TTL=30s），重连成功后按序补发。 */
+  messageBuffer?: Array<{ at: number; msg: Record<string, unknown> }>;
+  /** 位置更新递增序号，供客户端检测丢包并做速度外推。 */
+  seq?: number;
+  /** 上一次被接受位置的速度校验基准点。 */
+  lastSpeedCheck?: { x: number; z: number; t: number };
 };
 
 export type Room = {
@@ -51,9 +65,16 @@ export type Room = {
 /** 供测试使用：清空所有房间，保证用例隔离。 */
 export function _resetRoomsForTest(): void {
   rooms.clear();
+  sessionIndex.clear();
 }
 
 const rooms = new Map<string, Room>();
+
+/**
+ * R4-01: 会话 token 索引 —— token -> 所在房间与用户。
+ * 用于重连时仅凭 ?sessionToken= 找回断线前的位置/化身状态。
+ */
+const sessionIndex = new Map<string, { roomId: string; userId: string }>();
 
 /** gym:lobby 最近打卡广播缓冲（最多保留 5 条）。 */
 const gymRecentCheckins: Array<{ userId: string; nickname: string; exerciseName: string; createdAt: string }> = [];
@@ -64,6 +85,31 @@ const EMOTE_THROTTLE_MS = 300;
 const VALID_EMOTES: ReadonlySet<string> = new Set(["wave", "nod", "shake", "point", "clap", "laugh", "surprised"]);
 /** talking 消息最小广播间隔（ms），说话强度变化频繁时节流 */
 const TALKING_BROADCAST_MS = 120;
+
+// ===== R4-01: 断线重连与多人稳定性参数 =====
+/** 断线宽限期默认值：ms（导出供客户端展示；内部用下面的可变变量，便于测试覆盖）。 */
+export const RECONNECT_GRACE_MS = 15_000;
+/** 在途消息缓冲 TTL 默认值：ms。 */
+export const MESSAGE_BUFFER_TTL_MS = 30_000;
+/** 位置更新最小间隔（节流）。 */
+export const MOVE_THROTTLE_MS = 50;
+/** 服务端允许的最大移动速度（单位/秒），超速按方向向量钳制。 */
+export const MAX_SPEED_UNITS_PER_SEC = 20;
+/** 缓冲消息条数硬上限，防御 presence 洪峰导致内存膨胀。 */
+const MESSAGE_BUFFER_MAX = 200;
+
+/** 内部可变参数（测试通过 setter 覆盖，避免真实等待 15s/30s）。 */
+let reconnectGraceMs = RECONNECT_GRACE_MS;
+let messageBufferTtlMs = MESSAGE_BUFFER_TTL_MS;
+
+/** 测试用：覆盖宽限期。 */
+export function _setReconnectGraceMsForTest(ms: number): void {
+  reconnectGraceMs = ms;
+}
+/** 测试用：缓冲 TTL。 */
+export function _setMessageBufferTtlMsForTest(ms: number): void {
+  messageBufferTtlMs = ms;
+}
 
 function pushGymRecentCheckin(entry: { userId: string; nickname: string; exerciseName: string; createdAt: string }): void {
   gymRecentCheckins.push(entry);
@@ -136,15 +182,35 @@ function safeSend(socket: WebSocket, msg: WSMessage): void {
   }
 }
 
-/** 向房间内所有人广播。 */
+/**
+ * R4-01: 把一条房间广播写入宽限期内（断线待重连）用户的缓冲。
+ * 按 TTL 丢弃过期条目，并硬限制条数防止洪峰内存膨胀。
+ */
+function bufferMessageForReconnecting(u: RoomUser, msg: Record<string, unknown>): void {
+  if (!u.reconnecting) return;
+  const now = Date.now();
+  if (!u.messageBuffer) u.messageBuffer = [];
+  const buf = u.messageBuffer;
+  buf.push({ at: now, msg });
+  // 按 TTL 修剪过期条目
+  while (buf.length > 0 && now - buf[0].at > messageBufferTtlMs) buf.shift();
+  // 硬上限：超出时丢弃最旧条目（最旧在前）
+  while (buf.length > MESSAGE_BUFFER_MAX) buf.shift();
+}
+
+/** 向房间内所有人广播。R4-01：宽限期内断线的用户不丢消息，而是进入其重连缓冲。 */
 export function broadcastToRoom(roomId: string, message: unknown): void {
   const room = rooms.get(roomId);
   if (!room) return;
   const payload = JSON.stringify(message);
+  const msgObj = message as Record<string, unknown>;
   for (const user of room.users.values()) {
     try {
       if (user.socket.readyState === user.socket.OPEN) {
         user.socket.send(payload);
+      } else if (user.reconnecting) {
+        // 该用户断线待重连：缓冲这条广播，重连成功后补发。
+        bufferMessageForReconnecting(user, msgObj);
       }
     } catch {
       // 忽略
@@ -252,43 +318,106 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     const room = getOrCreateRoom(roomId);
 
-    // Round3: social 房间人数上限（同 userId 重连替换旧连接不占新名额）
+    // R4-01: 客户端重连时携带 ?sessionToken=，服务端据此恢复会话。
+    const sessionToken = url.searchParams.get("sessionToken") ?? "";
+    // 向后兼容：本次握手是否由客户端主动携带 token。
+    // 不带 token 的旧客户端断开时走原逻辑（立即移除）；带 token 的连接才享受宽限期/消息缓冲。
+    const cameWithSessionToken = sessionToken.length > 0;
+
+    // Round3: social 房间人数上限（同 userId 重连替换旧连接不占新名额；宽限期内用户仍在 users map 中）
     if (socialMeta && !room.users.has(userId) && room.users.size >= socialMeta.maxPlayers) {
       safeSend(socket, { type: "error", message: "房间已满" });
       socket.close();
       return;
     }
 
-    const roomUser: RoomUser = {
-      userId,
-      nickname,
-      avatarType,
-      avatarRef,
-      x: randomPos(),
-      z: randomPos(),
-      rotation: 0,
-      lastMove: 0,
-      socket,
-    };
+    // ===== R4-01: 会话恢复判定 =====
+    // token 必须指向「同一房间 + 同一用户」，否则视为无效 token，走全新入场。
+    const sessionRef = sessionToken ? sessionIndex.get(sessionToken) : undefined;
+    const resumedRecord =
+      sessionRef && sessionRef.roomId === roomId && sessionRef.userId === userId
+        ? room.users.get(userId)
+        : undefined;
 
-    // 加入房间。若该 userId 已存在旧连接（同用户多标签/重连），先关闭旧 socket 再替换，避免连接泄漏。
-    const existingUser = room.users.get(userId);
-    if (existingUser && existingUser.socket !== socket) {
-      try { existingUser.socket.close(); } catch { /* noop */ }
+    let roomUser: RoomUser;
+    // R4-01: 是否为宽限期内会话恢复（必须在改写 reconnecting 标志前捕获）。
+    const isResumedSession = !!(resumedRecord && resumedRecord.reconnecting);
+
+    if (resumedRecord && resumedRecord.reconnecting) {
+      // ---- 宽限期内重连成功：恢复位置/旋转/化身，不重新随机 ----
+      roomUser = resumedRecord;
+      if (roomUser.graceTimer) {
+        clearTimeout(roomUser.graceTimer);
+        roomUser.graceTimer = undefined;
+      }
+      // 若该 userId 还挂着另一个活连接（多标签页），先关掉，避免连接泄漏。
+      if (roomUser.socket !== socket && roomUser.socket.readyState === roomUser.socket.OPEN) {
+        try { roomUser.socket.close(); } catch { /* noop */ }
+      }
+      roomUser.socket = socket;
+      roomUser.reconnecting = false;
+
+      // 在途消息补发：过滤 TTL 过期条目，逐条打 replayed:true
+      const now = Date.now();
+      const replayed = (roomUser.messageBuffer ?? [])
+        .filter((e) => now - e.at <= messageBufferTtlMs)
+        .map((e) => ({ ...e.msg, replayed: true }) as import("@balabala/shared").ReplayedMessage);
+      roomUser.messageBuffer = [];
+
+      safeSend(socket, {
+        type: "session_resumed",
+        state: {
+          userId,
+          x: roomUser.x,
+          z: roomUser.z,
+          rotation: roomUser.rotation,
+          avatarType: roomUser.avatarType,
+          avatarRef: roomUser.avatarRef,
+          nickname: roomUser.nickname,
+        },
+        replayed,
+      } satisfies WSMessage);
+    } else {
+      // ---- 全新会话（或 token 失效/过期）：随机位置入场，新签 session token ----
+      const freshToken = randomUUID();
+      roomUser = {
+        userId,
+        nickname,
+        avatarType,
+        avatarRef,
+        x: randomPos(),
+        z: randomPos(),
+        rotation: 0,
+        lastMove: 0,
+        socket,
+        sessionToken: freshToken,
+        seq: 0,
+        lastSpeedCheck: { x: 0, z: 0, t: 0 },
+      };
+      sessionIndex.set(freshToken, { roomId, userId });
+
+      // 加入房间。若该 userId 已存在旧连接（同用户多标签），先关闭旧 socket 再替换，避免连接泄漏。
+      const existingUser = room.users.get(userId);
+      if (existingUser && existingUser.socket !== socket) {
+        try { existingUser.socket.close(); } catch { /* noop */ }
+      }
+      room.users.set(userId, roomUser);
+
+      // 下发会话 token，客户端须持久化供下次重连使用
+      safeSend(socket, { type: "session_token", token: freshToken } satisfies WSMessage);
+
+      // 发送 welcome 快照
+      const welcome: WSMessage = {
+        type: "welcome",
+        roomId,
+        users: [...room.users.values()].map(wsUserOf),
+        ...(room.courtState ? { courtState: room.courtState } : {}),
+        ...(room.sceneState ? { sceneState: room.sceneState } : {}),
+      };
+      safeSend(socket, welcome);
     }
-    room.users.set(userId, roomUser);
 
-    // 发送 welcome 快照
-    const welcome: WSMessage = {
-      type: "welcome",
-      roomId,
-      users: [...room.users.values()].map(wsUserOf),
-      ...(room.courtState ? { courtState: room.courtState } : {}),
-      ...(room.sceneState ? { sceneState: room.sceneState } : {}),
-    };
-    safeSend(socket, welcome);
-
-    // Round3: social 房间——向新连接单发房间元数据（playerCount 取当前在线数）
+    // Round3: social 房间——向连接单发房间元数据（playerCount 取当前在线数）
     if (socialMeta) {
       const roomInfo: SocialRoom = { ...socialMeta, playerCount: room.users.size };
       try {
@@ -338,19 +467,22 @@ export function registerWebSocket(app: FastifyInstance): void {
       }
     }
 
-    // 通知其他人
-    if (roomId.startsWith("gym:")) {
-      broadcastToRoom(roomId, {
-        type: "gym_user_joined",
-        user: { userId, nickname, avatarType, avatarRef, x: roomUser.x, z: roomUser.z, rotation: roomUser.rotation },
-      } satisfies WSMessage);
-    } else {
-      broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser) } satisfies WSMessage);
-    }
+    // R4-01: 标记本次是否为宽限期内会话恢复（决定是否需要广播 user_joined / room_player_update）。
+    // 通知其他人（仅全新入场；会话恢复期间其他人一直保留着该玩家，勿重复加入）
+    if (!isResumedSession) {
+      if (roomId.startsWith("gym:")) {
+        broadcastToRoom(roomId, {
+          type: "gym_user_joined",
+          user: { userId, nickname, avatarType, avatarRef, x: roomUser.x, z: roomUser.z, rotation: roomUser.rotation },
+        } satisfies WSMessage);
+      } else {
+        broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser) } satisfies WSMessage);
+      }
 
-    // Round3: social 房间——全员（含自己）广播实时人数
-    if (socialMeta) {
-      broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: room.users.size });
+      // Round3: social 房间——全员（含自己）广播实时人数
+      if (socialMeta) {
+        broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: room.users.size });
+      }
     }
 
     // ===== 消息处理 =====
@@ -369,32 +501,55 @@ export function registerWebSocket(app: FastifyInstance): void {
           const x = Number(data.x ?? 0);
           const z = Number(data.z ?? 0);
           const rotation = Number(data.rotation ?? 0);
-          // 10Hz 节流：距上次 <100ms 丢弃
-          if (now - roomUser.lastMove < 100) return;
-          roomUser.x = x;
-          roomUser.z = z;
+          // R4-01: 位置更新节流——距上次 <50ms 丢弃（20Hz 上限）
+          if (now - roomUser.lastMove < MOVE_THROTTLE_MS) return;
+
+          // R4-01: 合法性校验——移动速度上限 20 单位/秒，超速按方向向量钳制，
+          // 防止客户端作弊/ bug 导致化身瞬移。
+          let finalX = x;
+          let finalZ = z;
+          const prev = roomUser.lastSpeedCheck;
+          if (prev) {
+            const dt = (now - prev.t) / 1000;
+            if (dt > 0) {
+              const dx = x - prev.x;
+              const dz = z - prev.z;
+              const dist = Math.hypot(dx, dz);
+              const maxDist = MAX_SPEED_UNITS_PER_SEC * dt;
+              if (dist > maxDist && dist > 0) {
+                finalX = prev.x + (dx / dist) * maxDist;
+                finalZ = prev.z + (dz / dist) * maxDist;
+              }
+            }
+          }
+          roomUser.x = finalX;
+          roomUser.z = finalZ;
           roomUser.rotation = rotation;
           roomUser.lastMove = now;
+          roomUser.lastSpeedCheck = { x: finalX, z: finalZ, t: now };
+          // R4-01: 位置序号递增，客户端据此检测丢包并做速度外推。
+          roomUser.seq = (roomUser.seq ?? 0) + 1;
+
           if (roomId.startsWith("gym:")) {
             const gymUsers = [...room.users.values()]
               .filter((u) => u.userId !== userId)
               .map((u) => ({ userId: u.userId, x: u.x, z: u.z, rotation: u.rotation }));
             broadcastToRoom(roomId, { type: "gym_presence", users: gymUsers } satisfies WSMessage);
           } else {
-            // 广播给房间内其他人（携带社交临场感扩展字段）
-            const others = [...room.users.values()]
-              .filter((u) => u.userId !== userId)
-              .map((u) => ({
-                userId: u.userId,
-                x: u.x,
-                z: u.z,
-                rotation: u.rotation,
-                ...(u.talkingIntensity !== undefined ? { talkingIntensity: u.talkingIntensity } : {}),
-                ...(u.animation !== undefined ? { animation: u.animation } : {}),
-                ...(u.expression !== undefined ? { expression: u.expression } : {}),
-                ...(u.headTarget !== undefined ? { headTarget: u.headTarget } : {}),
-              }));
-            broadcastToRoom(roomId, { type: "presence", users: others } satisfies WSMessage);
+            // R4-01: presence 携带每位玩家自己的 seq（含 mover 自身，修复此前 mover 位置
+            // 不进广播导致远端无法同步 mover 的问题）；扩展字段保持向后兼容。
+            const all = [...room.users.values()].map((u) => ({
+              userId: u.userId,
+              x: u.x,
+              z: u.z,
+              rotation: u.rotation,
+              seq: u.seq ?? 0,
+              ...(u.talkingIntensity !== undefined ? { talkingIntensity: u.talkingIntensity } : {}),
+              ...(u.animation !== undefined ? { animation: u.animation } : {}),
+              ...(u.expression !== undefined ? { expression: u.expression } : {}),
+              ...(u.headTarget !== undefined ? { headTarget: u.headTarget } : {}),
+            }));
+            broadcastToRoom(roomId, { type: "presence", users: all } satisfies WSMessage);
           }
           break;
         }
@@ -575,9 +730,47 @@ export function registerWebSocket(app: FastifyInstance): void {
     // ===== 断开清理 =====
     socket.on("close", () => {
       const r = rooms.get(roomId);
-      // 守卫：仅当房间内该 userId 当前指向的仍是本 socket 时才清理，
+      // 守卫：仅当房间内该 userId 当前指向的仍是本 socket 时才处理，
       // 避免旧连接关闭时误删已被新连接替换的条目。
-      if (r && r.users.get(userId)?.socket === socket) {
+      const rec = r?.users.get(userId);
+      if (!r || !rec || rec.socket !== socket) return;
+
+      if (rec.sessionToken && cameWithSessionToken) {
+        // ===== R4-01: 带 token 客户端——进入断线宽限期，不立即移除 =====
+        rec.reconnecting = true;
+        if (!rec.messageBuffer) rec.messageBuffer = [];
+        // 通知其他人：该玩家正在重连，勿立即从场景移除（化身冻结保留）
+        broadcastToRoom(roomId, {
+          type: "player_reconnecting",
+          userId,
+          graceMs: reconnectGraceMs,
+        } satisfies WSMessage);
+
+        rec.graceTimer = setTimeout(() => {
+          // 宽限期超时：仅当记录仍指向自己（期间未被重连/新连接替换）才真正清理。
+          if (r.users.get(userId) !== rec) return;
+          r.users.delete(userId);
+          if (rec.sessionToken) sessionIndex.delete(rec.sessionToken);
+          rec.messageBuffer = undefined;
+          rec.graceTimer = undefined;
+          if (roomId.startsWith("gym:")) {
+            broadcastToRoom(roomId, { type: "gym_user_left", userId } satisfies WSMessage);
+          } else {
+            broadcastToRoom(roomId, { type: "player_left", userId } satisfies WSMessage);
+          }
+          // Round3: social 房间——全员广播断线后的实时人数
+          if (roomId.startsWith("social:")) {
+            broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: r.users.size });
+          }
+          // 房间空了可清理（保留 court 房间状态以便重连）
+          if (r.users.size === 0 && roomId === "plaza") {
+            rooms.delete(roomId);
+          }
+        }, reconnectGraceMs);
+        // 测试/部署时不希望计时器挂住事件循环
+        rec.graceTimer.unref?.();
+      } else {
+        // ===== 旧客户端（未带 sessionToken 会话）：保持原逻辑，立即移除 =====
         r.users.delete(userId);
         if (roomId.startsWith("gym:")) {
           broadcastToRoom(roomId, { type: "gym_user_left", userId } satisfies WSMessage);

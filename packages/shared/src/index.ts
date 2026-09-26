@@ -464,6 +464,29 @@ export interface PresenceUser {
   expression?: string
   /** 头部注视目标世界坐标 */
   headTarget?: { x: number; z: number } | null
+  /**
+   * R4-01: 该玩家最近一次位置更新的递增序号。
+   * 客户端据此检测丢包（序号跳跃）并触发速度外推。旧服务端不发此字段，按未知处理。
+   */
+  seq?: number
+}
+
+/**
+ * R4-01: 一条被服务端缓冲、断线期间补发的房间广播消息。
+ * 结构即原 WSMessage（含 type 与各业务字段），额外打 `replayed: true` 标记，
+ * 客户端据此区分「实时消息」与「断线期间补发的历史消息」（如聊天不重复弹 toast）。
+ */
+export type ReplayedMessage = Record<string, unknown> & { type: string; replayed: true }
+
+/** R4-01: 会话恢复时服务端回传的玩家位置/旋转/化身快照。 */
+export interface ResumedSessionState {
+  userId: string
+  x: number
+  z: number
+  rotation: number
+  avatarType: string
+  avatarRef: string
+  nickname: string
 }
 
 export type WSMessage =
@@ -499,6 +522,18 @@ export type WSMessage =
   // —— 社交临场感：表情/手势/说话强度 ——
   | { type: 'emote'; userId: string; emote: EmoteType; durationMs?: number }
   | { type: 'talking'; userId: string; intensity: number }
+  // ===== R4-01: 断线重连与会话恢复 =====
+  /** 服务端首次连接时下发会话 token，客户端须持久化，重连时通过 ?sessionToken= 带回。 */
+  | { type: 'session_token'; token: string }
+  /**
+   * 重连成功且 token 有效：服务端恢复该玩家在房间中的位置/旋转/化身（不再随机入场），
+   * 并携带断线期间缓冲（TTL=30s）的房间广播消息，按序补发，每条打 replayed:true。
+   */
+  | { type: 'session_resumed'; state: ResumedSessionState; replayed: ReplayedMessage[] }
+  /** 玩家 WS 断开但尚在宽限期内（默认 15s）：其他玩家仍可见其化身冻结，勿立即移除。 */
+  | { type: 'player_reconnecting'; userId: string; graceMs: number }
+  /** 宽限期已过、玩家确认离开：此时才真正从房间移除（与旧版 user_left 并存，旧客户端走 user_left）。 */
+  | { type: 'player_left'; userId: string }
   | { type: 'pong' }
   | { type: 'error'; message: string };
 
