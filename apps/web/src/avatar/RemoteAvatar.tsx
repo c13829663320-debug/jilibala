@@ -11,6 +11,7 @@ import { createRig, applyPose, setExpression, setMouthOpen, type AvatarRig } fro
 import { createAnimationMachine, getPose, type AnimState } from './animation-state-machine'
 import { levelToMouthOpen, smoothIntensity } from './lip-sync'
 import { hashColor, getCelebrity } from '../identity'
+import type { RenderedState } from '../state-sync'
 
 /** RemoteAvatar 所需的玩家结构（Plaza3D 的 RemotePlayer 兼容此结构） */
 export interface PresencePlayer {
@@ -36,9 +37,14 @@ export interface PresencePlayer {
 interface RemoteAvatarProps {
   userId: string
   playersRef: MutableRefObject<Map<string, PresencePlayer>>
+  /**
+   * 可选：每帧返回该玩家插值/外推姿态。提供时直接用采样姿态定位（GPU-verify 路径）；
+   * 缺省时回退到 targetX/targetZ + lerp 的已验证路径。
+   */
+  poseSampler?: (userId: string) => RenderedState | null
 }
 
-export function RemoteAvatar({ userId, playersRef }: RemoteAvatarProps) {
+export function RemoteAvatar({ userId, playersRef, poseSampler }: RemoteAvatarProps) {
   const rootRef = useRef<THREE.Group>(null)
   const rigRef = useRef<AvatarRig | null>(null)
   const machineRef = useRef(createAnimationMachine())
@@ -77,10 +83,19 @@ export function RemoteAvatar({ userId, playersRef }: RemoteAvatarProps) {
     const now = clock.elapsedTime * 1000 // ms
     const mach = machineRef.current
 
-    // 1) 位置平滑（保留原逻辑）
-    root.position.x = THREE.MathUtils.lerp(root.position.x, p.targetX, 0.12)
-    root.position.z = THREE.MathUtils.lerp(root.position.z, p.targetZ, 0.12)
-    root.rotation.y = p.rotation
+    // 1) 位置：优先使用客户端插值/外推采样姿态（GPU-verify 路径），否则回退 lerp-to-target。
+    const sampled = poseSampler ? poseSampler(userId) : null
+    if (sampled) {
+      // 缓冲已做插值/外推/snap，直接定位；stale 时保持冻结（缓冲内部已处理）。
+      root.position.x = sampled.x
+      root.position.z = sampled.z
+      root.rotation.y = sampled.rotation
+      if (typeof sampled.talkingIntensity === 'number') p.talkingIntensity = sampled.talkingIntensity
+    } else {
+      root.position.x = THREE.MathUtils.lerp(root.position.x, p.targetX, 0.12)
+      root.position.z = THREE.MathUtils.lerp(root.position.z, p.targetZ, 0.12)
+      root.rotation.y = p.rotation
+    }
 
     // 2) 同步 emote：检测到新 emote 事件则触发状态机
     if (p.emote && p.emote !== lastEmoteRef.current) {

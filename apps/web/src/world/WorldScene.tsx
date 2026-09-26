@@ -12,6 +12,7 @@ import * as THREE from 'three'
 import type { BuildingConfig, RemotePlayer, WorldManifest, WorldRuntime } from './types'
 import { BUILDINGS, FOUNTAIN, WORLD_HALF } from './config'
 import { RemoteAvatar } from '../avatar/RemoteAvatar'
+import type { RenderedState } from '../state-sync'
 
 // ---------------------------------------------------------------------------
 // 确定性伪随机（让植被布局每次加载一致，不随渲染抖动）
@@ -224,9 +225,11 @@ interface WorldSceneProps {
   manifest: WorldManifest | null
   playersRef: MutableRefObject<Map<string, RemotePlayer>>
   remoteUserIds: string[]
+  /** 可选：每帧返回远端玩家插值/外推姿态的采样器；缺省走既有 lerp-to-target 路径。 */
+  poseSampler?: (userId: string) => RenderedState | null
 }
 
-export default function WorldScene({ world, manifest, playersRef, remoteUserIds }: WorldSceneProps) {
+export default function WorldScene({ world, manifest, playersRef, remoteUserIds, poseSampler }: WorldSceneProps) {
   // 在 manifest 里按 assetId 找建筑资产
   const assetFor = (building: BuildingConfig) =>
     manifest?.assets.find((a) => a.id === building.assetId) ?? undefined
@@ -289,7 +292,7 @@ export default function WorldScene({ world, manifest, playersRef, remoteUserIds 
 
       {/* 远端玩家 */}
       {remoteUserIds.map((uid) => (
-        <RemoteAvatar key={uid} userId={uid} playersRef={playersRef} />
+        <RemoteAvatar key={uid} userId={uid} playersRef={playersRef} poseSampler={poseSampler} />
       ))}
     </>
   )
