@@ -21,6 +21,10 @@ import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { registerCourtRoutes } from './court-routes.js';
 import { registerRoomRoutes } from './room-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
+// ===== R4-08: 排行榜 / 主题房间公告 / 内容治理 =====
+import { getLeaderboard } from './leaderboard.js';
+import { getActiveAnnouncements, startScheduler as startThemeRoomScheduler } from './theme-rooms.js';
+import { readReports, addBlock, removeBlock, getBlockList } from './moderation.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
@@ -997,6 +1001,60 @@ registerCourtRoutes(app, { chat: chatWithProviders, contents, saveContents });
 
 // ===== Round3: 真人多人社交房间 REST =====
 registerRoomRoutes(app);
+
+// ===== R4-08: 全服/场景段位排行榜 =====
+app.get('/api/leaderboard', async (req) => {
+  const q = (req.query ?? {}) as { scope?: string; limit?: string; userId?: string };
+  const scope = (['global','court','werewolf','bar'].includes(q.scope ?? '') ? q.scope : 'global') as 'global'|'court'|'werewolf'|'bar';
+  const limit = Math.min(Math.max(parseInt(q.limit ?? '20', 10) || 20, 1), 100);
+  const entries = getLeaderboard(scope, limit);
+  // 高亮当前玩家排名：若传入 userId 且不在前 limit 内，附上其名次
+  let me: { rank: number; entry?: (typeof entries)[number] } | null = null;
+  if (q.userId) {
+    const hit = entries.find((e) => e.userId === q.userId);
+    if (hit) me = { rank: hit.rank, entry: hit };
+    else {
+      const all = getLeaderboard(scope, Number.MAX_SAFE_INTEGER);
+      const mine = all.find((e) => e.userId === q.userId);
+      if (mine) me = { rank: mine.rank, entry: mine };
+    }
+  }
+  return { scope, entries, me };
+});
+
+// ===== R4-08: 活动公告（当前主题房间） =====
+app.get('/api/announcements', async () => {
+  return { announcements: getActiveAnnouncements() };
+});
+
+// ===== R4-08: 内容治理 — 举报记录（管理用途） =====
+app.get('/api/reports', async (req) => {
+  const q = (req.query ?? {}) as { limit?: string };
+  const limit = Math.min(Math.max(parseInt(q.limit ?? '100', 10) || 100, 1), 500);
+  return { reports: readReports(limit) };
+});
+
+// ===== R4-08: 服务端屏蔽 =====
+app.post('/api/users/block', async (req, reply) => {
+  const body = (req.body ?? {}) as { userId?: string; blockedUserId?: string };
+  const userId = (body.userId ?? '').trim();
+  const blockedUserId = (body.blockedUserId ?? '').trim();
+  if (!userId || !blockedUserId) return reply.code(400).send({ error: 'userId 与 blockedUserId 不能为空' });
+  addBlock(userId, blockedUserId);
+  return { ok: true, blocked: blockedUserId, list: getBlockList(userId) };
+});
+
+app.delete('/api/users/block', async (req, reply) => {
+  const body = (req.body ?? {}) as { userId?: string; blockedUserId?: string };
+  const userId = (body.userId ?? '').trim();
+  const blockedUserId = (body.blockedUserId ?? '').trim();
+  if (!userId || !blockedUserId) return reply.code(400).send({ error: 'userId 与 blockedUserId 不能为空' });
+  removeBlock(userId, blockedUserId);
+  return { ok: true, unblocked: blockedUserId, list: getBlockList(userId) };
+});
+
+// ===== R4-08: 启动主题房间定时任务（每整点创建主题房间） =====
+startThemeRoomScheduler();
 
 // ===== 自定义场景工作室 =====
 registerSceneStudioRoutes(app, { chat: chatWithProviders });

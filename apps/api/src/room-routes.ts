@@ -16,6 +16,8 @@ import {
 } from "@balabala/shared";
 import { getRoomPlayerCount, kickUserFromRoom, broadcastRoomEvent } from "./ws.js";
 import * as db from "./db.js";
+// R4-08: 房间名过敏感词
+import { filterProfanity } from "./moderation.js";
 
 /** 房间码字符表：排除易混字符 0/O/1/I。 */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -124,6 +126,36 @@ export function _resetSocialRoomsForTest(): void {
   kickedUntilMap.clear();
 }
 
+/**
+ * R4-08: 由系统（定时任务）创建一个公开主题房间。
+ * 不走 HTTP 鉴权，房主为 "system"。房间码自动生成，创建后即出现在大厅列表。
+ * 返回创建后的房间（已剥离敏感字段）。
+ */
+export function createSystemRoom(opts: {
+  name: string;
+  scene: RoomScene;
+  maxPlayers?: number;
+}): SocialRoom {
+  const code = uniqueRoomCode();
+  const room: SocialRoom = {
+    id: `social:${code}`,
+    code,
+    name: opts.name,
+    creatorId: "system",
+    creatorName: "叽里呱啦官方",
+    scene: opts.scene,
+    maxPlayers: Math.min(Math.max(Math.round(opts.maxPlayers ?? 16), 2), 64),
+    isPublic: true,
+    createdAt: new Date().toISOString(),
+    playerCount: 0,
+    ownerId: "system",
+    isLocked: false,
+    hasPassword: false,
+  };
+  socialRooms.set(code, room);
+  return sanitizeRoom(room);
+}
+
 // ===== R4-02: 供 WS 层调用的辅助函数 =====
 
 /** 校验房间密码（有密码时）。无密码房间始终返回 true。 */
@@ -181,6 +213,8 @@ export function registerRoomRoutes(app: FastifyInstance): void {
     };
     const name = (body.name ?? "").trim();
     if (!name) return reply.code(400).send({ error: "房间名称不能为空" });
+    // R4-08: 房间名过敏感词过滤
+    const safeName = filterProfanity(name).text.slice(0, 40);
 
     const scene: RoomScene = body.scene ?? "plaza";
     const isPublic = body.isPublic ?? true;
@@ -207,7 +241,7 @@ export function registerRoomRoutes(app: FastifyInstance): void {
     const room: SocialRoom = {
       id: `social:${code}`,
       code,
-      name,
+      name: safeName,
       creatorId,
       creatorName,
       scene,

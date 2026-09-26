@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "description": "R4-08 广场定时主题房间模板。每小时整点按列表顺序轮播创建一个主题房间，持续 1 小时。",
+  "templates": [
+    {
+      "key": "weekend-court-debate",
+      "title": "周末法庭辩论赛",
+      "description": "模拟法庭巅峰对决，正反方唇枪舌剑，观众投票选最强辩手。",
+      "scene": "court",
+      "tags": ["#周末法庭", "#辩论赛"],
+      "maxPlayers": 16
+    },
+    {
+      "key": "werewolf-night",
+      "title": "狼人杀之夜",
+      "description": "天黑请闭眼！高玩局开组，预言家请上警报验人。",
+      "scene": "werewolf",
+      "tags": ["#狼人杀之夜", "#高玩局"],
+      "maxPlayers": 12
+    },
+    {
+      "key": "bar-open-mic",
+      "title": "酒吧开放麦",
+      "description": "酒吧开放麦时间，上台来一段脱口秀或辩一辩时下热点。",
+      "scene": "bar",
+      "tags": ["#开放麦", "#脱口秀"],
+      "maxPlayers": 20
+    },
+    {
+      "key": "talkshow-radio",
+      "title": "脱口秀电台夜现场",
+      "description": "开放麦段子接龙，金句频出，全场观众一起抖包袱。",
+      "scene": "talkshow",
+      "tags": ["#电台夜现场", "#段子接龙"],
+      "maxPlayers": 16
+    }
+  ]
+}
