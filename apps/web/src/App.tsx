@@ -17,6 +17,7 @@ import InterestPicker from './onboarding/InterestPicker'
 import QuickStartCard from './onboarding/QuickStartCard'
 import FirstTimeGuide from './onboarding/FirstTimeGuide'
 import './onboarding/onboarding.css'
+import PwaUpdatePrompt from './pwa-update'
 import {
   FIRST_TIME_STEPS,
   INTEREST_SCENE_MAP,
@@ -437,6 +438,7 @@ function App() {
         <ErrorBoundary>
           <AppInner />
         </ErrorBoundary>
+        <PwaUpdatePrompt />
       </IdentityProvider>
     </GlobalErrorBoundary>
   )

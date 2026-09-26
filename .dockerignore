@@ -1,0 +1,49 @@
+# ---- VCS / CI ----
+.git
+.github
+.gitignore
+
+# ---- 依赖与构建产物（容器内重新安装/构建）----
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+*.tsbuildinfo
+
+# ---- 环境与密钥（容器通过 compose env_file / environment 注入）----
+.env
+.env.*
+!.env.example
+
+# ---- 运行时数据（容器内挂载卷持久化，不打进镜像）----
+.data
+**/.data
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+
+# ---- 本地大文件 / 临时产物（不属部署所需）----
+*.blend
+*.blend1
+*.png
+!apps/web/public/**/*.png
+!apps/web/public/icons/**
+.tmp-*
+.m13-screenshots
+_dev-logs
+*.log
+_archive
+reference/
+temp-models/
+qa-results/
+artifacts/
+
+# ---- 文档 / 笔记（运行镜像不需要，减小构建上下文）----
+docs/
+*.md
+!README.md
+prd_extracted.txt
+*_extracted.txt
+TRIPO_API_RESEARCH.txt
+extract_doc.py

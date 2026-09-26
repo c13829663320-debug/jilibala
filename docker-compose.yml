@@ -1,0 +1,87 @@
+# 叽里呱啦 · BalaBala —— Docker Compose 一键部署
+#
+# 架构：
+#   web (nginx)  ──:80──▶ 宿主 ${WEB_PORT:-8080}
+#        │  静态托管 apps/web/dist，并反向代理 /api、/api/ws、/health
+#        ▼
+#   api (Fastify) ── 内网 8787，不对外暴露
+#        │  SQLite + JSON 持久化到命名卷 balabala_data:/data
+#
+# 用法：cp .env.example .env && 编辑密钥 && docker compose up -d --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-api
+    image: balabala/api:latest
+    container_name: balabala-api
+    restart: unless-stopped
+    environment:
+      # —— 运行模式 ——
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-8787}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # —— 数据持久化位置（容器内 /data 挂卷）——
+      DB_PATH: ${DB_PATH:-/data/app.db}
+      BALABALA_CASES_FILE: ${BALABALA_CASES_FILE:-/data/cases.json}
+      BALABALA_CONTENTS_FILE: ${BALABALA_CONTENTS_FILE:-/data/contents.json}
+      # —— 上游 LLM / 3D 服务密钥（从 .env 注入）——
+      TRIPO_API_KEY: ${TRIPO_API_KEY:-}
+      TRIPO_API_BASE_URL: ${TRIPO_API_BASE_URL:-https://api.tripo3d.ai/v2/openapi}
+      STEPFUN_API_KEY: ${STEPFUN_API_KEY:-}
+      STEPFUN_API_BASE_URL: ${STEPFUN_API_BASE_URL:-https://api.stepfun.com/v1}
+      STEPFUN_MODEL: ${STEPFUN_MODEL:-step-3.5-flash}
+      EVOMAP_API_KEY: ${EVOMAP_API_KEY:-}
+      EVOMAP_API_BASE_URL: ${EVOMAP_API_BASE_URL:-https://api.evomap.ai/v1}
+      EVOMAP_MODEL: ${EVOMAP_MODEL:-evomap-deepseek-v4-flash}
+      # —— 并发与代理 ——
+      LLM_MAX_CONCURRENCY: ${LLM_MAX_CONCURRENCY:-4}
+      TRIPO_HTTPS_PROXY: ${TRIPO_HTTPS_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+    volumes:
+      # SQLite + JSON 数据持久化（容器内 /data）
+      - balabala_data:/data
+    networks:
+      - balabala_internal
+    # API 不直接对外暴露，仅内网可达；如需直连调试可取消下一行注释
+    # ports:
+    #   - "${PORT:-8787}:8787"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-web
+    image: balabala/web:latest
+    container_name: balabala-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    networks:
+      - balabala_internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  balabala_internal:
+    driver: bridge
+
+volumes:
+  balabala_data:
+    driver: local

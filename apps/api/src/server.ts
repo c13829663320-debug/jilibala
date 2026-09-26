@@ -30,6 +30,7 @@ import { readReports, addBlock, removeBlock, getBlockList } from './moderation.j
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
+import { metrics } from './metrics.js';
 
 // Load local development secrets without adding a runtime dependency. Production should use process env.
 for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env"), resolve(process.cwd(), "../../.env")]) {
@@ -44,6 +45,50 @@ const app = Fastify({ logger: true, bodyLimit: 20 * 1024 * 1024 });
 await app.register(cors, { origin: true });
 await app.register(import('@fastify/websocket'));
 registerWebSocket(app);
+
+// ===== P3: 版本与启动时间（健康检查 /metrics 使用）=====
+const APP_VERSION = process.env.APP_VERSION ?? '0.1.0';
+const STARTED_AT = new Date().toISOString();
+
+// ===== HTTP 指标采集 =====
+app.addHook('onRequest', async (req) => {
+  (req as any)._hrstart = process.hrtime.bigint();
+});
+app.addHook('onResponse', async (req, reply) => {
+  const start = (req as any)._hrstart as bigint | undefined;
+  if (start) {
+    const durationSec = Number(process.hrtime.bigint() - start) / 1e9;
+    const route = (req.routeOptions as { url?: string }).url ?? req.url;
+    metrics.observeHttp(req.method, route, reply.statusCode, durationSec);
+  }
+  if (reply.statusCode >= 500) metrics.tickError();
+});
+
+app.get('/healthz', async () => ({
+  status: 'ok', service: 'balabala-api', version: APP_VERSION,
+  uptime: process.uptime(), time: new Date().toISOString(),
+}));
+
+app.get('/readyz', async (_req, reply) => {
+  let dbStatus: 'ok' | 'error' = 'ok';
+  let dbError: string | undefined;
+  try {
+    db.db.exec('CREATE TABLE IF NOT EXISTS _health_probe (id INTEGER PRIMARY KEY, t INTEGER NOT NULL)');
+    db.db.prepare('INSERT OR REPLACE INTO _health_probe (id, t) VALUES (1, ?)').run(Date.now());
+    db.db.prepare('DELETE FROM _health_probe WHERE id = 1').run();
+  } catch (error) {
+    dbStatus = 'error'; dbError = (error as Error).message;
+  }
+  const ready = dbStatus === 'ok';
+  if (!ready) reply.code(503);
+  return { status: ready ? 'ok' : 'error', version: APP_VERSION, uptime: process.uptime(),
+    dependencies: { db: dbStatus, ...(dbError ? { dbError } : {}) } };
+});
+
+app.get('/metrics', async (_req, reply) => {
+  reply.header('content-type', 'text/plain; version=0.0.4; charset=utf-8');
+  return metrics.render();
+});
 
 type CaseRecord = StoredCase & { createdAt: string; shareToken?: string; userId?: string };
 const cases = new Map<string, CaseRecord>();
@@ -85,10 +130,20 @@ async function withLlmSlot<T>(fn: () => Promise<T>): Promise<T> {
     await new Promise<void>((resolve) => { llmQueue.push(resolve); });
   }
   llmActive += 1;
-  try { return await fn(); }
-  finally {
+  metrics.llmActive = llmActive;
+  metrics.llmQueueSize = llmQueue.length;
+  try {
+    const result = await fn();
+    metrics.llmCall(true);
+    return result;
+  } catch (error) {
+    metrics.llmCall(false);
+    throw error;
+  } finally {
     llmActive -= 1;
+    metrics.llmActive = llmActive;
     const next = llmQueue.shift();
+    metrics.llmQueueSize = llmQueue.length;
     if (next) next();
   }
 }

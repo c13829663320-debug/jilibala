@@ -25,6 +25,7 @@ import { getSocialRoom, verifyRoomPassword, isUserKicked, sanitizeRoom } from ".
 import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot, replaceHumanWithAI as werewolfReplaceHuman } from "./werewolf-orchestrator.js";
+import { metrics } from "./metrics.js";
 import { getMultiplayerCourt } from "./court-orchestrator.js";
 import { getMultiplayerBar } from "./bar-orchestrator.js";
 import {
@@ -591,6 +592,7 @@ export function registerWebSocket(app: FastifyInstance): void {
         try { existingUser.socket.close(); } catch { /* noop */ }
       }
       room.users.set(userId, roomUser);
+      metrics.wsConnected();
 
       // 下发会话 token，客户端须持久化供下次重连使用
       safeSend(socket, { type: "session_token", token: freshToken } satisfies WSMessage);
@@ -1058,6 +1060,7 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     // ===== 断开清理 =====
     socket.on("close", () => {
+      metrics.wsDisconnected();
       // ===== R4-07: 全局连接注册表清理（无论房间守卫是否通过都要执行） =====
       {
         const set = globalUserSockets.get(userId);
@@ -1137,6 +1140,7 @@ export function registerWebSocket(app: FastifyInstance): void {
     });
 
     socket.on("error", () => {
+      metrics.wsError();
       // 忽略，close 会触发
     });
   });

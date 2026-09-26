@@ -5,10 +5,8 @@ import './design-tokens.css'
 import './styles.css'
 import SplashScreen from './SplashScreen'
 
-// 注册 PWA Service Worker（vite-plugin-pwa virtual module）
-import { registerSW } from 'virtual:pwa-register'
-
-registerSW({ immediate: true })
+// PWA Service Worker 注册由 src/pwa-update.tsx 中的 useRegisterSW 统一负责，
+// 这里不再重复调用 registerSW（避免重复注册）。
 
 // 直达分享链接时不需要开屏，直接看判决书
 const SKIP_SPLASH = typeof window !== 'undefined' && /^\/share\//.test(window.location.pathname)
