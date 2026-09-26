@@ -13,8 +13,10 @@ import {
   type SceneId,
   type Perspective,
   type EmoteType,
+  type SocialRoom,
 } from "@balabala/shared";
 import { getCourtCase } from "./db.js";
+import { getSocialRoom } from "./room-routes.js";
 import { filterCaseForPerspective } from "./court-state.js";
 import * as db from "./db.js";
 import { handleAction as werewolfHandleAction, getSnapshotForPlayer as werewolfSnapshot } from "./werewolf-orchestrator.js";
@@ -69,7 +71,7 @@ function pushGymRecentCheckin(entry: { userId: string; nickname: string; exercis
 }
 
 /** M8: 合法房间前缀。plaza 为全局广场，其余为按场景/案件的房间。 */
-const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:", "werewolf:", "gym:"];
+const VALID_ROOM_PREFIXES = ["plaza", "court:", "talkshow:", "bar:", "library:", "werewolf:", "gym:", "social:"];
 
 export function isValidRoom(roomId: string): boolean {
   return VALID_ROOM_PREFIXES.some((p) => (p.endsWith(":") ? roomId.startsWith(p) : roomId === p));
@@ -159,6 +161,11 @@ export function sendToUserInRoom(roomId: string, userId: string, msg: WSMessage)
   safeSend(user.socket, msg);
 }
 
+/** Round3: 获取某房间当前在线人数（供 REST 房间列表实时同步 playerCount）。 */
+export function getRoomPlayerCount(roomId: string): number {
+  return rooms.get(roomId)?.users.size ?? 0;
+}
+
 /** 局部更新法庭房间状态。 */
 export function updateCourtState(caseId: string, patch: Partial<CourtRoomState>): void {
   const roomId = `court:${caseId}`;
@@ -220,9 +227,21 @@ export function registerWebSocket(app: FastifyInstance): void {
 
     // 验证 room 格式
     if (!isValidRoom(roomId)) {
-      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<id>/talkshow:<id>/bar:<id>/library:<id>/werewolf:<id>/gym:lobby" });
+      safeSend(socket, { type: "error", message: "room 必须是 plaza 或 court:<id>/talkshow:<id>/bar:<id>/library:<id>/werewolf:<id>/gym:lobby/social:<code>" });
       socket.close();
       return;
+    }
+
+    // Round3: social 房间——校验房间元数据存在（不存在则拒绝连接）
+    let socialMeta: SocialRoom | undefined;
+    if (roomId.startsWith("social:")) {
+      const code = roomId.slice("social:".length);
+      socialMeta = getSocialRoom(code);
+      if (!socialMeta) {
+        safeSend(socket, { type: "error", message: "房间不存在或已解散" });
+        socket.close();
+        return;
+      }
     }
 
     // 获取用户资料（从 SQLite，不存在则用默认值）
@@ -232,6 +251,14 @@ export function registerWebSocket(app: FastifyInstance): void {
     const avatarRef = userProfile?.avatarRef ?? "";
 
     const room = getOrCreateRoom(roomId);
+
+    // Round3: social 房间人数上限（同 userId 重连替换旧连接不占新名额）
+    if (socialMeta && !room.users.has(userId) && room.users.size >= socialMeta.maxPlayers) {
+      safeSend(socket, { type: "error", message: "房间已满" });
+      socket.close();
+      return;
+    }
+
     const roomUser: RoomUser = {
       userId,
       nickname,
@@ -260,6 +287,18 @@ export function registerWebSocket(app: FastifyInstance): void {
       ...(room.sceneState ? { sceneState: room.sceneState } : {}),
     };
     safeSend(socket, welcome);
+
+    // Round3: social 房间——向新连接单发房间元数据（playerCount 取当前在线数）
+    if (socialMeta) {
+      const roomInfo: SocialRoom = { ...socialMeta, playerCount: room.users.size };
+      try {
+        if (socket.readyState === socket.OPEN) {
+          socket.send(JSON.stringify({ type: "room_info", room: roomInfo }));
+        }
+      } catch {
+        // 忽略发送失败
+      }
+    }
 
     // 狼人杀房间：若用户已加入对局，补发该视角的私密快照（断线重连/初始加载）。
     if (roomId.startsWith("werewolf:")) {
@@ -307,6 +346,11 @@ export function registerWebSocket(app: FastifyInstance): void {
       } satisfies WSMessage);
     } else {
       broadcastToRoom(roomId, { type: "user_joined", user: wsUserOf(roomUser) } satisfies WSMessage);
+    }
+
+    // Round3: social 房间——全员（含自己）广播实时人数
+    if (socialMeta) {
+      broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: room.users.size });
     }
 
     // ===== 消息处理 =====
@@ -539,6 +583,10 @@ export function registerWebSocket(app: FastifyInstance): void {
           broadcastToRoom(roomId, { type: "gym_user_left", userId } satisfies WSMessage);
         } else {
           broadcastToRoom(roomId, { type: "user_left", userId } satisfies WSMessage);
+        }
+        // Round3: social 房间——全员广播断线后的实时人数
+        if (roomId.startsWith("social:")) {
+          broadcastToRoom(roomId, { type: "room_player_update", roomId, playerCount: r.users.size });
         }
         // 房间空了可清理（保留 court 房间状态以便重连）
         if (r.users.size === 0 && roomId === "plaza") {

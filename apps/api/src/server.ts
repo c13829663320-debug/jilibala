@@ -19,6 +19,7 @@ import { registerGymRoutes } from './gym-routes.js';
 import { setGymChat } from './gym-orchestrator.js';
 import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { registerCourtRoutes } from './court-routes.js';
+import { registerRoomRoutes } from './room-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
@@ -993,6 +994,9 @@ registerCustomCharacterRoutes(app, { chat: chatWithProviders, contents });
 
 // ===== M13: 趣味法庭（全屏 3D + 完整案件状态机）=====
 registerCourtRoutes(app, { chat: chatWithProviders, contents, saveContents });
+
+// ===== Round3: 真人多人社交房间 REST =====
+registerRoomRoutes(app);
 
 // ===== 自定义场景工作室 =====
 registerSceneStudioRoutes(app, { chat: chatWithProviders });
