@@ -104,7 +104,7 @@ export interface OnDemandResult {
  * 按需加载某资产：
  *   - enabled=true  → useGLTF.preload(url) 预热 + 标记 ready
  *   - enabled=false → useGLTF.clear(url) 卸载 + 标记 disposed
- * 卸载时自动 dispose drei 的 glb 缓存，释放内存。
+ * 卸载时自动 dispose drei 的 gltf 缓存，释放内存。
  */
 export function useOnDemandLoad(
   assetId: string,
