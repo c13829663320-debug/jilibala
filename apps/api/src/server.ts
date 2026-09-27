@@ -26,6 +26,7 @@ import { registerSceneTemplateRoutes } from './scene-templates.js';
 import { registerSceneStoreRoutes } from './scene-store.js';
 import { registerFriendRoutes } from './friends.js';
 import { registerChatRoutes } from './chat.js';
+import { registerRelationshipRoutes } from './relationship.js';
 // ===== R4-08: 排行榜 / 主题房间公告 / 内容治理 =====
 import { getLeaderboard } from './leaderboard.js';
 import { getActiveAnnouncements, startScheduler as startThemeRoomScheduler } from './theme-rooms.js';
@@ -1068,10 +1069,14 @@ registerRoomRoutes(app);
 registerFriendRoutes(app);
 registerChatRoutes(app);
 
+// ===== R5: 名人关系系统 =====
+registerRelationshipRoutes(app);
+
 // ===== R4-08: 全服/场景段位排行榜 =====
 app.get('/api/leaderboard', async (req) => {
   const q = (req.query ?? {}) as { scope?: string; limit?: string; userId?: string };
-  const scope = (['global','court','werewolf','bar'].includes(q.scope ?? '') ? q.scope : 'global') as 'global'|'court'|'werewolf'|'bar';
+  const scopes = ['global','court','talkshow','werewolf','bar','gym','library'];
+  const scope = (scopes.includes(q.scope ?? '') ? q.scope : 'global') as import('@balabala/shared').LeaderboardScope;
   const limit = Math.min(Math.max(parseInt(q.limit ?? '20', 10) || 20, 1), 100);
   const entries = getLeaderboard(scope, limit);
   let me: { rank: number; entry?: (typeof entries)[number] } | null = null;
