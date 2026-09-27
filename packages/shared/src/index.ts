@@ -1090,3 +1090,6 @@ export * from "./scene-studio.js";
 
 // ===== Round4 R4-09: 场景 UGC（模板市场/保存分享/CC0 道具/可拾取） =====
 export * from "./scene-ugc.js";
+
+// ===== R5 招牌玩法/核心循环：统一长期目标线与结算契约 =====
+export * from "./gameplay-loop.js";

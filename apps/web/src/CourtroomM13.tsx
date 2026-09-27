@@ -414,6 +414,14 @@ export default function CourtroomM13({
       {phase === 'verdict' && verdict && (
         <CourtVerdictPanel
           verdict={verdict}
+          playerSide={courtCase?.player_side}
+          opponentName={
+            courtCase?.player_side
+              ? courtCase.player_side === 'plaintiff'
+                ? (courtCase.defendant?.name ?? '对方')
+                : (courtCase.plaintiff?.name ?? '对方')
+              : undefined
+          }
           publishing={publishing}
           publishStatus={publishStatus}
           onPublish={() => void publish()}

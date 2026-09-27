@@ -140,6 +140,7 @@ export default function CircuitChallenge({ userId, celebrityId, onCelebrityChang
                 void onCheckin({ exerciseName: '三关电路', setsCompleted: 1, repsCompleted: results.length, durationSeconds: 90, note: `电路挑战总分 ${total} · 段位 ${tier}` })
                   .then(() => setChecked(true)).finally(() => setChecking(false)) }}
               onExit={onExit}
+              onReplay={start}
             />
           )}
         </div>

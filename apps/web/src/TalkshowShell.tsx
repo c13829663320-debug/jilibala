@@ -4,6 +4,7 @@ import { ArrowLeft, Mic, Send, RefreshCw, Crown, Users, Sparkles } from 'lucide-
 import { getCelebrity, type Celebrity } from '@balabala/shared'
 import { useIdentity } from './identity'
 import { submitGameResult } from './profile'
+import { recordResult as recordStreak } from './gameplay/streak'
 import TopicPicker from './talkshow/TopicPicker'
 import JokeScoreRadar from './talkshow/JokeScoreRadar'
 import AudienceWave from './talkshow/AudienceWave'
@@ -202,6 +203,8 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
         score: data.average ?? 0,
         detail: { tier: t, goldJoke: Boolean(data.goldJoke) },
       })
+      // R5 核心循环：记录脱口秀连胜（已有「再来一轮」入口）。
+      recordStreak('talkshow', t === '炸场' || t === '今日之星')
     } catch (e) {
       window.alert(e instanceof Error ? e.message : '结算失败')
     } finally {
