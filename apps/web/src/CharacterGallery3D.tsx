@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import NeutralMannequin from './NeutralMannequin'
 import { useSceneCleanup } from './useSceneCleanup'
 import type { GalleryEntry } from './character-gallery'
+import { useLazyGLB, type LazyGLBSource } from './performance/useLazyGLB'
 
 /* ==========================================================================
  * 3D 人物馆：全屏环形选人界面。
@@ -322,6 +323,20 @@ function GalleryScene({ entries, activeIndex, ringRef, dragRef, onIndexChange, o
   activeRef.current = activeIndex
   const onIndexRef = useRef(onIndexChange)
   onIndexRef.current = onIndexChange
+
+  // R5: GLB 懒加载——名人模型按优先级排队解码；切到谁就预热谁（不改动现有 near 门控）。
+  const modelSources = useMemo<LazyGLBSource[]>(
+    () => entries
+      .filter((e) => e.character.model && !e.isCreateEntry)
+      .map((e) => ({ url: e.character.model as string, priority: 'celebrity' as const, x: e.booth.x, z: e.booth.z })),
+    [entries],
+  )
+  const lazyGLB = useLazyGLB(modelSources, { maxConcurrent: 2, initialBatch: LOAD_NEARBY * 2 + 1 })
+  useEffect(() => {
+    const active = entries[activeIndex]
+    if (active?.character.model) lazyGLB.prioritize(active.character.model)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex])
 
   // 首次挂载/列表变化时，圆环直接跳到目标角，避免开场扫动。
   useLayoutEffect(() => {

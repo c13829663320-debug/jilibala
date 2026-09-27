@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, type RefObject } from 'react'
 import type { ResumedSessionState, ReplayedMessage } from '@balabala/shared'
+import { nextBackoffDelay } from './performance/reconnect-strategy'
 
 export type WsStatus = 'connecting' | 'open' | 'reconnecting' | 'closed'
 
@@ -49,6 +50,8 @@ export function useReconnectingWebSocket({
   const timerRef = useRef<number | null>(null)
   const shouldRunRef = useRef(true)
   const delayRef = useRef(initialDelayMs)
+  // R5: 连续重连次数（onclose 自增，onopen 归零）；退避由 nextBackoffDelay 纯函数计算
+  const attemptRef = useRef(0)
   const [status, setStatus] = useState<WsStatus>('closed')
   const [retryCount, setRetryCount] = useState(0)
 
@@ -99,6 +102,7 @@ export function useReconnectingWebSocket({
     wsRef.current = ws
 
     ws.onopen = () => {
+      attemptRef.current = 0
       delayRef.current = initialDelayMs
       setStatus('open')
       setRetryCount(0)
@@ -128,6 +132,7 @@ export function useReconnectingWebSocket({
     ws.onclose = () => {
       if (wsRef.current === ws) wsRef.current = null
       if (!shouldRunRef.current) return
+      attemptRef.current += 1
       setStatus('reconnecting')
       setRetryCount((n) => n + 1)
       scheduleReconnect()
@@ -136,12 +141,12 @@ export function useReconnectingWebSocket({
 
   const scheduleReconnect = useCallback(() => {
     clearTimer()
-    const delay = delayRef.current
+    // R5: 退避由纯函数统一计算（1s/2s/4s/8s 上限 30s）
+    const delay = nextBackoffDelay(attemptRef.current, initialDelayMs, maxDelayMs)
     timerRef.current = window.setTimeout(() => {
-      delayRef.current = Math.min(delay * 2, maxDelayMs)
       connect()
     }, delay)
-  }, [connect, clearTimer, maxDelayMs])
+  }, [connect, clearTimer, initialDelayMs, maxDelayMs])
 
   useEffect(() => {
     if (!enabled) return

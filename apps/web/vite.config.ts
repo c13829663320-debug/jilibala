@@ -69,7 +69,21 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            // 3D 大模型：永不缓存，每次走网络（避免占用磁盘 + 版本更新及时）
+            // R5: 核心首屏世界模型（广场地面/通用化身）——StaleWhileRevalidate，
+            // 二次访问离线可用；条目数/时长封顶，避免磁盘膨胀。
+            urlPattern: ({ url }) =>
+              url.pathname === '/models/world/plaza.glb' ||
+              url.pathname === '/models/world/avatar.glb' ||
+              url.pathname === '/models/world/plaza-texture.jpg',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'core-world-models',
+              expiration: { maxEntries: 6, maxAgeSeconds: 60 * 60 * 24 * 14 },
+            },
+          },
+          {
+            // 其余 3D 模型（100+ 名人 GLB）：永不缓存，每次走网络
+            // （数量大、体积大，避免占用磁盘 + 版本更新及时生效）
             urlPattern: ({ request, url }) =>
               url.pathname.endsWith('.glb') || url.pathname.startsWith('/models/'),
             handler: 'NetworkOnly',
@@ -132,8 +146,12 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          // R5: three.js 全家桶单独成 chunk，首屏非 3D 页不加载
           three: ['three'],
           r3f: ['@react-three/fiber', '@react-three/drei'],
+          // R5: React 运行时 + 图标库单独成 chunk，长期缓存
+          'react-vendor': ['react', 'react-dom'],
+          icons: ['lucide-react'],
         },
       },
     },
