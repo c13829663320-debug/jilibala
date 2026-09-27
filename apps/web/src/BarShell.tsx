@@ -60,6 +60,12 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
       .catch(() => setTopics(['外卖迟到，该不该给差评？', 'AI 会不会取代人类的工作？', '恋爱里，该不该看对方手机？']))
   }, [])
 
+  // 每日挑战
+  const [daily, setDaily] = useState<{ title: string; description: string; reward: number } | null>(null)
+  useEffect(() => {
+    fetch('/api/bar/daily').then((r) => r.json()).then((d) => setDaily(d.challenge)).catch(() => {})
+  }, [])
+
   const activeTopic = customTopic.trim() || topic
 
   const startDebate = async () => {
@@ -215,6 +221,12 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
         <div style={{ width: 420, background: '#141414', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {stage === 'prepare' && (
             <div style={{ padding: 18, overflowY: 'auto' }}>
+              {daily && (
+                <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.3)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: YELLOW }}>🎯 今日挑战 · {daily.title}</div>
+                  <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.7)', marginTop: 2 }}>{daily.description}（奖励 {daily.reward}）</div>
+                </div>
+              )}
               <Title>选个辩题，站好队</Title>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                 {topics.slice(0, 8).map((t) => (
