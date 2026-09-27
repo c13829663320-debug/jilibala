@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BaseOrchestrator } from './base-orchestrator.js';
+import type { Highlight, SettlementResult } from './base-orchestrator.js';
 import type { GameEvent, GamePhase, GameResult, Tier } from './types.js';
 
 interface TestState {
@@ -199,5 +200,111 @@ describe('BaseOrchestrator', () => {
     expect(fresh.phase).toBe('playing');
     expect(fresh.currentRound).toBe(1);
     expect(fresh.getScore('slot-0')).toBe(20);
+  });
+});
+
+// ============================================================================
+// R5: 钩子 / 高光 / 结算演出
+// ============================================================================
+
+interface SettleState { x: number }
+interface SettleAction { type: string; slot?: string; points?: number }
+interface SettleConfig { label: string }
+
+class SettleOrchestrator extends BaseOrchestrator<SettleState, SettleAction, SettleConfig> {
+  humanWon = true;
+  protected applyAction(a: SettleAction): void {
+    this.state.x += 1;
+    if (a.slot && typeof a.points === 'number') this.addScore(a.slot, a.points, a.type);
+  }
+  settle(): GameResult {
+    return {
+      winner: this.humanWon ? 'slot-0' : 'ai-1',
+      scores: { 'slot-0': this.getScore('slot-0') },
+      tier: TIER,
+      rankPoints: 25,
+      highlights: [],
+      durationMs: this.elapsedMs,
+    };
+  }
+}
+
+describe('R5 钩子', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('captureHighlight 收集并触发 onHighlight', () => {
+    const o = new SettleOrchestrator({ maxRounds: 1, initialState: { x: 0 } });
+    const onHighlight = vi.fn();
+    o.start({ label: 's' }, { onHighlight });
+    const hl: Highlight = {
+      id: 'h1', scene: 'court', type: 'key_evidence', timestamp: Date.now(),
+      description: 'x', data: {},
+    };
+    o.captureHighlight(hl);
+    expect(onHighlight).toHaveBeenCalledWith(hl);
+    expect(o.getHighlights()).toHaveLength(1);
+  });
+
+  it('emitFeedback(FeedbackEvent) 触发 onFeedback 钩子', () => {
+    const o = new SettleOrchestrator({ maxRounds: 1, initialState: { x: 0 } });
+    const onFeedback = vi.fn();
+    o.start({ label: 's' }, { onFeedback });
+    o.emitFeedback({ kind: 'float_text', text: '+10', intensity: 0.5 });
+    expect(onFeedback).toHaveBeenCalledTimes(1);
+    expect(onFeedback.mock.calls[0][0].kind).toBe('float_text');
+  });
+
+  it('不传钩子时不报错（向后兼容）', () => {
+    const o = new SettleOrchestrator({ maxRounds: 1, initialState: { x: 0 } });
+    o.start({ label: 's' });
+    o.captureHighlight({ id: 'h', scene: 'x', type: 'comeback', timestamp: 1, description: '', data: {} });
+    o.emitFeedback({ kind: 'confetti' });
+    o.setupSlots(['a'], 1, []);
+    o.addScore('slot-0', 90, 'x');
+    expect(() => o.finish()).not.toThrow();
+  });
+});
+
+describe('R5 结算演出三态', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('big_win：终局 >85%', () => {
+    const o = new SettleOrchestrator({ maxRounds: 1, initialState: { x: 0 } });
+    o.settlementMaxScore = 100;
+    const onSettlement = vi.fn();
+    o.start({ label: 's' }, { onSettlement });
+    o.setupSlots(['a'], 1, []);
+    o.addScore('slot-0', 90, 'x');
+    o.finish();
+    const s: SettlementResult = onSettlement.mock.calls[0][0];
+    expect(s.type).toBe('big_win');
+    expect(s.score).toBe(90);
+  });
+
+  it('comeback_win：曾低于 30% 终局反超', () => {
+    const o = new SettleOrchestrator({ maxRounds: 1, initialState: { x: 0 } });
+    o.settlementMaxScore = 100;
+    const onSettlement = vi.fn();
+    o.start({ label: 's' }, { onSettlement });
+    o.setupSlots(['a'], 1, []);
+    o.addScore('slot-0', 15, 'slow'); // 最低分 15%
+    o.addScore('slot-0', 75, 'rally'); // 终局 90%
+    o.finish();
+    const s: SettlementResult = onSettlement.mock.calls[0][0];
+    expect(s.type).toBe('comeback_win');
+    expect(s.minBalance).toBe(15);
+  });
+
+  it('narrow_loss：45-50% 惜败', () => {
+    const o = new SettleOrchestrator({ maxRounds: 1, initialState: { x: 0 } });
+    o.settlementMaxScore = 100;
+    o.humanWon = false; // 玩家视角负
+    o.setupSlots(['a'], 1, []);
+    const onSettlement = vi.fn();
+    o.start({ label: 's' }, { onSettlement });
+    o.addScore('slot-0', 48, 'close'); // 玩家 48%，但输了
+    o.finish();
+    const s: SettlementResult = onSettlement.mock.calls[0][0];
+    expect(s.type).toBe('narrow_loss');
   });
 });
