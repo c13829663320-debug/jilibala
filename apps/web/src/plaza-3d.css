@@ -69,6 +69,20 @@
   font-weight: 600;
 }
 
+.plaza-3d-collect {
+  position: absolute;
+  top: 88px;
+  left: 16px;
+  z-index: 10;
+  background: rgba(20,18,10,0.8);
+  border: 1px solid #FFD600;
+  border-radius: 20px;
+  padding: 4px 12px;
+  color: #FFD600;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* ===== 交互提示（屏幕下方居中） ===== */
 .plaza-3d-prompt {
   position: absolute;
@@ -222,7 +236,7 @@
   background: rgba(0,0,0,0.8);
   color: #FFD600;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 600  ;
   cursor: pointer;
 }
 .plaza-scene-panel {
@@ -274,7 +288,7 @@
   width: 110px;
   height: 110px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,25,0.08);
   border: 1px solid rgba(255,255,255,0.15);
   z-index: 12;
   touch-action: none;
