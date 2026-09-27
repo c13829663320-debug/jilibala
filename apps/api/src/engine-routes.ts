@@ -5,7 +5,18 @@
 // ============================================================================
 import type { FastifyInstance } from "fastify";
 import type { CourtCardType, WerewolfRole } from "@balabala/shared";
+import {
+  computeAffinityDelta,
+  buildResultCard,
+} from "@balabala/shared";
 import { CourtOrchestrator } from "./court-engine.js";
+import {
+  CourtSignatureEngine,
+  type SignatureAction,
+  type SignatureGameResult,
+} from "./court-signature-engine.js";
+import { CELEBRITY_COURT_CASES, getSignatureCase, randomSignatureCase } from "./court-signature-cases.js";
+import { applyRelationshipChange } from "./relationship.js";
 import { TalkshowOrchestrator } from "./talkshow-engine.js";
 import { WerewolfEngine, type WwAction, type WwPrivateSnapshot } from "./werewolf-engine.js";
 import { BarEngine } from "./bar-engine.js";
@@ -14,6 +25,25 @@ import type { ArgumentAngle } from "./bar-orchestrator.js";
 interface CourtSession {
   engine: CourtOrchestrator;
   events: Array<{ type: string; payload: unknown }>;
+  userId: string;
+  /** 结算后填充。 */
+  settled?: {
+    result: ReturnType<CourtOrchestrator["settle"]>;
+    relationshipChange?: unknown;
+    resultCard?: unknown;
+    streak?: { current: number; best: number };
+  };
+}
+interface SignatureSession {
+  engine: CourtSignatureEngine;
+  events: Array<{ type: string; payload: unknown }>;
+  userId: string;
+  /** 结算后填充，act 响应里带回。 */
+  settled?: {
+    result: SignatureGameResult;
+    relationshipChange?: unknown;
+    resultCard?: unknown;
+  };
 }
 interface TalkshowSession {
   engine: TalkshowOrchestrator;
@@ -29,6 +59,7 @@ interface BarSession {
 }
 
 const courtSessions = new Map<string, CourtSession>();
+const signatureSessions = new Map<string, SignatureSession>();
 const talkshowSessions = new Map<string, TalkshowSession>();
 const wwSessions = new Map<string, WwSession>();
 const barSessions = new Map<string, BarSession>();
@@ -40,23 +71,81 @@ const DEMO_EVIDENCE = [
   { id: "ev-3", name: "出警笔录", content: "责任认定的出警笔录" },
 ];
 
+/** 普通法庭演示对局的对手名人池（关系系统落点）。 */
+const DEME_OPPONENTS = [
+  { id: "isaac-newton", name: "牛顿" },
+  { id: "socrates", name: "苏格拉底" },
+  { id: "nikola-tesla", name: "特斯拉" },
+  { id: "steve-jobs", name: "乔布斯" },
+];
+
+/** 普通法庭局结算：落盘关系 + 战果卡。 */
+function settleRegularCourt(sess: CourtSession): void {
+  const engine = sess.engine;
+  if (sess.settled || engine.phase !== "results") return;
+  const result = engine.settle() as ReturnType<CourtOrchestrator["settle"]>;
+  const meta = (result as { metadata?: {
+    outcome: "win" | "draw" | "loss";
+    comeback: boolean;
+    opponentCelebrity: { id: string; name: string };
+    relationshipDelta: number;
+    relationshipReason: string;
+    highlights: Array<{ type: string }>;
+  } }).metadata;
+  if (!meta) return;
+
+  let relationshipChange: ReturnType<typeof applyRelationshipChange> | undefined;
+  try {
+    relationshipChange = applyRelationshipChange(sess.userId || "demo-user", meta.opponentCelebrity.id, {
+      delta: meta.relationshipDelta,
+      reason: meta.relationshipReason,
+      result: meta.outcome,
+    });
+  } catch (e) {
+    console.warn(`[court:relationship] ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const current = meta.outcome === "win" ? 1 : meta.outcome === "loss" ? -1 : 0;
+  const resultCard = buildResultCard({
+    scene: "court",
+    result,
+    highlights: engine.getHighlights(),
+    relationshipChanges: relationshipChange ? [relationshipChange] : [],
+    streak: { current, best: Math.max(0, current) },
+    opponent: { id: meta.opponentCelebrity.id, name: meta.opponentCelebrity.name, type: "celebrity" },
+    outcome: meta.outcome,
+    score: result.scores["slot-0"] ?? 0,
+    maxScore: 100,
+  });
+
+  sess.settled = {
+    result,
+    relationshipChange,
+    resultCard,
+    streak: { current, best: Math.max(0, current) },
+  };
+}
+
 export function registerEngineRoutes(app: FastifyInstance): void {
   // ===== 趣味法庭 =====
   app.post("/api/engine/court/new", async (req, reply) => {
-    const body = (req.body ?? {}) as { playerSide?: "plaintiff" | "defendant" };
+    const body = (req.body ?? {}) as { playerSide?: "plaintiff" | "defendant"; userId?: string };
     const id = `court-${courtSessions.size + 1}-${Date.now()}`;
     const engine = new CourtOrchestrator();
     const events: Array<{ type: string; payload: unknown }> = [];
     engine.on("*", (e) => events.push({ type: e.type, payload: e.payload }));
+    const opponent = DEME_OPPONENTS[Math.floor(Math.random() * DEME_OPPONENTS.length)];
     engine.start({
       playerSide: body.playerSide === "defendant" ? "defendant" : "plaintiff",
       disputePoints: DEMO_DISPUTE_POINTS,
       evidencePool: DEMO_EVIDENCE,
       playerTurnTimeoutMs: 120_000, // 真机走查窗口放宽
       opponentRebuttalDelta: 4,
+      opponentCelebrity: opponent,
     });
-    courtSessions.set(id, { engine, events });
-    return reply.send({ id, snapshot: engine.getSnapshot(), events });
+    const sess: CourtSession = { engine, events, userId: body.userId || "demo-user" };
+    courtSessions.set(id, sess);
+    return reply.send({ id, opponent, snapshot: engine.getSnapshot(), events });
   });
 
   app.post<{ Params: { id: string } }>("/api/engine/court/:id/act", async (req, reply) => {
@@ -78,17 +167,151 @@ export function registerEngineRoutes(app: FastifyInstance): void {
         freeText: body.freeText,
       });
     }
-    return reply.send({ snapshot: sess.engine.getSnapshot(), events: sess.events });
+    settleRegularCourt(sess);
+    return reply.send({
+      snapshot: sess.engine.getSnapshot(),
+      events: sess.events,
+      ...(sess.settled ? { result: sess.settled.result, relationshipChange: sess.settled.relationshipChange, resultCard: sess.settled.resultCard, streak: sess.settled.streak } : {}),
+    });
   });
 
   app.get<{ Params: { id: string } }>("/api/engine/court/:id", async (req, reply) => {
     const sess = courtSessions.get(req.params.id);
     if (!sess) return reply.code(404).send({ error: "session not found" });
-    return reply.send({ snapshot: sess.engine.getSnapshot(), events: sess.events });
+    settleRegularCourt(sess);
+    return reply.send({
+      snapshot: sess.engine.getSnapshot(),
+      events: sess.events,
+      ...(sess.settled ? { result: sess.settled.result, relationshipChange: sess.settled.relationshipChange, resultCard: sess.settled.resultCard, streak: sess.settled.streak } : {}),
+    });
   });
 
   app.get("/api/engine/court-daily", async (_req, reply) => {
     return reply.send(CourtOrchestrator.dailyChallenge(new Date()));
+  });
+
+  // ===== 名人法庭 · 招牌模式 =====
+
+  /** 招牌局结算：算好感度变化 + 战果卡，落盘关系。 */
+  function settleSignature(sess: SignatureSession): void {
+    const engine = sess.engine;
+    if (sess.settled || engine.phase !== "results") return;
+    const result = engine.settle() as SignatureGameResult;
+    const opponentId = engine.opponentCelebrityId();
+    const opponentName = engine.opponentCelebrityName();
+
+    const outcome: "win" | "draw" | "loss" =
+      result.winner === "slot-0" ? "win" : result.winner == null ? "draw" : "loss";
+
+    // 翻盘判定：scoreHistory 曾跌入 30% 以下而终局 >50%。
+    const hist = (engine.state.scoreHistory as number[]) ?? [];
+    const comeback = hist.some((s) => s < 30) && result.verdictScore > 50;
+
+    const delta = computeAffinityDelta({
+      scene: "court",
+      result: outcome,
+      score: result.verdictScore,
+      maxScore: 100,
+      highlights: engine.getHighlights(),
+      comeback,
+      opponentAffinity: 0,
+    });
+    const reason =
+      outcome === "win" ? (comeback ? "翻盘战胜名人" : "庭审胜诉")
+      : outcome === "draw" ? "势均力敌"
+      : "庭审惜败";
+
+    let relationshipChange: ReturnType<typeof applyRelationshipChange> | undefined;
+    try {
+      relationshipChange = applyRelationshipChange(sess.userId || "demo-user", opponentId, {
+        delta,
+        reason,
+        result: outcome,
+      });
+    } catch (e) {
+      reqWarn("applyRelationshipChange", e);
+    }
+
+    const resultCard = buildResultCard({
+      scene: "court",
+      result,
+      highlights: engine.getHighlights(),
+      relationshipChanges: relationshipChange ? [relationshipChange] : [],
+      streak: { current: outcome === "win" ? 1 : outcome === "loss" ? -1 : 0, best: 0 },
+      opponent: { id: opponentId, name: opponentName, type: "celebrity" },
+      outcome,
+      score: result.verdictScore,
+      maxScore: 100,
+    });
+
+    sess.settled = { result, relationshipChange, resultCard };
+  }
+
+  // 防止 TS 在函数内引用未定义告警（reqWarn 为轻量日志）。
+  function reqWarn(label: string, e: unknown): void {
+    app.log.warn?.(`[signature:${label}] ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // 案件库列表（静态路由，优先于 /:id 注册）。
+  app.get("/api/engine/court-signature/cases", async (_req, reply) => {
+    return reply.send({ cases: CELEBRITY_COURT_CASES });
+  });
+
+  app.post("/api/engine/court-signature/new", async (req, reply) => {
+    const body = (req.body ?? {}) as { caseId?: string; playerSide?: "plaintiff" | "defendant"; userId?: string };
+    const caze = body.caseId ? getSignatureCase(body.caseId) : randomSignatureCase();
+    if (!caze) return reply.code(404).send({ error: "case not found" });
+
+    const id = `sig-${signatureSessions.size + 1}-${Date.now()}`;
+    const engine = new CourtSignatureEngine();
+    const events: Array<{ type: string; payload: unknown }> = [];
+    engine.on("*", (e) => events.push({ type: e.type, payload: e.payload }));
+    engine.start({
+      caseId: caze.id,
+      playerSide: body.playerSide === "defendant" ? "defendant" : "plaintiff",
+      playerTurnTimeoutMs: 120_000,
+      opponentRebuttalDelta: 4,
+    });
+    const sess: SignatureSession = { engine, events, userId: body.userId || "demo-user" };
+    signatureSessions.set(id, sess);
+    return reply.send({ id, case: caze, snapshot: engine.getSnapshot(), events });
+  });
+
+  app.post<{ Params: { id: string } }>("/api/engine/court-signature/:id/act", async (req, reply) => {
+    const sess = signatureSessions.get(req.params.id);
+    if (!sess) return reply.code(404).send({ error: "session not found" });
+    const body = (req.body ?? {}) as {
+      kind?: "play_card" | "pass" | "submit_closing";
+      card?: CourtCardType;
+      targetEvidenceId?: string;
+      freeText?: string;
+      text?: string;
+    };
+
+    let action: SignatureAction;
+    if (body.kind === "submit_closing") action = { kind: "submit_closing", text: body.text ?? "" };
+    else if (body.kind === "pass") action = { kind: "pass" };
+    else action = { kind: "play_card", card: body.card ?? "attack", targetEvidenceId: body.targetEvidenceId, freeText: body.freeText };
+
+    sess.engine.act(action);
+    settleSignature(sess);
+
+    return reply.send({
+      snapshot: sess.engine.getSnapshot(),
+      events: sess.events,
+      ...(sess.settled ? { result: sess.settled.result, relationshipChange: sess.settled.relationshipChange, resultCard: sess.settled.resultCard } : {}),
+    });
+  });
+
+  app.get<{ Params: { id: string } }>("/api/engine/court-signature/:id", async (req, reply) => {
+    const sess = signatureSessions.get(req.params.id);
+    if (!sess) return reply.code(404).send({ error: "session not found" });
+    settleSignature(sess);
+    return reply.send({
+      snapshot: sess.engine.getSnapshot(),
+      events: sess.events,
+      ...(sess.settled ? { result: sess.settled.result, relationshipChange: sess.settled.relationshipChange, resultCard: sess.settled.resultCard } : {}),
+    });
   });
 
   // ===== 脱口秀 =====

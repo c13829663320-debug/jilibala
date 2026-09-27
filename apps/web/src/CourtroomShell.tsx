@@ -15,6 +15,7 @@ import VerdictCard from './VerdictCard'
 import CourtroomM13 from './CourtroomM13'
 import CourtFlow from './court/CourtFlow'
 import NewCourtGame from './court/NewCourtGame'
+import NewSignatureCourtGame from './court/NewSignatureCourtGame'
 import { playTts, stopTts } from './tts'
 import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
 
@@ -59,6 +60,13 @@ export default function CourtroomShell({
   const [m13Mode, setM13Mode] = useState(true)
   // 玩法深化专项：默认走新引擎牌面对决（NewCourtGame），可切回旧 CourtFlow 经典模式。
   const [newEngineMode, setNewEngineMode] = useState(true)
+  // R5 招牌模式：?signature=1 或 ?signature=<caseId> 直达。
+  const [signatureMode, setSignatureMode] = useState<boolean>(() => {
+    try { return new URLSearchParams(window.location.search).has('signature') } catch { return false }
+  })
+  const signatureCaseId = (() => {
+    try { return new URLSearchParams(window.location.search).get('signature') } catch { return null }
+  })()
   const isGuest = Boolean(roomId)
   const [benchPhase, setBenchPhase] = useState<BenchPhase>(isGuest ? 'streaming' : 'config')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -367,11 +375,23 @@ export default function CourtroomShell({
   if (m13Mode) {
     // 玩法深化专项：新引擎牌面对决为默认对局路径；旧 CourtFlow 保留为「经典模式」回退。
     if (newEngineMode) {
+      if (signatureMode) {
+        return (
+          <div style={{ position: 'relative', height: '100vh', background: '#160d08', overflow: 'hidden' }}>
+            <NewSignatureCourtGame
+              onExit={onExitToEntry ?? (() => window.location.assign('/'))}
+              onSwitchClassic={() => setSignatureMode(false)}
+              initialCaseId={signatureCaseId && signatureCaseId !== '1' ? signatureCaseId : undefined}
+            />
+          </div>
+        )
+      }
       return (
         <div style={{ position: 'relative', height: '100vh', background: '#160d08', overflow: 'hidden' }}>
           <NewCourtGame
             onExit={onExitToEntry ?? (() => window.location.assign('/'))}
             onSwitchClassic={() => setNewEngineMode(false)}
+            onSwitchSignature={() => setSignatureMode(true)}
           />
         </div>
       )

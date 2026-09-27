@@ -62,9 +62,33 @@ export interface CourtNewResponse {
   id: string
   snapshot: CourtSnapshot
   events: EngineEvent[]
+  opponent?: { id: string; name: string }
 }
 
-export interface CourtActResponse {
+/** R5：结算钩子数据。 */
+export interface CourtSettlementExtras {
+  result?: GameResultLike
+  relationshipChange?: { celebrityId: string; delta: number; fromType: string; toType: string; reason: string; newUnlock?: string } | null
+  resultCard?: Record<string, unknown> & { toText?: string } | null
+  streak?: { current: number; best: number }
+}
+
+export interface GameResultLike {
+  winner: string | null
+  scores: Record<string, number>
+  tier: { level: string; label: string; score: number; percentile: number }
+  highlights: string[]
+  metadata?: {
+    outcome: 'win' | 'draw' | 'loss'
+    comeback: boolean
+    opponentCelebrity: { id: string; name: string }
+    relationshipDelta: number
+    relationshipReason: string
+    highlights: Array<{ type: string; description: string }>
+  }
+}
+
+export interface CourtActResponse extends CourtSettlementExtras {
   snapshot: CourtSnapshot
   events: EngineEvent[]
 }
@@ -130,4 +154,107 @@ export function getCourtSnapshot(id: string): Promise<CourtActResponse> {
 /** 每日挑战横幅：GET /api/engine/court-daily。 */
 export function getCourtDailyChallenge(): Promise<DailyChallengeInfo> {
   return jsonFetch('/api/engine/court-daily', { method: 'GET' }) as Promise<DailyChallengeInfo>
+}
+
+// ============================================================================
+// 名人法庭 · 招牌模式客户端
+// ============================================================================
+
+export interface SignatureParty { id: string; name: string; role: string }
+export interface SignatureEvidence { id: string; text: string; side: 'plaintiff' | 'defendant'; power: number }
+
+export interface CelebrityCourtCase {
+  id: string
+  title: string
+  celebrityDefendant: SignatureParty
+  celebrityPlaintiff: SignatureParty
+  theme: string
+  facts: string[]
+  disputePoints: string[]
+  evidence: SignatureEvidence[]
+  dramaticMoments: string[]
+  juryBias: number
+}
+
+/** CourtSignatureEngine.state 前端视图。 */
+export interface SignatureState {
+  stage: 'opening' | 'player_turn' | 'opponent_rebuttal' | 'closing' | 'verdict'
+  caseId: string
+  round: number
+  balance: { plaintiff: number; defendant: number }
+  juryMood: number
+  ammo: Record<CourtSide, number>
+  unresolved: string[]
+  resolved: string[]
+  facts: string[]
+  evidencePool: Array<{ id: string; name: string; content: string }>
+  playerSide: CourtSide
+  opponentSide: CourtSide
+  playerMoves: Array<{ round: number; card: string; delta: number; hit: boolean; judgeComment: string }>
+  scoreHistory: number[]
+  lastDelta: number
+  closingText: string
+  closingScore: number
+  shownMoments: string[]
+}
+
+export interface SignatureSnapshot {
+  phase: 'setup' | 'playing' | 'round' | 'results'
+  currentRound: number
+  maxRounds: number
+  state: SignatureState
+}
+
+export interface SignatureResult {
+  winner: string | null
+  scores: Record<string, number>
+  tier: { level: string; label: string; score: number; percentile: number }
+  highlights: string[]
+  durationMs: number
+  juryMood: number
+  closingScore: number
+  verdictScore: number
+  dramaticMoments: string[]
+  case: CelebrityCourtCase
+}
+
+export interface SignatureResponse {
+  id?: string
+  case?: CelebrityCourtCase
+  snapshot: SignatureSnapshot
+  events: EngineEvent[]
+  result?: SignatureResult
+  relationshipChange?: { celebrityId: string; delta: number; fromType: string; toType: string; reason: string } | null
+  resultCard?: Record<string, unknown> | null
+  streak?: { current: number; best: number }
+  opponent?: { id: string; name: string }
+}
+
+/** 列出名人案件库。 */
+export function listSignatureCases(): Promise<{ cases: CelebrityCourtCase[] }> {
+  return jsonFetch('/api/engine/court-signature/cases', { method: 'GET' }) as Promise<{ cases: CelebrityCourtCase[] }>
+}
+
+/** 开一局招牌模式。 */
+export function createSignatureGame(caseId?: string, playerSide: CourtSide = 'plaintiff'): Promise<SignatureResponse> {
+  return jsonFetch('/api/engine/court-signature/new', {
+    method: 'POST',
+    body: JSON.stringify({ caseId, playerSide }),
+  }) as Promise<SignatureResponse>
+}
+
+export interface SignatureAct {
+  kind: 'play_card' | 'pass' | 'submit_closing'
+  card?: CourtCardKind
+  targetEvidenceId?: string
+  freeText?: string
+  text?: string
+}
+
+/** 招牌模式出牌 / 结案陈词。 */
+export function actSignatureGame(id: string, act: SignatureAct): Promise<SignatureResponse> {
+  return jsonFetch(`/api/engine/court-signature/${encodeURIComponent(id)}/act`, {
+    method: 'POST',
+    body: JSON.stringify(act),
+  }) as Promise<SignatureResponse>
 }
