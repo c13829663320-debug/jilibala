@@ -11,6 +11,7 @@ import { playTts, stopTts } from './tts'
 import { useVoiceEnabled } from './voice-settings'
 import { useSpeechRecognition } from './use-speech-recognition'
 import { buildGallerySequence, type GalleryEntry } from './character-gallery'
+import { LoadingState, EmptyState } from './ui'
 import {
   assetUrl, celebrityListToUi, celebrityToUi, customToUi,
   fetchMyCharacters, fetchPublicCharacters,
@@ -677,15 +678,27 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
       </div>
 
       {loadingCustom ? (
-        <div className="character-hall__empty"><Loader2 size={18} className="spin" /> 加载中…</div>
+        <LoadingState skeletonRows={3} label="人物加载中" />
       ) : showEmpty ? (
-        <div className="character-hall__empty">
-          {tab === 'mine' && !q
-            ? '你还没有自定义人物。去分身工坊创建一位吧。'
-            : tab === 'plaza' && !q
-              ? '广场还没有公开人物，把你的人物发布上来试试。'
-              : `没有找到「${query}」相关人物，换个关键词试试。`}
-        </div>
+        <EmptyState
+          icon={<Users size={22} aria-hidden="true" />}
+          title={
+            tab === 'mine' && !q
+              ? '还没有自定义人物'
+              : tab === 'plaza' && !q
+                ? '广场还没有公开人物'
+                : `没有找到「${query}」`
+          }
+          subtitle={
+            tab === 'mine' && !q
+              ? '去分身工坊创建一位属于你的人物吧。'
+              : tab === 'plaza' && !q
+                ? '把你的人物发布到广场，让大家一起对话。'
+                : '换个关键词试试。'
+          }
+          actionLabel={tab === 'mine' && !q ? '创建我的人物' : undefined}
+          onAction={onCreateCharacter}
+        />
       ) : galleryMode3d ? (
         <div className="character-hall__stage">
           <Suspense fallback={<div className="character-hall__empty"><Loader2 size={18} className="spin" /> 正在加载 3D 长廊…</div>}>

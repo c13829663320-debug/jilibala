@@ -1,22 +1,22 @@
 /* ============================================================
    场景选择主界面 · Neutral UI
-   规范：UI 层黑白灰 + 唯一 accent(#4fb3a5)
+   规范：UI 层黑白灰 + 唯一 accent(var(--color-brand-teal))
    层级靠明度 100/70/48/30 与 surface 高程，不靠投影与色相
    ============================================================ */
 
 .main-home {
-  --bg: #0A0A0A;
-  --s1: #0F0F0F;
-  --s2: #141414;
-  --s3: #1A1A1A;
-  --s4: #212121;
+  --bg: var(--bg);
+  --s1: var(--s1);
+  --s2: var(--s2);
+  --s3: var(--s3);
+  --s4: var(--s4);
   --ink: #EDEDF0;
   --ink-2: rgba(237, 237, 240, .70);
   --ink-3: rgba(237, 237, 240, .48);
   --ink-4: rgba(237, 237, 240, .30);
   --hair: rgba(255, 255, 255, .08);
   --hair-2: rgba(255, 255, 255, .14);
-  --accent: #4fb3a5;
+  --accent: var(--color-brand-teal);
   --accent-soft: rgba(79, 179, 165, .13);
   --accent-line: rgba(79, 179, 165, .42);
   --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
@@ -333,9 +333,9 @@
   border-radius: 16px; padding: 16px 18px; color: #fff; cursor: pointer;
   backdrop-filter: blur(10px); transition: transform .15s, border-color .15s, background .15s;
 }
-.main-home__create-card:hover { transform: translateY(-2px); border-color: #FFD600; background: rgba(30, 28, 10, 0.8); }
+.main-home__create-card:hover { transform: translateY(-2px); border-color: var(--color-brand-yellow); background: rgba(30, 28, 10, 0.8); }
 .main-home__create-emoji { font-size: 30px; flex: none; }
 .main-home__create-text { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-.main-home__create-text b { font-size: 15px; color: #FFD600; }
+.main-home__create-text b { font-size: 15px; color: var(--color-brand-yellow); }
 .main-home__create-text small { font-size: 12px; color: rgba(255,255,255,.6); line-height: 1.4; }
 .main-home__create-card i { color: rgba(255,214,0,.7); font-style: normal; }

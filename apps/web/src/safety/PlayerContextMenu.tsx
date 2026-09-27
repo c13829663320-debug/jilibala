@@ -4,6 +4,7 @@
 import { useState, type ReactNode } from 'react'
 import { MicOff, Mic, Ban, UserX, Flag, UserCircle, X } from 'lucide-react'
 import type { ReportCategory } from '@balabala/shared'
+import { Avatar } from '../ui'
 
 export interface PlayerTarget {
   userId: string
@@ -61,10 +62,11 @@ export default function PlayerContextMenu({
         }}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        {/* 头部：玩家昵称 */}
-        <div style={{ padding: '10px 12px', borderBottom: '1px solid #23262e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 13, color: '#e6e9ee', fontWeight: 600 }}>{target.nickname}</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8a8f99', cursor: 'pointer', padding: 2 }}>
+        {/* 头部：统一白底头像 + 玩家昵称（R5 视觉品牌域） */}
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid #23262e', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Avatar name={target.nickname} size="sm" />
+          <span style={{ fontSize: 13, color: '#e6e9ee', fontWeight: 600, flex: 1 }}>{target.nickname}</span>
+          <button onClick={onClose} aria-label="关闭玩家菜单" style={{ background: 'none', border: 'none', color: '#8a8f99', cursor: 'pointer', padding: 2 }}>
             <X size={14} />
           </button>
         </div>

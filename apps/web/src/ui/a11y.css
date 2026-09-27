@@ -1,0 +1,32 @@
+/* ============================================================
+ * R5 无障碍：焦点环 / reduced-motion / 屏幕阅读器专用类
+ * ============================================================ */
+
+/* 键盘焦点：品牌明黄描边，不靠 outline:none 直接干掉焦点 */
+:where(a, button, [role="button"], input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* 屏幕阅读器专用（视觉隐藏但可被读屏访问） */
+.ui-sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 减少动效：跟随系统偏好，关闭品牌动画 */
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner,
+  .ui-skeleton,
+  .ui-fade-enter,
+  .ui-slide-enter {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,5 +1,5 @@
 /* ===== M14: 健身房三关电路 · 街机风 =====
-   品牌色：纯黑 #000 + 明黄 #FFD600 + 青绿 #4fb3a5 */
+   品牌色：纯黑 #000 + 明黄 var(--color-brand-yellow) + 青绿 var(--color-brand-teal) */
 
 .cc-root {
   position: fixed;
@@ -19,13 +19,13 @@
   gap: 12px;
   padding: 10px 16px;
   border-bottom: 1px solid rgba(255, 214, 0, 0.25);
-  background: linear-gradient(180deg, #0a0a0a, #000);
+  background: linear-gradient(180deg, var(--bg), #000);
 }
 
 .cc-topbar__title {
   font-weight: 800;
   letter-spacing: 2px;
-  color: #ffd600;
+  color: var(--color-brand-yellow);
   font-size: 15px;
 }
 
@@ -33,7 +33,7 @@
   margin-left: auto;
   font-size: 18px;
   font-weight: 800;
-  color: #ffd600;
+  color: var(--color-brand-yellow);
   font-variant-numeric: tabular-nums;
 }
 
@@ -62,14 +62,14 @@
 .cc-countdown {
   font-size: 56px;
   font-weight: 900;
-  color: #ffd600;
+  color: var(--color-brand-yellow);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 18px rgba(255, 214, 0, 0.5);
 }
 
 .cc-station-label {
   font-size: 13px;
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
   letter-spacing: 3px;
   text-transform: uppercase;
   margin-bottom: 6px;
@@ -103,7 +103,7 @@
   width: 54px;
   height: 54px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #8ff0dd, #4fb3a5 60%, #2f8a7d);
+  background: radial-gradient(circle at 35% 30%, #8ff0dd, var(--color-brand-teal) 60%, #2f8a7d);
   box-shadow: 0 0 22px rgba(79, 179, 165, 0.8);
   transform: translate(-50%, -50%);
   cursor: pointer;
@@ -132,7 +132,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #ffd600;
+  background: var(--color-brand-yellow);
   box-shadow: 0 0 12px rgba(255, 214, 0, 0.7);
 }
 
@@ -143,7 +143,7 @@
   height: 26px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 35% 30%, #fff2b0, #ffd600 65%);
+  background: radial-gradient(circle at 35% 30%, #fff2b0, var(--color-brand-yellow) 65%);
   box-shadow: 0 0 14px rgba(255, 214, 0, 0.7);
 }
 
@@ -157,7 +157,7 @@
   width: min(560px, 90%);
   height: 46px;
   border-radius: 10px;
-  background: #0a0a0a;
+  background: var(--bg);
   border: 1px solid rgba(255, 255, 255, 0.12);
   overflow: hidden;
 }
@@ -167,7 +167,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #4fb3a5, #ffd600);
+  background: linear-gradient(90deg, var(--color-brand-teal), var(--color-brand-yellow));
 }
 
 .power-bar__zone {
@@ -232,7 +232,7 @@
   height: 46px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #ffd600;
+  border: 2px solid var(--color-brand-yellow);
 }
 
 .cc-note {
@@ -247,7 +247,7 @@
 
 .cc-note__station {
   font-size: 11px;
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
   margin-bottom: 3px;
 }
 
@@ -287,13 +287,13 @@
   border: 1px solid rgba(255, 214, 0, 0.3);
   border-radius: 14px;
   padding: 16px 12px;
-  background: #0a0a0a;
+  background: var(--bg);
 }
 
 .cc-station-card__num {
   font-size: 30px;
   font-weight: 900;
-  color: #ffd600;
+  color: var(--color-brand-yellow);
 }
 
 .cc-btn {
@@ -303,7 +303,7 @@
   padding: 12px 28px;
   border-radius: 12px;
   border: none;
-  background: #ffd600;
+  background: var(--color-brand-yellow);
   color: #000;
   font-weight: 800;
   font-size: 16px;
@@ -313,14 +313,14 @@
 
 .cc-btn--ghost {
   background: transparent;
-  color: #4fb3a5;
-  border: 1px solid #4fb3a5;
+  color: var(--color-brand-teal);
+  border: 1px solid var(--color-brand-teal);
 }
 
 .cc-tier {
   font-size: 64px;
   font-weight: 900;
-  color: #ffd600;
+  color: var(--color-brand-yellow);
   text-shadow: 0 0 24px rgba(255, 214, 0, 0.6);
 }
 
@@ -355,7 +355,7 @@
 }
 
 .cc-celeb-pick button.is-active {
-  border-color: #ffd600;
+  border-color: var(--color-brand-yellow);
   background: rgba(255, 214, 0, 0.08);
 }
 

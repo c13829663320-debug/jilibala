@@ -1,8 +1,8 @@
 /* ===== 人物馆 Character Hall（真人名人版） =====
- * 配色严格遵循 ui-rules-reference.md：UI 层黑白灰 + 单一 accent(#4fb3a5)。
+ * 配色严格遵循 ui-rules-reference.md：UI 层黑白灰 + 单一 accent(var(--color-brand-teal))。
  * 高程用白色叠加层(--s1~s4)，不用投影；玻璃仅用于浮层且带 inset 顶部高光。 */
 /* flow-root：建立 BFC，防止 hero 的 46px 上边距塌陷逃出容器，
-   在导航栏和本馆背景(#0A0A0A)之间露出 body 深黑(#050505)形成黑边 */
+   在导航栏和本馆背景(var(--bg))之间露出 body 深黑(#050505)形成黑边 */
 .character-hall{display:flow-root;min-height:100vh;padding:0 clamp(16px,4vw,48px) 48px;background:var(--bg);color:var(--ink)}
 
 /* 顶栏已删除（M13 第六轮：与全局 TopNav 重复，品牌/导航交 TopNav）。
@@ -99,7 +99,7 @@
 /* 人物视频（/videos/<id>.mp4，不存在时组件隐藏） */
 .character-dialog__video-wrap{flex:none;position:relative}
 .character-dialog__video{width:100%;aspect-ratio:9/16;display:block;border:1px solid var(--hair-2);border-radius:12px;background:#000;object-fit:contain;cursor:pointer}
-.character-dialog__video-mute-badge{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,.7);color:#FFD600;font-size:11px;font-weight:600;pointer-events:none;white-space:nowrap;backdrop-filter:blur(4px)}
+.character-dialog__video-mute-badge{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,.7);color:var(--color-brand-yellow);font-size:11px;font-weight:600;pointer-events:none;white-space:nowrap;backdrop-filter:blur(4px)}
 
 /* 人物信息（紧凑版） */
 .character-dialog__profile{display:flex;gap:14px;align-items:flex-start}

@@ -1,24 +1,24 @@
 /* ============================================================
    广场 Plaza · Neutral UI（M13 合并版）
-   规范：UI 层黑白灰 + 唯一 accent(#4fb3a5)
+   规范：UI 层黑白灰 + 唯一 accent(var(--color-brand-teal))
    布局来源：上传版（左频道栏 + 主内容流 + 右上推荐/热门/最新）
    数据来源：当前工程 SQLite contents API
    ============================================================ */
 
 /* ---- 共享平台类覆盖（仅 .plaza 作用域，不影响档案页） ---- */
 .plaza.platform-shell {
-  --bg: #0A0A0A;
-  --s1: #0F0F0F;
-  --s2: #141414;
-  --s3: #1A1A1A;
-  --s4: #212121;
+  --bg: var(--bg);
+  --s1: var(--s1);
+  --s2: var(--s2);
+  --s3: var(--s3);
+  --s4: var(--s4);
   --ink: #EDEDF0;
   --ink-2: rgba(237, 237, 240, .70);
   --ink-3: rgba(237, 237, 240, .48);
   --ink-4: rgba(237, 237, 240, .30);
   --hair: rgba(255, 255, 255, .08);
   --hair-2: rgba(255, 255, 255, .14);
-  --accent: #4fb3a5;
+  --accent: var(--color-brand-teal);
   --accent-soft: rgba(79, 179, 165, .13);
   --accent-line: rgba(79, 179, 165, .42);
   --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
@@ -83,7 +83,7 @@
   border-radius: 999px;
   padding: 8px 16px;
   background: var(--ink);
-  color: #0A0A0A;
+  color: var(--bg);
   font-family: inherit;
   font-size: 11px;
   font-weight: 650;
@@ -294,7 +294,7 @@
   border-radius: 9px;
   padding: 10px 13px;
   background: var(--ink);
-  color: #0A0A0A;
+  color: var(--bg);
   font-family: inherit;
   font-size: 11px;
   font-weight: 650;
@@ -591,7 +591,7 @@
   border: 0;
   border-radius: 10px;
   background: var(--ink);
-  color: #0A0A0A;
+  color: var(--bg);
   cursor: pointer;
 }
 
@@ -702,7 +702,7 @@
   border-radius: 9px;
   padding: 10px 13px;
   background: var(--ink);
-  color: #0A0A0A;
+  color: var(--bg);
   font-family: inherit;
   font-size: 11px;
   font-weight: 650;

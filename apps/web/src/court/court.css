@@ -1,15 +1,15 @@
 /* BalaBala 趣味法庭 · 中性暗色 UI
-   遵循 BalaBala UI 规范:UI 层黑白灰 + 唯一 accent(#4fb3a5),
+   遵循 BalaBala UI 规范:UI 层黑白灰 + 唯一 accent(var(--color-brand-teal)),
    层级靠明度 100/70/48/30 与 surface 高程,不靠投影与色相。
    3D 画布恒为暖木暗色,UI 浮层为半透明玻璃面板。 */
 
 :root {
   /* Surface ramp */
-  --court-bg: #0A0A0A;
-  --court-surface: #0F0F0F;
-  --court-surface-2: #141414;
-  --court-surface-3: #1A1A1A;
-  --court-surface-4: #212121;
+  --court-bg: var(--bg);
+  --court-surface: var(--s1);
+  --court-surface-2: var(--s2);
+  --court-surface-3: var(--s3);
+  --court-surface-4: var(--s4);
   /* Ink ramp (明度 100/70/48/30) */
   --court-text-1: #EDEDF0;
   --court-text-2: rgba(237,237,240,.70);
@@ -19,7 +19,7 @@
   --court-border: rgba(255,255,255,.08);
   --court-border-2: rgba(255,255,255,.14);
   /* Accent — 仅用于 selection / focus,不用于主按钮 */
-  --court-accent: #4fb3a5;
+  --court-accent: var(--color-brand-teal);
   --court-accent-text: #EDEDF0;
   --court-accent-soft: rgba(79,179,165,.13);
   --court-accent-line: rgba(79,179,165,.42);
@@ -139,7 +139,7 @@
 .perspective-action { margin-top: 24px; }
 
 /* ===== S5 CourtroomLive ===== */
-.live-screen { position: fixed; inset: 0; background: #0A0A0A; overflow: hidden; }
+.live-screen { position: fixed; inset: 0; background: var(--bg); overflow: hidden; }
 .live-canvas-wrap { position: absolute; inset: 0; }
 /* 磨砂层:盖在 3D 之上,点击即推进台词/回合。S5 仅轻微压暗,不模糊 3D 场景 */
 .live-frost { position: absolute; inset: 0; z-index: 5; background: rgba(10,10,10,.08); cursor: pointer; }
@@ -487,11 +487,11 @@
   height: 8px;
   border-radius: 999px;
   overflow: hidden;
-  background: #4fb3a5;
+  background: var(--color-brand-teal);
 }
 .momentum-bar__fill { height: 100%; border-radius: 999px; }
-.momentum-bar__side--plaintiff { color: #FFD60A; white-space: nowrap; }
-.momentum-bar__side--defendant { color: #4fb3a5; white-space: nowrap; }
+.momentum-bar__side--plaintiff { color: var(--color-brand-yellow-alt); white-space: nowrap; }
+.momentum-bar__side--defendant { color: var(--color-brand-teal); white-space: nowrap; }
 
 .your-turn-banner {
   position: fixed;
@@ -500,7 +500,7 @@
   transform: translateX(-50%);
   z-index: 31;
   padding: 8px 18px;
-  background: linear-gradient(90deg, #FFD60A, #fff3b0);
+  background: linear-gradient(90deg, var(--color-brand-yellow-alt), #fff3b0);
   color: #000;
   font-weight: 700;
   border-radius: 999px;
@@ -512,7 +512,7 @@
   0%, 100% { transform: translateX(-50%) scale(1); }
   50% { transform: translateX(-50%) scale(1.04); }
 }
-.live-input-panel--urgent { border-color: #FFD60A; box-shadow: 0 0 0 2px rgba(255, 214, 10, 0.5); }
+.live-input-panel--urgent { border-color: var(--color-brand-yellow-alt); box-shadow: 0 0 0 2px rgba(255, 214, 10, 0.5); }
 
 /* ===== Round2: 天平 / 手牌 / 证据选择 ===== */
 .balance-scale { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); width: min(680px, 92vw); z-index: 30; }
@@ -522,32 +522,32 @@
 .balance-scale__fill { height: 100%; transition: width 0.7s cubic-bezier(.22,.9,.3,1); }
 .balance-scale__pivot { position: absolute; top: -2px; width: 2px; height: 14px; background: #fff; opacity: .8; transition: left 0.7s cubic-bezier(.22,.9,.3,1); }
 .balance-scale__float { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; animation: balFloat 1.4s ease forwards; }
-.balance-scale__float.is-up { background: rgba(255,214,0,0.18); color: #FFD600; }
-.balance-scale__float.is-down { background: rgba(79,179,165,0.18); color: #4fb3a5; }
+.balance-scale__float.is-up { background: rgba(255,214,0,0.18); color: var(--color-brand-yellow); }
+.balance-scale__float.is-down { background: rgba(79,179,165,0.18); color: var(--color-brand-teal); }
 @keyframes balFloat { 0% { opacity: 0; transform: translate(-50%, 6px); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -8px); } }
 
 .hand-cards { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); width: min(760px, 94vw); z-index: 30; }
-.hand-cards__ammo { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #FFD600; font-weight: 700; margin-bottom: 6px; }
+.hand-cards__ammo { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--color-brand-yellow); font-weight: 700; margin-bottom: 6px; }
 .hand-cards__ammo .is-off { color: rgba(255,255,255,0.2); }
 .hand-cards__row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .hand-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px; border-radius: 12px; background: rgba(20,20,20,0.92); border: 1px solid rgba(255,214,0,0.35); color: #f4f2ec; text-align: left; cursor: pointer; transition: transform .15s, box-shadow .15s; }
 .hand-card:hover:not(.is-disabled) { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(255,214,0,0.25); }
 .hand-card.is-disabled { opacity: 0.35; cursor: not-allowed; border-color: rgba(255,255,255,0.12); }
-.hand-card__icon { color: #FFD600; }
+.hand-card__icon { color: var(--color-brand-yellow); }
 .hand-card__title { font-size: 13px; font-weight: 700; }
 .hand-card__desc { font-size: 11px; color: #9a9c92; line-height: 1.3; }
-.hand-card__cost { font-size: 11px; color: #4fb3a5; font-weight: 700; }
+.hand-card__cost { font-size: 11px; color: var(--color-brand-teal); font-weight: 700; }
 .hand-cards__textbox { margin-top: 8px; display: flex; gap: 8px; align-items: center; background: rgba(20,20,20,0.95); padding: 8px; border-radius: 12px; border: 1px solid rgba(79,179,165,0.4); }
 .hand-cards__textbox input { flex: 1; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 8px; padding: 8px 10px; }
 
 .ev-picker__backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 40; display: flex; align-items: center; justify-content: center; }
-.ev-picker { width: min(420px, 90vw); background: #141414; border: 1px solid #FFD600; border-radius: 14px; padding: 16px; }
-.ev-picker__head { display: flex; justify-content: space-between; font-weight: 700; color: #FFD600; margin-bottom: 10px; }
+.ev-picker { width: min(420px, 90vw); background: var(--s2); border: 1px solid var(--color-brand-yellow); border-radius: 14px; padding: 16px; }
+.ev-picker__head { display: flex; justify-content: space-between; font-weight: 700; color: var(--color-brand-yellow); margin-bottom: 10px; }
 .ev-picker__close { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
 .ev-picker__empty { color: #9a9c92; font-size: 13px; }
 .ev-picker__list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow: auto; }
 .ev-picker__item { display: flex; flex-direction: column; gap: 4px; text-align: left; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 10px; padding: 10px; cursor: pointer; }
-.ev-picker__item:hover { border-color: #FFD600; }
+.ev-picker__item:hover { border-color: var(--color-brand-yellow); }
 .ev-picker__content { font-size: 12px; color: #9a9c92; }
 
 /* 名人发言视频小窗：辩护人/证人是预置名人时弹出，与 TTS 同步 */
@@ -560,7 +560,7 @@
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(255, 214, 0, 0.55);
-  background: #0a0a0a;
+  background: var(--bg);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
 }
 .live-speaker-video video {
@@ -577,7 +577,7 @@
   bottom: 0;
   padding: 6px 10px;
   font-size: 11px;
-  color: #0a0a0a;
+  color: var(--bg);
   background: rgba(255, 214, 0, 0.92);
   font-weight: 700;
   white-space: nowrap;

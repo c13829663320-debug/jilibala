@@ -11,6 +11,8 @@ import { Billboard, Text, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { BuildingConfig, RemotePlayer, WorldManifest, WorldRuntime } from './types'
 import { BUILDINGS, FOUNTAIN, WORLD_HALF } from './config'
+import { UNIFIED_LIGHTING as L } from './unifiedLighting'
+import { UNIFIED_MATERIALS as MAT } from './unifiedMaterials'
 import { RemoteAvatar } from '../avatar/RemoteAvatar'
 import PickupableProps from './PickupableProps'
 
@@ -238,39 +240,40 @@ export default function WorldScene({ world, manifest, playersRef, remoteUserIds,
 
   return (
     <>
-      <color attach="background" args={['#0a0a0a']} />
-      <fog attach="fog" args={['#0a0a0a', 40, 180]} />
+      <color attach="background" args={[L.background]} />
+      <fog attach="fog" args={[L.fog.color, L.fog.near, L.fog.far]} />
 
-      {/* 光照：环境光 + 半球光 + 平行光（带阴影） */}
-      <ambientLight intensity={0.5} />
-      <hemisphereLight args={['#3a3f4a', '#0a0a0a', 0.5]} />
+      {/* 光照：统一配置（world/unifiedLighting.ts，R5 品牌域收敛，勿在此写死） */}
+      <ambientLight intensity={L.ambient.intensity} />
+      <hemisphereLight args={[L.hemisphere.skyColor, L.hemisphere.groundColor, L.hemisphere.intensity]} />
       <directionalLight
-        position={[40, 60, 30]}
-        intensity={1.6}
+        position={L.directional.position}
+        intensity={L.directional.intensity}
+        color={L.directional.color}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={L.directional.shadowMapSize}
         shadow-camera-left={-80}
         shadow-camera-right={80}
         shadow-camera-top={80}
         shadow-camera-bottom={-80}
       />
 
-      {/* 地面 */}
+      {/* 地面（统一材质预设 world/unifiedMaterials.ts） */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[WORLD_HALF * 2, WORLD_HALF * 2]} />
-        <meshStandardMaterial color="#14161a" roughness={1} />
+        <meshStandardMaterial color={MAT.ground.color} roughness={MAT.ground.roughness} metalness={MAT.ground.metalness} />
       </mesh>
 
       {/* 中央广场圆形地台 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
         <circleGeometry args={[16, 48]} />
-        <meshStandardMaterial color="#1e2126" roughness={0.9} />
+        <meshStandardMaterial color={MAT.plazaPlate.color} roughness={MAT.plazaPlate.roughness} metalness={MAT.plazaPlate.metalness} />
       </mesh>
 
       {/* 环形道路（半径 70，宽 6） */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
         <ringGeometry args={[67, 73, 64]} />
-        <meshStandardMaterial color="#23262c" roughness={0.95} />
+        <meshStandardMaterial color={MAT.ringRoad.color} roughness={MAT.ringRoad.roughness} metalness={MAT.ringRoad.metalness} />
       </mesh>
 
       {/* 中央喷泉 */}
