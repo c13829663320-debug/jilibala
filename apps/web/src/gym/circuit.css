@@ -370,3 +370,22 @@
   .cc-sidebar { width: 150px; }
   .cc-countdown { font-size: 40px; }
 }
+
+/* ===== 新手引导浮层 ===== */
+.cc-tutorial {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 50;
+}
+.cc-tutorial__card {
+  max-width: 420px;
+  background: #141414;
+  border: 1px solid #FFD600;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}

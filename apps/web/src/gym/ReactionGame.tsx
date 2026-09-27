@@ -1,32 +1,27 @@
 // ===== M14 关1：反应关 ReactionTap =====
 // 30s 内随机位置出现绿色圆圈，1.5s 内点中；命中越快分越高，漏点/点空 -1 滴血（共3滴）。
+// 规则与计分全部由 GymOrchestrator 裁决（可单测）；本组件只负责计时与渲染。
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { scoreReactionHit, type StationResult } from '@balabala/shared'
+import { GYM_MAX_LIVES, type GymOrchestrator } from './engine'
 
 interface FloatText { id: number; x: number; y: number; text: string; color: string }
 interface Target { id: number; x: number; y: number; spawnAt: number }
 
 interface Props {
+  orch: GymOrchestrator
   durationSec?: number
-  maxLives?: number
-  onComplete: (r: StationResult) => void
 }
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 
-export default function ReactionGame({ durationSec = 30, maxLives = 3, onComplete }: Props) {
+export default function ReactionGame({ orch, durationSec = 30 }: Props) {
   const [remaining, setRemaining] = useState(durationSec)
-  const [lives, setLives] = useState(maxLives)
-  const [score, setScore] = useState(0)
   const [target, setTarget] = useState<Target | null>(null)
   const [floats, setFloats] = useState<FloatText[]>([])
 
   const doneRef = useRef(false)
-  const hitCount = useRef(0)
-  const missCount = useRef(0)
-  const bestMs = useRef<number | undefined>(undefined)
-  const scoreRef = useRef(0)
-  const livesRef = useRef(maxLives)
+  const scoreRef = useRef(orch.state.reaction.stationScore)
+  const livesRef = useRef(orch.state.lives)
   const targetRef = useRef<Target | null>(null)
   const missTimer = useRef<number | null>(null)
   const floatId = useRef(0)
@@ -36,14 +31,8 @@ export default function ReactionGame({ durationSec = 30, maxLives = 3, onComplet
     if (doneRef.current) return
     doneRef.current = true
     if (missTimer.current) window.clearTimeout(missTimer.current)
-    onComplete({
-      kind: 'reaction',
-      hits: hitCount.current,
-      misses: missCount.current,
-      bestMs: bestMs.current,
-      score: scoreRef.current,
-    })
-  }, [onComplete])
+    orch.completeStation()
+  }, [orch])
 
   const spawn = useCallback(() => {
     if (doneRef.current || targetRef.current) return
@@ -57,17 +46,14 @@ export default function ReactionGame({ durationSec = 30, maxLives = 3, onComplet
     setTarget(t)
     // 1500ms 未点中 → 漏点掉血，然后安排下一个圈
     missTimer.current = window.setTimeout(() => {
-      missCount.current += 1
-      setLives((l) => {
-        livesRef.current = l - 1
-        return l - 1
-      })
+      const ended = orch.reactionMiss()
+      livesRef.current = orch.state.lives
       targetRef.current = null
       setTarget(null)
-      if (livesRef.current <= 0) { finish(); return }
+      if (ended) { finish(); return }
       window.setTimeout(() => spawnRef.current(), rand(600, 1200))
     }, 1500)
-  }, [finish])
+  }, [orch, finish])
   spawnRef.current = spawn
 
   // 主计时 + 生成循环
@@ -77,11 +63,7 @@ export default function ReactionGame({ durationSec = 30, maxLives = 3, onComplet
       const elapsed = performance.now() - start
       const left = Math.max(0, durationSec * 1000 - elapsed)
       setRemaining(Math.ceil(left / 1000))
-      if (left <= 0) { window.clearInterval(tick); finish(); return }
-      // 没有目标时，按随机间隔生成
-      if (!targetRef.current) {
-        // 立即生成第一个，之后由命中/漏点后安排
-      }
+      if (left <= 0) { window.clearInterval(tick); finish() }
     }, 100)
     // 开局立即出第一个圈
     const first = window.setTimeout(spawn, 500)
@@ -100,11 +82,8 @@ export default function ReactionGame({ durationSec = 30, maxLives = 3, onComplet
     if (!t || doneRef.current) return
     if (missTimer.current) window.clearTimeout(missTimer.current)
     const reactionMs = performance.now() - t.spawnAt
-    const pts = scoreReactionHit(reactionMs)
-    scoreRef.current += pts
-    hitCount.current += 1
-    if (bestMs.current === undefined || reactionMs < bestMs.current) bestMs.current = reactionMs
-    setScore(scoreRef.current)
+    const pts = orch.reactionHit(reactionMs)
+    scoreRef.current = orch.state.reaction.stationScore
     const arena = e.currentTarget.closest('.react-arena') as HTMLElement | null
     const rect = arena?.getBoundingClientRect()
     const px = rect ? ((e.clientX - rect.left) / rect.width) * 100 : t.x
@@ -120,19 +99,20 @@ export default function ReactionGame({ durationSec = 30, maxLives = 3, onComplet
     if (doneRef.current) return
     // 点空（场上无圈时）扣血
     if (targetRef.current) return
-    missCount.current += 1
-    setLives((l) => { livesRef.current = l - 1; return l - 1 })
-    if (livesRef.current <= 0) finish()
+    const ended = orch.reactionMiss()
+    livesRef.current = orch.state.lives
+    if (ended) finish()
   }
 
+  const lives = orch.state.lives
   return (
     <div className="cc-stage">
       <div className="cc-station-label">第 1 关 · 反应力 REACTION</div>
       <div style={{ display: 'flex', gap: 24, alignItems: 'baseline', marginBottom: 10 }}>
         <span className="cc-countdown">{remaining}s</span>
-        <span className="cc-lives">{'❤️'.repeat(Math.max(0, lives))}{'🖤'.repeat(Math.max(0, maxLives - lives))}</span>
+        <span className="cc-lives">{'❤️'.repeat(Math.max(0, lives))}{'🖤'.repeat(Math.max(0, GYM_MAX_LIVES - lives))}</span>
       </div>
-      <div style={{ fontSize: 16, color: '#ffd600', fontWeight: 800 }}>分数 {score}</div>
+      <div style={{ fontSize: 16, color: '#ffd600', fontWeight: 800 }}>分数 {orch.state.reaction.stationScore}</div>
       <div className="react-arena" onMouseDown={missTap}>
         {target && (
           <div
@@ -147,7 +127,7 @@ export default function ReactionGame({ durationSec = 30, maxLives = 3, onComplet
           </div>
         ))}
       </div>
-      <div className="cc-hint">绿圈出现后 1.5 秒内点中，越快分越高；漏点或点空掉 1 滴血（共 3 滴）。</div>
+      <div className="cc-hint">绿圈出现后 1.5 秒内点中，越快分越高；漏点或点空掉 1 滴血（共 3 滴，贯穿三关）。</div>
     </div>
   )
 }
