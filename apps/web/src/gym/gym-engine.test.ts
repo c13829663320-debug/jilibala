@@ -173,3 +173,78 @@ function vi_result(orch: GymOrchestrator) {
   orch.on('game_result', () => { box.fired = true })
   return box
 }
+
+// ===== R5 · 钩子四件套 =====
+
+describe('R5 · 三关高光捕获', () => {
+  it('反应关：命中率≥90% → extreme_performance；0ms 命中 → perfect_round', () => {
+    const orch = makeOrch()
+    orch.reactionHit(0) // 0ms 完美命中
+    for (let i = 0; i < 9; i++) orch.reactionHit(120) // 共 10 命中 0 漏点 = 100%
+    orch.completeStation() // reaction
+    const types = orch.getHighlights().map((h) => h.type)
+    expect(types).toContain('extreme_performance')
+    expect(types).toContain('perfect_round')
+  })
+
+  it('节奏关：maxCombo≥10 → high_combo；全 Perfect → perfect_round', () => {
+    const orch = makeOrch()
+    orch.completeStation() // reaction → rhythm
+    for (let i = 0; i < 12; i++) orch.rhythmTap(0) // 全 perfect，maxCombo=12
+    orch.completeStation() // rhythm
+    const types = orch.getHighlights().map((h) => h.type)
+    expect(types).toContain('high_combo')
+    expect(types).toContain('perfect_round')
+  })
+
+  it('力量关：bestPower≥90 → extreme_performance', () => {
+    const orch = makeOrch()
+    orch.completeStation(); orch.completeStation() // → power
+    orch.powerRelease(85) // bestPower=100
+    orch.completeStation() // power → finish
+    const types = orch.getHighlights().map((h) => h.type)
+    expect(types).toContain('extreme_performance')
+    expect(orch.phase).toBe('results')
+  })
+})
+
+describe('R5 · 关系 / 连胜 / 战果卡 / 翻盘', () => {
+  it('完成挑战：对教练产生好感度变化，战果卡可分享', () => {
+    const orch = makeOrch()
+    // 灌入高分三关（win）
+    orch.state.stationResults.push({ kind: 'reaction', hits: 10, misses: 0, bestMs: 120, score: 1500 })
+    orch.state.stationResults.push({ kind: 'rhythm', hits: 15, misses: 0, maxCombo: 8, score: 1800 })
+    orch.state.stationResults.push({ kind: 'power', hits: 3, misses: 0, bestPower: 100, score: 1000 })
+    orch.state.reaction.bestMs = 120
+    orch.state.rhythm.maxCombo = 8
+    orch.state.power.bestPower = 100
+    orch.state.currentStationIndex = 2
+    orch.state.stage = 'results'
+    orch.cancelTimer()
+    const result = orch.settle() as ReturnType<typeof orch.settle> & { relationshipChanges: Array<{ celebrityId: string; delta: number }>; resultCardText: string; streak: { current: number; best: number } }
+    expect(result.winner).toBe('slot-0')
+    expect(result.relationshipChanges).toHaveLength(1)
+    expect(result.relationshipChanges[0].celebrityId).toBe('some-celebrity')
+    expect(result.relationshipChanges[0].delta).toBeGreaterThan(0)
+    expect(result.streak.current).toBe(1) // 首局胜 = 1 连胜
+    expect(result.resultCardText).toContain('健身房')
+  })
+
+  it('翻盘检测：反应关低分、节奏+力量关追上来 → comeback=true', () => {
+    const orch = makeOrch()
+    // reaction 9 命中×100 = 900（早期分率 ~20% < 30%）
+    for (let i = 0; i < 9; i++) orch.reactionHit(100)
+    orch.completeStation()
+    // rhythm 12 个 perfect ≈ 558
+    for (let i = 0; i < 12; i++) orch.rhythmTap(0)
+    orch.completeStation()
+    // power 满分 1000 → 终局 ≈2458（>50%）
+    orch.powerRelease(85)
+    const result = orch.completeStation() // power → finish
+    expect(result.kind).toBe('power')
+    const hooks = orch.lastResult!
+    expect(hooks.comeback).toBe(true)
+    // 终局 2458<3000 仍判负，但翻盘轨迹已被识别。
+    expect(['comeback_win', 'big_loss', 'narrow_loss']).toContain(hooks.settlementType)
+  })
+})
