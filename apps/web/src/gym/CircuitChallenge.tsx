@@ -3,7 +3,7 @@
 // selector → reaction → rhythm → power → results。每关结束异步请求名人教练点评（不阻塞）。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCelebrity, getCircuitTier, CIRCUIT_STATIONS, type StationResult } from '@balabala/shared'
-import { GymOrchestrator } from './engine'
+import { GymOrchestrator, type GymGameResult } from './engine'
 import CircuitSelector from './CircuitSelector'
 import ReactionGame from './ReactionGame'
 import RhythmGame from './RhythmGame'
@@ -39,6 +39,8 @@ export default function CircuitChallenge({ userId, celebrityId, onCelebrityChang
   const [checked, setChecked] = useState(false)
   const [, setTick] = useState(0)
   const checkinFired = useRef(false)
+  // R5: 结算钩子数据（高光/关系/连胜/战果卡）。
+  const [hooks, setHooks] = useState<GymGameResult | null>(null)
 
   const celebrity = getCelebrity(celebrityId)
 
@@ -81,6 +83,22 @@ export default function CircuitChallenge({ userId, celebrityId, onCelebrityChang
       requestCoachNote(celebrityId, result)
     })
     const unsubResult = orch.on('game_result', () => {
+      const res = orch.lastResult ?? null
+      setHooks(res)
+      // R5: 持久化教练关系变化（fire-and-forget，不阻塞结算页）。
+      const ch = res?.relationshipChanges?.[0]
+      if (ch) {
+        fetch(`/api/relationships/${encodeURIComponent(ch.celebrityId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            delta: ch.delta,
+            reason: ch.reason,
+            result: res.winner === 'slot-0' ? 'win' : 'loss',
+          }),
+        }).catch(() => { /* 离线静默 */ })
+      }
       setScreen('results')
     })
     return () => { unsubTick(); unsubDone(); unsubResult() }
@@ -122,7 +140,7 @@ export default function CircuitChallenge({ userId, celebrityId, onCelebrityChang
 
   const start = () => {
     orch.setupChallenger(celebrityId, userId, '我')
-    orch.startCircuit()
+    orch.startCircuit({ coachName: celebrity?.name })
     setStationIndex(0)
     setScreen('station')
   }
@@ -180,6 +198,7 @@ export default function CircuitChallenge({ userId, celebrityId, onCelebrityChang
             <CircuitResults
               results={results} total={completedTotal} tier={tier}
               checking={checking} checked={checked}
+              hooks={hooks}
               onCheckin={() => { checkinFired.current = true; setChecking(true);
                 void onCheckin({ exerciseName: '三关电路', setsCompleted: 1, repsCompleted: results.length, durationSeconds: 100, note: `电路挑战总分 ${completedTotal} · 段位 ${tier}` })
                   .then(() => setChecked(true)).finally(() => setChecking(false)) }}
