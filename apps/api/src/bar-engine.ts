@@ -7,6 +7,7 @@
 import {
   BaseOrchestrator,
   computeTier,
+  getDailyChallenge,
   type GameResult,
   type TutorialStep,
 } from "@balabala/shared";
@@ -215,5 +216,10 @@ export class BarEngine extends BaseOrchestrator<BarState, BarAction, BarConfig> 
 
   get currentTendency(): StanceTendency {
     return this.state.aiTendency;
+  }
+
+  /** 当日挑战（供路由 / 前端展示）。 */
+  static dailyChallenge(date: Date) {
+    return getDailyChallenge("bar", date);
   }
 }
