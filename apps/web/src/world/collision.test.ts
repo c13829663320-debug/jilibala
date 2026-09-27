@@ -12,6 +12,14 @@ import {
   collidesAt,
   moveWithCollision,
 } from './collision'
+import {
+  BUILDINGS,
+  FOUNTAIN,
+  PLAYER_RADIUS,
+  WORLD_HALF,
+  buildColliders,
+} from './config'
+import { buildInteriorColliders } from './interior/InteriorShell'
 
 describe('circleVsAABB 圆-盒相交', () => {
   const box = { minX: 0, maxX: 10, minZ: 0, maxZ: 10 }
@@ -125,4 +133,155 @@ describe('moveWithCollision 分轴滑动', () => {
     expect(blocked.x).toBe(4)
     expect(blocked.hitX).toBe(true)
   })
+})
+
+// ======================================================================
+// 以下为「系统/性能/UGC」分片补充：真实广场布局下的导航/碰撞/传送测试
+// ======================================================================
+
+/** 从 (ex,ez) 朝 (cx,cz) 直线行走，逐步推进；全程不允许穿墙。返回终点与是否被挡。 */
+function walkToward(
+  ex: number, ez: number, cx: number, cz: number,
+  colliders: ReturnType<typeof buildColliders>,
+  steps = 40, step = 0.5,
+): { x: number; z: number; blocked: boolean } {
+  const len = Math.hypot(cx - ex, cz - ez) || 1
+  const dirx = (cx - ex) / len
+  const dirz = (cz - ez) / len
+  let x = ex
+  let z = ez
+  let blocked = false
+  for (let i = 0; i < steps; i++) {
+    const r = moveWithCollision(x, z, dirx * step, dirz * step, PLAYER_RADIUS, colliders, WORLD_HALF)
+    if (r.hitX || r.hitZ) blocked = true
+    x = r.x
+    z = r.z
+    // 关键不变量：任何一步都不能叠到碰撞体上（穿墙）
+    if (collidesAt(x, z, PLAYER_RADIUS, colliders)) {
+      throw new Error(`穿墙！停在 (${x},${z})`)
+    }
+  }
+  return { x, z, blocked }
+}
+
+describe('广场建筑 AABB 碰撞体（buildColliders 真实布局）', () => {
+  const colliders = buildColliders()
+
+  it('共生成 6 个建筑 AABB + 1 个喷泉 circle = 7 个碰撞体', () => {
+    expect(colliders.length).toBe(BUILDINGS.length + 1)
+    const aabbs = colliders.filter((c) => c.kind === 'aabb')
+    expect(aabbs.length).toBe(BUILDINGS.length)
+  })
+
+  it('每栋建筑 footprint 内部会碰撞，外部空地不碰撞', () => {
+    for (const b of BUILDINGS) {
+      expect(collidesAt(b.x, b.z, PLAYER_RADIUS, colliders)).toBe(true)
+    }
+    // 中心附近（喷泉除外的空地，比如 (20,20)）不撞建筑
+    expect(collidesAt(20, 20, PLAYER_RADIUS, colliders)).toBe(false)
+  })
+})
+
+describe('从各建筑入口走到门口不穿墙', () => {
+  const colliders = buildColliders()
+
+  it.each(BUILDINGS.map((b) => [b.id, b] as const))(
+    '%s：从入口走向建筑中心，全程不穿墙且被挡在门外',
+    (_id, b) => {
+      // 起点必须在入口且不叠碰撞体（入口在建筑正前方）
+      expect(collidesAt(b.entranceX, b.entranceZ, PLAYER_RADIUS, colliders)).toBe(false)
+      const end = walkToward(b.entranceX, b.entranceZ, b.x, b.z, colliders)
+      // 走完后仍然不穿墙
+      expect(collidesAt(end.x, end.z, PLAYER_RADIUS, colliders)).toBe(false)
+      // 玩家在途中确实被建筑墙挡住（贴墙滑动，而不是直接穿进去）
+      expect(end.blocked).toBe(true)
+      // 但没有走进建筑盒子内部（终点仍在 footprint 外）
+      expect(
+        end.x < b.x - b.width / 2 - 1e-6 || end.x > b.x + b.width / 2 + 1e-6 ||
+        end.z < b.z - b.depth / 2 - 1e-6 || end.z > b.z + b.depth / 2 + 1e-6,
+      ).toBe(true)
+    },
+  )
+})
+
+describe('中央喷泉圆柱碰撞（真实配置 FOUNTAIN）', () => {
+  const colliders = buildColliders()
+
+  it('从南侧 (10,0) 走向喷泉中心被挡在半径边界外', () => {
+    // 喷泉圆心 (0,0) r=3；玩家 r=0.5 → 最近可到 |x|≈3.5
+    let x = 10
+    let z = 0
+    for (let i = 0; i < 30; i++) {
+      const r = moveWithCollision(x, z, -0.5, 0, PLAYER_RADIUS, colliders, WORLD_HALF)
+      x = r.x
+      z = r.z
+      expect(collidesAt(x, z, PLAYER_RADIUS, colliders)).toBe(false)
+    }
+    // 停在距圆心 ~3.5（喷泉半径 3 + 玩家 0.5）
+    expect(Math.hypot(x, z)).toBeGreaterThanOrEqual(FOUNTAIN.r + PLAYER_RADIUS - 0.6)
+    expect(Math.hypot(x, z)).toBeLessThanOrEqual(FOUNTAIN.r + PLAYER_RADIUS + 0.6)
+  })
+})
+
+describe('世界边界 clamp（±WORLD_HALF=130）', () => {
+  const colliders = buildColliders()
+
+  it('从内部向四个方向冲不出界（|pos| ≤ half - r）', () => {
+    const lim = WORLD_HALF - PLAYER_RADIUS
+    const e = moveWithCollision(129, 0, 10, 0, PLAYER_RADIUS, colliders, WORLD_HALF)
+    expect(e.x).toBe(lim)
+    const w = moveWithCollision(-129, 0, -10, 0, PLAYER_RADIUS, colliders, WORLD_HALF)
+    expect(w.x).toBe(-lim)
+    const n = moveWithCollision(0, -129, 0, -10, PLAYER_RADIUS, colliders, WORLD_HALF)
+    expect(n.z).toBe(-lim)
+    const s = moveWithCollision(0, 129, 0, 10, PLAYER_RADIUS, colliders, WORLD_HALF)
+    expect(s.z).toBe(lim)
+  })
+})
+
+describe('室内碰撞体 buildInteriorColliders（门洞留空）', () => {
+  // 房间 14 x 10，墙厚 0.4，门宽 2 → hw=7 hd=5 dw=1
+  const colliders = buildInteriorColliders(14, 10)
+
+  it('生成 5 段墙碰撞体（后墙 + 前墙左右两段 + 左右墙）', () => {
+    expect(colliders.length).toBe(5)
+  })
+
+  it('门洞位置（x≈0, z=hd+0.2）留空，不碰撞', () => {
+    // 门口在 +Z 墙中间，门宽 2（x ∈ [-1,1]）
+    expect(collidesAt(0, 5.2, PLAYER_RADIUS, colliders)).toBe(false)
+  })
+
+  it('前墙左右两段是实墙，会碰撞', () => {
+    expect(collidesAt(-4, 5.2, PLAYER_RADIUS, colliders)).toBe(true) // 左段
+    expect(collidesAt(4, 5.2, PLAYER_RADIUS, colliders)).toBe(true)  // 右段
+  })
+
+  it('后墙 / 左右墙均为实墙', () => {
+    expect(collidesAt(0, -5.2, PLAYER_RADIUS, colliders)).toBe(true) // 后墙
+    expect(collidesAt(-7.2, 0, PLAYER_RADIUS, colliders)).toBe(true) // 左墙
+    expect(collidesAt(7.2, 0, PLAYER_RADIUS, colliders)).toBe(true)  // 右墙
+  })
+
+  it('房间中心空地不碰撞', () => {
+    expect(collidesAt(0, 0, PLAYER_RADIUS, colliders)).toBe(false)
+  })
+})
+
+describe('传送：从广场传送到各建筑入口后位置正确', () => {
+  const colliders = buildColliders()
+
+  it.each(BUILDINGS.map((b) => [b.id, b] as const))(
+    '%s：传送点 = 配置入口坐标、在世界界内、且不叠碰撞体',
+    (_id, b) => {
+      // 传送目标即入口坐标
+      expect(b.entranceX).toBe(b.entranceX)
+      expect(b.entranceZ).toBe(b.entranceZ)
+      // 界内
+      expect(Math.abs(b.entranceX)).toBeLessThanOrEqual(WORLD_HALF - PLAYER_RADIUS)
+      expect(Math.abs(b.entranceZ).toBeLessThanOrEqual(WORLD_HALF - PLAYER_RADIUS)
+      // 落点不在建筑/喷泉碰撞体里（否则玩家一落地就被卡住）
+      expect(collidesAt(b.entranceX, b.entranceZ, PLAYER_RADIUS, colliders)).toBe(false)
+    },
+  )
 })
