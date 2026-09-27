@@ -7,7 +7,7 @@
 | 仓库 | https://github.com/c13829663320-debug/jilibala |
 | 基线提交 | `651ae1a1a11451737e729f882d6eb95972d64889`（main HEAD，完全匹配） |
 | 集成分支 | `feat/network-resilience` |
-| 最终提交 | `50ee17d637f3d5d8d3ca018b374971460d3bbbed` |
+| 最终提交 | `84970bcefbb469b65c73911dbe67800d4908cdfa` |
 | 包管理器 | npm workspaces（非 pnpm；仓库无 pnpm-workspace.yaml） |
 | 工程结构 | `apps/web`（React+Vite+Three）/ `apps/api`（Node+Fastify）/ `packages/shared` |
 
