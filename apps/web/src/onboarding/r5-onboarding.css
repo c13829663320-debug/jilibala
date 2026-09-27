@@ -1,0 +1,222 @@
+/* ============================================================
+ * R5 新手引导样式：严格引用 design-tokens.css 变量，不硬编码品牌色。
+ * 黑底 + 唯一 accent（--accent），层级靠 s1..s4 与 ink 透明度。
+ * ========================================================== */
+
+.r5ob {
+  position: fixed;
+  inset: 0;
+  z-index: 92000;
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.r5ob__kicker {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.r5ob__title {
+  margin: 0;
+  font-size: clamp(24px, 5vw, 38px);
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.25;
+  color: var(--ink-100);
+}
+
+.r5ob__title em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.r5ob__sub {
+  margin: 14px 0 0;
+  color: var(--ink-70);
+  font-size: 14px;
+  text-align: center;
+  max-width: 460px;
+  line-height: 1.6;
+}
+
+.r5ob__actions {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.r5ob__cta {
+  min-width: 220px;
+  padding: 14px 28px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .12s ease, filter .12s ease;
+}
+
+.r5ob__cta:hover { transform: translateY(-2px); filter: brightness(1.05); }
+
+.r5ob__skip {
+  background: none;
+  border: none;
+  color: var(--ink-48);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.r5ob__skip:hover { color: var(--accent); }
+
+/* InterestPicker：领域网格 */
+.r5ob__fields {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
+  gap: 14px;
+  width: min(96vw, 720px);
+}
+
+.r5ob__field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 18px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--hair);
+  background: var(--s2);
+  color: var(--ink-100);
+  cursor: pointer;
+  text-align: left;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.r5ob__field:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-line);
+  background: var(--s3);
+}
+
+.r5ob__field-emoji { font-size: 28px; line-height: 1; }
+.r5ob__field b { font-size: 17px; font-weight: 800; }
+.r5ob__field small { color: var(--ink-48); font-size: 12.5px; line-height: 1.5; }
+
+/* Identity 输入 */
+.r5ob__form {
+  margin-top: 26px;
+  width: min(92vw, 360px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.r5ob__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hair-2);
+  background: var(--s1);
+  color: var(--ink-100);
+  font-size: 16px;
+  outline: none;
+  text-align: center;
+}
+
+.r5ob__input:focus { border-color: var(--accent-line); }
+
+/* ===== TourOverlay 气泡浮层 ===== */
+.r5tour__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95000;
+  pointer-events: none;
+  background: rgba(0, 0, 0, .55);
+}
+
+.r5tour__bubble {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 95002;
+  width: min(92vw, 380px);
+  background: var(--s3);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+  color: var(--ink-100);
+}
+
+.r5tour__bubble.is-bottom {
+  top: auto;
+  bottom: 28px;
+  transform: translateX(-50%);
+}
+
+.r5tour__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.r5tour__head b { font-size: 16px; }
+.r5tour__stepno { color: var(--ink-48); font-size: 12px; }
+
+.r5tour__body {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-70);
+}
+
+.r5tour__actions {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.r5tour__spacer { flex: 1; }
+
+.r5tour__primary {
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.r5tour__ghost {
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--ink-48);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.r5tour__ghost:hover { color: var(--ink-100); }

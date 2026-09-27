@@ -35,6 +35,9 @@ import {
   type InterestId,
   type SceneId,
 } from './onboarding/onboardingProgress'
+import { useOnboarding, loadR5State } from './onboarding/useOnboarding'
+import R5Onboarding from './onboarding/R5Onboarding'
+import { shouldShowR5Onboarding } from '@balabala/shared'
 
 const CharacterHall = lazy(() => import('./CharacterHall'))
 const CustomCharacterStudio = lazy(() => import('./CustomCharacterStudio'))
@@ -90,11 +93,15 @@ function SceneFirstTimeGuide({ scene }: { scene: SceneId }) {
 
 function AppInner() {
   const { phase } = useIdentity()
+  // R5 新手引导（单实例，共享给 R5Onboarding 控制器）
+  const ob = useOnboarding()
   const [view, setView] = useState<View>(() => {
     if (parseRoomParam()) return 'court'
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
     const scene = new URLSearchParams(window.location.search).get('scene')
     if (scene === 'werewolf' || scene === 'gym') return scene as View
+    // R5 全新用户：由 R5Onboarding 全屏控制器驱动 welcome→identity→interest，落地 entry。
+    if (shouldShowR5Onboarding(loadR5State())) return 'entry'
     // 新用户（localStorage 无引导记录）：开屏后先选兴趣，再直达推荐场景
     if (needsInterestSelection()) return 'onboarding-interest'
     // R5-IA: 老用户按 URL 落位（/、/plaza、/celebrities、/scenes、/scene/:id、/studio/*、/mypage、/entry）
@@ -178,6 +185,16 @@ function AppInner() {
   const currentMainTab: 'plaza' | 'celebrities' | 'scenes' = view === 'characters' ? 'celebrities' : view === 'scenes' ? 'scenes' : 'plaza'
   const openArchives = (origin: View) => { archiveOriginRef.current = origin; void fetchArchives(); setView('archive') }
 
+  // R5 新手引导控制器浮层：未完成时全屏引导，完成/跳过后渲染 null。
+  const r5Overlay = (
+    <R5Onboarding
+      ob={ob}
+      onGoCharacters={() => setView('characters')}
+      onGoCourt={() => setView('court')}
+      onGoPlaza={() => setView('plaza')}
+    />
+  )
+
   // ===== 分享页（路径直达，无导航） =====
   if (shareId) {
     return <main className="share-page"><div className="share-brand"><Gavel size={20} /> 叽里呱啦 · BalaBala</div>
@@ -209,23 +226,26 @@ function AppInner() {
 
   // ===== 入口页（房间大厅，自带导航） =====
   if (view === 'entry') {
-    return <RoomEntry
-      onEnter={() => setView('court')}
-      onArchive={() => openArchives('entry')}
-      onAvatar={() => setView('avatar')}
-      onCharacters={() => setView('characters')}
-      onCreateCharacter={() => setView('custom-studio')}
-      onPlaza={() => setView('plaza')}
-      onMyPage={() => setView('mypage')}
-      onEnterTalkshow={() => setView('talkshow')}
-      onEnterWerewolf={() => setView('werewolf')}
-      onEnterBar={() => setView('bar')}
-      onEnterLibrary={() => setView('library')}
-      onEnterGym={() => setView('gym')}
-      onEnterSceneStudio={() => { setSceneStudioId(undefined); setView('scene-studio') }}
-      onMyScenes={() => setView('my-scenes')}
-      onMultiplayer={() => setView('multiplayer-lobby')}
-    />
+    return <>
+      <RoomEntry
+        onEnter={() => setView('court')}
+        onArchive={() => openArchives('entry')}
+        onAvatar={() => setView('avatar')}
+        onCharacters={() => setView('characters')}
+        onCreateCharacter={() => setView('custom-studio')}
+        onPlaza={() => setView('plaza')}
+        onMyPage={() => setView('mypage')}
+        onEnterTalkshow={() => setView('talkshow')}
+        onEnterWerewolf={() => setView('werewolf')}
+        onEnterBar={() => setView('bar')}
+        onEnterLibrary={() => setView('library')}
+        onEnterGym={() => setView('gym')}
+        onEnterSceneStudio={() => { setSceneStudioId(undefined); setView('scene-studio') }}
+        onMyScenes={() => setView('my-scenes')}
+        onMultiplayer={() => setView('multiplayer-lobby')}
+      />
+      {r5Overlay}
+    </>
   }
 
   // ===== 3D 分身工坊（全屏子工具，无顶栏） =====
@@ -263,6 +283,7 @@ function AppInner() {
           },
         }} />
       <MainTabBar current="celebrities" onNavigate={goMainTab} />
+      {r5Overlay}
     </>
   }
 
@@ -389,6 +410,7 @@ function AppInner() {
         onOpenArchive={() => openArchives('court')}
       />
       <SceneFirstTimeGuide scene="court" />
+      {r5Overlay}
     </main>
   )
 }

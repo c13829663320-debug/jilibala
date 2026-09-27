@@ -1103,3 +1103,6 @@ export * from "./celebrity-facts.js";
 
 // ===== R5: 性能 / 稳定性域（懒加载/LOD/AI网关/崩溃恢复） =====
 export * from "./perf.js";
+
+// ===== R5 新手引导（r5-onboarding 域）：状态机类型 + 纯函数（additive） =====
+export * from "./onboarding.js";
