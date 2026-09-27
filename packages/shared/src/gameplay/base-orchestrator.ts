@@ -17,6 +17,7 @@ import type {
   TimerState,
   TutorialStep,
 } from './types.js';
+import type { RelationshipChange } from './relationship.js';
 import { TutorialEngine } from './tutorial.js';
 import {
   assignHumanToSlot,
@@ -27,6 +28,70 @@ import {
 } from './player-slots.js';
 
 type EventHandler = (event: GameEvent) => void;
+
+// ============================================================================
+// R5 · 钩子 / 高光 / 结算演出 / 反馈事件类型
+// ============================================================================
+
+/** 高光类型（六场景 + 通用）。 */
+export type HighlightType =
+  | 'key_evidence'
+  | 'golden_quote'
+  | 'epic_rebuttal'
+  | 'prophet_vote'
+  | 'extreme_performance'
+  | 'high_combo'
+  | 'comeback'
+  | 'perfect_round';
+
+/** 一条高光时刻（结构与 payload 分离，便于前端回放）。 */
+export interface Highlight {
+  id: string;
+  scene: string;
+  type: HighlightType;
+  timestamp: number;
+  round?: number;
+  description: string;
+  data: Record<string, unknown>;
+}
+
+/** 结算演出三态（胜/负各细分 + 平局 + 翻盘）。 */
+export type SettlementType =
+  | 'big_win'
+  | 'narrow_win'
+  | 'comeback_win'
+  | 'draw'
+  | 'narrow_loss'
+  | 'big_loss';
+
+/** 一局结算后的演出数据（战果卡 / 飘字 / 音效共用）。 */
+export interface SettlementResult {
+  type: SettlementType;
+  score: number;
+  maxScore: number;
+  /** 对局中玩家最低分（用于翻盘检测与「最黑暗时刻」文案）。 */
+  minBalance: number;
+  highlights: Highlight[];
+  durationMs: number;
+}
+
+/** 前端反馈事件：飘字 / 音效 / 震屏 / 礼花。 */
+export interface FeedbackEvent {
+  kind: 'float_text' | 'sound' | 'screen_shake' | 'confetti';
+  text?: string;
+  soundId?: string;
+  /** 0~1，震屏/礼花强度。 */
+  intensity?: number;
+}
+
+/** start() 时传入的钩子配置（全可选，不传不影响现有行为）。 */
+export interface OrchestratorHooks {
+  onHighlight?: (highlight: Highlight) => void;
+  onSettlement?: (settlement: SettlementResult) => void;
+  onStreakChange?: (streak: number, scene: string) => void;
+  onRelationshipChange?: (change: RelationshipChange) => void;
+  onFeedback?: (feedback: FeedbackEvent) => void;
+}
 
 export interface OrchestratorOptions<TState> {
   maxRounds: number;
@@ -54,6 +119,17 @@ export abstract class BaseOrchestrator<TState, TAction, TConfig> {
   private timer: TimerHandle | null = null;
   private startedAt = 0;
   private finishedAt = 0;
+
+  // ---- R5: 钩子 / 高光 / 结算演出 ----
+  private hooks: OrchestratorHooks | null = null;
+  private capturedHighlights: Highlight[] = [];
+  /** 玩家在对局中达到的最低绝对分（翻盘检测用）。 */
+  private minBalance = Number.POSITIVE_INFINITY;
+  private highlightSeq = 0;
+  /** 子类可覆写：玩家所在槽位（结算演出判定用）。 */
+  protected humanSlotId = 'slot-0';
+  /** 子类可覆写：本局满分（用于百分比判定）。 */
+  protected settlementMaxScore = 100;
 
   constructor(options: OrchestratorOptions<TState>) {
     this.maxRounds = options.maxRounds;
@@ -190,6 +266,10 @@ export abstract class BaseOrchestrator<TState, TAction, TConfig> {
     const slot = this.slots.find((s) => s.slotId === slotId);
     if (!slot) return;
     slot.score += points;
+    // R5: 追踪玩家最低分（翻盘检测）。
+    if (slotId === this.humanSlotId) {
+      this.minBalance = Math.min(this.minBalance, slot.score);
+    }
     this.emit({
       type: 'score_added',
       timestamp: Date.now(),
@@ -209,15 +289,67 @@ export abstract class BaseOrchestrator<TState, TAction, TConfig> {
     return () => this.feedbackCbs.delete(callback);
   }
 
-  /** 子类在出现值得夸的时刻调用，向前端推正反馈。 */
-  protected emitFeedback(kind: string, payload: Record<string, unknown>): void {
+  // ---- R5: 高光捕捉 ----
+
+  /** 记录一条高光：内部收集 + 同步调 onHighlight 钩子。 */
+  captureHighlight(highlight: Highlight): void {
+    this.capturedHighlights.push(highlight);
+    this.hooks?.onHighlight?.(highlight);
+    this.emit({
+      type: 'highlight_captured',
+      timestamp: highlight.timestamp,
+      payload: { highlight },
+    });
+  }
+
+  /** 本局已捕获的全部高光。 */
+  getHighlights(): Highlight[] {
+    return [...this.capturedHighlights];
+  }
+
+  /** 子类生成高光 id 用的自增计数器。 */
+  nextHighlightId(): string {
+    this.highlightSeq += 1;
+    return `hl-${this.startedAt || Date.now()}-${this.highlightSeq}`;
+  }
+
+  // ---- R5: 反馈事件（飘字/音效/震屏/礼花） ----
+
+  /** R5: 触发一条结构化反馈事件（前端飘字 / 音效）。 */
+  emitFeedback(feedback: FeedbackEvent): void;
+  /** Legacy: 子类在出现值得夸的时刻调用，向前端推正反馈节奏事件。 */
+  emitFeedback(kind: string, payload: Record<string, unknown>): void;
+  emitFeedback(kindOrFeedback: string | FeedbackEvent, payload?: Record<string, unknown>): void {
+    if (typeof kindOrFeedback === 'object') {
+      const feedback = kindOrFeedback;
+      this.hooks?.onFeedback?.(feedback);
+      this.emit({
+        type: 'feedback_event',
+        timestamp: Date.now(),
+        payload: { ...feedback },
+      });
+      return;
+    }
+    const kind = kindOrFeedback;
     const event: GameEvent = {
       type: `feedback:${kind}`,
       timestamp: Date.now(),
-      payload,
+      payload: payload ?? {},
     };
     for (const cb of this.feedbackCbs) cb(event);
     this.emit(event);
+  }
+
+  // ---- R5: 关系 / 连胜钩子转发（子类在结算后调用） ----
+
+  /** 子类结算后调用，把关系变化推给 onRelationshipChange 钩子。 */
+  protected notifyRelationshipChange(change: RelationshipChange): void {
+    this.hooks?.onRelationshipChange?.(change);
+  }
+
+  /** 子类在连胜变化时调用。 */
+  protected notifyStreakChange(streak: number, scene: string): void {
+    this.hooks?.onStreakChange?.(streak, scene);
   }
 
   // ---- 新手引导 -----------------------------------------------------------
@@ -232,10 +364,12 @@ export abstract class BaseOrchestrator<TState, TAction, TConfig> {
 
   // ---- 三个主方法 ---------------------------------------------------------
 
-  /** 开局：进入 setup→playing，打时间戳，发开始事件。 */
-  start(config: TConfig): void {
+  /** 开局：进入 setup→playing，打时间戳，发开始事件。可传入 R5 钩子。 */
+  start(config: TConfig, hooks?: OrchestratorHooks): void {
     this.config = config;
+    this.hooks = hooks ?? null;
     this.startedAt = Date.now();
+    this.minBalance = Number.POSITIVE_INFINITY;
     this.transitionTo('setup');
     this.transitionTo('playing');
     this.emit({
@@ -252,18 +386,72 @@ export abstract class BaseOrchestrator<TState, TAction, TConfig> {
     this.applyAction(action);
   }
 
-  /** 收尾：停表、进 results、结算并发结果事件。 */
+  /** 收尾：停表、进 results、结算并发结果事件。R5：自动产出 SettlementResult 并触发钩子。 */
   finish(): GameResult {
     this.cancelTimer();
     this.finishedAt = Date.now();
     this.transitionTo('results');
     const result = this.settle();
+
+    // R5: 检测结算演出三态并回调 onSettlement。
+    const settlement = this.buildSettlement(result);
+    this.hooks?.onSettlement?.(settlement);
+    this.emit({
+      type: 'settlement',
+      timestamp: Date.now(),
+      payload: { settlement },
+    });
+
     this.emit({
       type: 'game_result',
       timestamp: Date.now(),
       payload: { result },
     });
     return result;
+  }
+
+  /**
+   * 由 GameResult 与运行轨迹推出结算演出类型。子类可覆写 resolveResult /
+   * humanSlotId / settlementMaxScore 来适配阵营制（狼人杀）等场景。
+   *
+   * 规则：
+   *  - 胜：过程中最低分率 < 30% 且终局 > 50% → comeback_win；终局 > 85% → big_win；其余 narrow_win。
+   *  - 平：draw。
+   *  - 负：终局分率 45%~50% → narrow_loss（惜败）；其余 big_loss。
+   */
+  protected buildSettlement(result: GameResult): SettlementResult {
+    const maxScore = this.settlementMaxScore;
+    const score = this.getScore(this.humanSlotId);
+    const minBalance = Number.isFinite(this.minBalance) ? this.minBalance : score;
+    const ratio = maxScore > 0 ? score / maxScore : 0;
+    const minRatio = maxScore > 0 ? minBalance / maxScore : 0;
+    const outcome = this.resolveResult(result);
+
+    let type: SettlementType;
+    if (outcome === 'draw') {
+      type = 'draw';
+    } else if (outcome === 'win') {
+      if (minRatio < 0.3 && ratio > 0.5) type = 'comeback_win';
+      else if (ratio > 0.85) type = 'big_win';
+      else type = 'narrow_win';
+    } else {
+      type = ratio >= 0.45 && ratio < 0.5 ? 'narrow_loss' : 'big_loss';
+    }
+
+    return {
+      type,
+      score,
+      maxScore,
+      minBalance,
+      highlights: this.getHighlights(),
+      durationMs: this.elapsedMs,
+    };
+  }
+
+  /** 子类可覆写：把 GameResult 翻译成玩家视角胜/平/负。默认按 winner===humanSlotId。 */
+  protected resolveResult(result: GameResult): 'win' | 'draw' | 'loss' {
+    if (result.winner === null || result.winner === undefined) return 'draw';
+    return result.winner === this.humanSlotId ? 'win' : 'loss';
   }
 
   // ---- 序列化（断线重连）--------------------------------------------------
