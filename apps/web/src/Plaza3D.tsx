@@ -8,6 +8,9 @@ import {
   createWorldRuntime, buildColliders,
   type BuildingId, type RemotePlayer, type WorldManifest, type WorldRuntime,
 } from './world'
+import { collectiblesForScene, loadCollected } from './world/collectibles'
+import { BUILDING_INTERIORS } from './world/interior/building-interiors'
+import PerformanceHUD, { PerfCollector, isPerfEnabled } from './world/PerformanceHUD'
 import PlayerController from './world/PlayerController'
 import CameraRig from './world/CameraRig'
 import WorldScene from './world/WorldScene'
@@ -106,6 +109,27 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const [colliders] = useState(() => buildColliders())
   const [manifest, setManifest] = useState<WorldManifest | null>(null)
   const [prompt, setPrompt] = useState<string | null>(null)
+
+  // ===== 广场收集品计数（DOM 覆盖层显示 x/6） =====
+  const plazaCollectibles = useMemo(() => collectiblesForScene('plaza'), [])
+  const [plazaCollectedCount, setPlazaCollectedCount] = useState(() => {
+    const set = loadCollected()
+    return plazaCollectibles.filter((c) => set.has(c.id)).length
+  })
+  useEffect(() => {
+    const refresh = () => {
+      const set = loadCollected()
+      setPlazaCollectedCount(plazaCollectibles.filter((c) => set.has(c.id)).length)
+    }
+    window.addEventListener('balabala:collectible', refresh)
+    return () => window.removeEventListener('balabala:collectible', refresh)
+  }, [plazaCollectibles])
+
+  // ===== 3D 室内模式：进入建筑时渲染对应室内场景（?interior=court 可直接进入） =====
+  const [activeInterior, setActiveInterior] = useState<BuildingId | null>(() => {
+    const p = new URLSearchParams(window.location.search).get('interior')
+    return (p && ['court','talkshow','werewolf','bar','gym','library'].includes(p)) ? p as BuildingId : null
+  })
 
   // ===== R4-06 性能治理：设备分级 / 像素比上限 / 阴影降级 =====
   // 高配置设备保持原画质；低配设备（<4 核 / <4GB）压像素比、降阴影、跳过高分辨率纹理。
@@ -392,19 +416,12 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
     ws.send(JSON.stringify({ type: 'move', x, z, rotation }))
   }, [])
 
-  // ===== 建筑 id → onEnter 回调映射 =====
+  // ===== 建筑 id → 进入 3D 室内 =====
   const enterHandlers = useCallback(
     (id: BuildingId) => {
-      switch (id) {
-        case 'court': onEnterCourt(); break
-        case 'talkshow': (onEnterTalkshow ?? (() => toast('脱口秀剧场即将开放')))(); break
-        case 'werewolf': (onEnterWerewolf ?? (() => toast('狼人杀馆即将开放')))(); break
-        case 'bar': (onEnterBar ?? (() => toast('酒吧辩论即将开放')))(); break
-        case 'library': (onEnterLibrary ?? (() => toast('图书馆即将开放')))(); break
-        case 'gym': (onEnterGym ?? (() => toast('健身房即将开放')))(); break
-      }
+      setActiveInterior(id)
     },
-    [onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, toast],
+    [],
   )
 
   // ===== 传送（小地图 / 场景选择） =====
@@ -545,6 +562,20 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
 
   const touch = isTouchDevice()
 
+  // ===== 3D 室内模式：进入建筑后全屏渲染室内场景，退出返回广场 =====
+  if (activeInterior) {
+    const Interior = BUILDING_INTERIORS[activeInterior]
+    return (
+      <Suspense fallback={
+        <div style={{ width: '100vw', height: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFD600' }}>
+          加载 {SCENE_LABELS[activeInterior]} 室内...
+        </div>
+      }>
+        <Interior onExit={() => setActiveInterior(null)} />
+      </Suspense>
+    )
+  }
+
   return (
     <div className="plaza-3d-root">
       <SafeCanvas shadows={shadowQ.enabled} camera={{ position: [0, 10, 22], fov: 60, near: 0.1, far: 500 }} dpr={[1, dprCap]}>
@@ -560,10 +591,14 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           <PlayerController world={world} colliders={colliders} onSync={handleSync} />
           <CameraRig world={world} colliders={colliders} />
           <Interaction world={world} onEnter={enterHandlers} onPrompt={setPrompt} toast={toast} />
+          {isPerfEnabled(window.location.search, window.localStorage) && <PerfCollector />}
           {/* R4-04: 头顶文字喊话气泡（3D 世界空间，随玩家移动 3s 淡出） */}
           <TextShoutLayer shouts={shouts} playersRef={playersRef} />
         </Suspense>
       </SafeCanvas>
+
+      {/* 性能 HUD（?perf=1 或 localStorage 开启） */}
+      {isPerfEnabled(window.location.search, window.localStorage) && <PerformanceHUD />}
 
       {/* R4-04: WS 离线/重连横幅（顶部明黄色，离线时点按手动重连） */}
       {wsBannerText(wsErr) && (
@@ -614,6 +649,11 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           <Users size={13} /> 在线 {onlineCount} 人
         </div>
       )}
+
+      {/* 广场收集品计数（x/6） */}
+      <div className="plaza-3d-collect" title="广场收集品">
+        💎 {plazaCollectedCount}/{plazaCollectibles.length}
+      </div>
 
       {/* 新手推荐角标：指向兴趣选择后推荐的那栋建筑，点一下直接进 */}
       {recommendedScene && (
