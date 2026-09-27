@@ -1,6 +1,6 @@
 // LibraryOrchestrator 单测：题目 fallback / AI 抢答概率 / combo 与命计分 / 胜负 / 超时 / AI 填充。
 import { describe, it, expect } from 'vitest'
-import { LibraryOrchestrator, pickFallbackQuestions, type EngineOpponent } from './library-engine'
+import { LibraryOrchestrator, pickFallbackQuestions, type EngineOpponent, type LibraryGameResult } from './library-engine'
 import { QUIZ_FALLBACK_BANK } from './library-quiz-fallback'
 import {
   QUIZ_STARTING_LIVES,
@@ -160,5 +160,94 @@ describe('胜负判定与结算', () => {
     expect(result.winner).toBe('slot-0')
     expect(result.tier.label).toBe('宗师')
     expect(result.tier.level).toBe('master')
+  })
+})
+
+// ===== R5 · 钩子四件套 =====
+
+describe('R5 · 高光捕获', () => {
+  it('连对 ≥5 → high_combo', () => {
+    const orch = makeEngine()
+    for (let i = 0; i < 5; i++) {
+      orch.applyAnswer(0)
+      if (i < 4) orch.advance()
+    }
+    const types = orch.getHighlights().map((h) => h.type)
+    expect(types).toContain('high_combo')
+  })
+
+  it('1s 内抢答正确 → extreme_performance（闪电抢答）', () => {
+    const orch = makeEngine()
+    orch.applyAnswer(0, { answeredWithinMs: 600 })
+    const types = orch.getHighlights().map((h) => h.type)
+    expect(types).toContain('extreme_performance')
+  })
+
+  it('击败全部 3 位 AI → perfect_round', () => {
+    const orch = makeEngine()
+    orch.addScore('slot-0', 1200, 't')
+    orch.addScore('slot-1', 100, 't'); orch.addScore('slot-2', 300, 't'); orch.addScore('slot-3', 900, 't')
+    orch.cancelTimer()
+    const res = orch.settle() as LibraryGameResult
+    expect(res.capturedHighlights.map((h) => h.type)).toContain('perfect_round')
+  })
+
+  it('压过 2 位 AI → extreme_performance', () => {
+    const orch = makeEngine()
+    orch.addScore('slot-0', 600, 't')
+    orch.addScore('slot-1', 100, 't'); orch.addScore('slot-2', 300, 't'); orch.addScore('slot-3', 900, 't')
+    orch.cancelTimer()
+    const res = orch.settle() as LibraryGameResult
+    expect(res.capturedHighlights.map((h) => h.type)).toContain('extreme_performance')
+  })
+})
+
+describe('R5 · 关系变化 / 连胜 / 翻盘 / 战果卡', () => {
+  it('对 3 位名人各产生一条关系变化；被击败的名人负向、被失误帮到的正向', () => {
+    const orch = makeEngine()
+    // 爱因斯坦抢答失误（帮了玩家）
+    orch.applyCelebrityBuzz('albert-einstein', false)
+    // 终局：玩家 600；einstein 900（赢我），luxun 300 / libai 100（被我压过）
+    orch.addScore('slot-0', 600, 't')
+    orch.addScore('slot-1', 900, 't'); orch.addScore('slot-2', 300, 't'); orch.addScore('slot-3', 100, 't')
+    orch.cancelTimer()
+    const res = orch.settle() as LibraryGameResult
+    expect(res.relationshipChanges).toHaveLength(3)
+    const byId = Object.fromEntries(res.relationshipChanges.map((c) => [c.celebrityId, c]))
+    // einstein 赢我 + 失误帮我 → 正向
+    expect(byId['albert-einstein'].delta).toBeGreaterThan(0)
+    // luxun / libai 被我压过 → 负向
+    expect(byId['lu-xun'].delta).toBeLessThan(0)
+    expect(byId['li-bai'].delta).toBeLessThan(0)
+    expect(res.resultCardText).toContain('图书馆')
+  })
+
+  it('连胜：注入 currentStats，胜利后 currentStreak 累加', () => {
+    const orch = new LibraryOrchestrator()
+    orch.setupContestant(OPPONENTS.map((o) => o.id), 'u-1', '小明')
+    orch.startGame({
+      domain: 'science',
+      questions: makeQuestions(),
+      opponents: OPPONENTS,
+      currentStats: { played: 2, wins: 1, bestStreak: 2, currentStreak: 2 },
+    })
+    orch.addScore('slot-0', 1200, 't')
+    orch.addScore('slot-1', 100, 't'); orch.addScore('slot-2', 300, 't'); orch.addScore('slot-3', 900, 't')
+    orch.cancelTimer()
+    const res = orch.settle() as LibraryGameResult
+    expect(res.streak.current).toBe(3)
+    expect(res.streak.best).toBe(3)
+  })
+
+  it('翻盘：先答错（0 分）后连对追分 → comeback=true', () => {
+    const orch = makeEngine()
+    orch.applyAnswer(-1) // 0 分起步
+    for (let i = 0; i < 6; i++) {
+      orch.advance()
+      orch.applyAnswer(0)
+    }
+    orch.cancelTimer()
+    const res = orch.settle() as LibraryGameResult
+    expect(res.comeback).toBe(true)
   })
 })
