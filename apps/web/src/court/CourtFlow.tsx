@@ -1,10 +1,11 @@
 // 主编排:5 个 screen 状态机,接入 HttpCourtEngine(真实后端)。
 // 不再引用任何 mock:AI 不可用时由各 screen 显式报错。
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './court.css'
 import type { Celebrity } from '@balabala/shared'
 import { useIdentity } from '../identity'
 import { HttpCourtEngine } from './http-engine'
+import { loadOnboardingState, needsFirstTimeGuide, onboardingActions } from '../onboarding/onboarding-store'
 import { submitGameResult } from '../profile'
 import { EMPTY_ASSIGNMENTS, type DefenderAssignments } from './DefenderPicker'
 import type {
@@ -55,6 +56,18 @@ export default function CourtFlow({
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState('')
   const [error, setError] = useState('')
+
+  // ===== R5 分片C：法庭首启「⚡ 一键开庭」浮层 =====
+  // 仅首次进入法庭（firstTimes.court=false）且在创建页时出现；点一下用预置示例案情直接开庭。
+  const [showFirstQuick, setShowFirstQuick] = useState<boolean>(() => {
+    try {
+      const s = loadOnboardingState()
+      return needsFirstTimeGuide(s, 'court')
+    } catch { return false }
+  })
+  useEffect(() => {
+    try { onboardingActions.markFirstTime('court') } catch { /* storage 不可用不阻塞 */ }
+  }, [])
 
   const goCreate = useCallback(() => {
     setFlowState('create')
@@ -149,6 +162,29 @@ export default function CourtFlow({
 
   return (
     <div className="court-root">
+      {/* R5 分片C：首次进法庭浮层——一键用示例案情开庭（跳过手动输入） */}
+      {showFirstQuick && flowState === 'create' && (
+        <div className="ob-court-quick" role="dialog" aria-label="一键开庭">
+          <div className="ob-court-quick__card">
+            <div className="ob-court-quick__kicker">⚡ 新手快车道</div>
+            <div className="ob-court-quick__title">还没想好案情？</div>
+            <div className="ob-court-quick__sub">用一个预置示例案一键开庭，点一下直接进入庭审现场。</div>
+            <div className="ob-court-quick__actions">
+              <button
+                type="button"
+                className="ob-court-quick__cta"
+                onClick={() => void handleQuickStart(0, 'plaintiff')}
+              >
+                ⚡ 一键开庭
+              </button>
+              <button type="button" className="ob-court-quick__skip" onClick={() => setShowFirstQuick(false)}>
+                先自己看看
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {flowState === 'create' && (
         <CreateCase
           character={character}

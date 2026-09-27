@@ -261,3 +261,122 @@
   0%, 100% { box-shadow: 0 8px 30px rgba(255, 214, 0, .35); }
   50% { box-shadow: 0 8px 44px rgba(255, 214, 0, .7); }
 }
+
+/* ===== R5 分片C：名人快车道一键对话卡片（纯 DOM） ===== */
+.ob-quickchat-root {
+  position: fixed;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(380px, calc(100vw - 32px));
+  background: rgba(18, 18, 22, 0.96);
+  border: 1px solid rgba(255, 214, 0, 0.45);
+  border-radius: 16px;
+  padding: 14px 16px;
+  color: #EDEDF0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: ob-quickchat-in 0.25s ease-out;
+}
+@keyframes ob-quickchat-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.ob-quickchat-close {
+  position: absolute; top: 8px; right: 8px;
+  background: transparent; border: 0; color: rgba(237,237,240,0.6);
+  cursor: pointer; padding: 4px; display: inline-flex;
+}
+.ob-quickchat-close:hover { color: #fff; }
+.ob-quickchat-kicker {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700; color: #FFD600; margin-bottom: 8px;
+}
+.ob-quickchat-body { display: flex; gap: 12px; align-items: flex-start; }
+.ob-quickchat-portrait {
+  width: 58px; height: 58px; border-radius: 12px; flex-shrink: 0;
+  overflow: hidden; background: #2a2d33;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 800; color: #FFD600;
+}
+.ob-quickchat-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.ob-quickchat-info { min-width: 0; flex: 1; }
+.ob-quickchat-name { font-size: 16px; font-weight: 800; }
+.ob-quickchat-title { font-size: 11.5px; color: rgba(237,237,240,0.55); margin: 2px 0 6px; }
+.ob-quickchat-greeting {
+  font-size: 13px; line-height: 1.55; color: rgba(237,237,240,0.85);
+}
+.ob-quickchat-cta {
+  margin-top: 12px; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px; border-radius: 10px; border: 0; cursor: pointer;
+  background: #FFD600; color: #1a1a1a; font-size: 14px; font-weight: 800;
+}
+.ob-quickchat-cta:hover { filter: brightness(1.05); }
+.ob-quickchat-chathead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.ob-quickchat-msgs {
+  max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 10px;
+}
+.ob-quickchat-msg {
+  max-width: 85%; padding: 8px 11px; border-radius: 10px; font-size: 13px; line-height: 1.55;
+}
+.ob-quickchat-msg.celeb { align-self: flex-start; background: rgba(79,179,165,0.16); }
+.ob-quickchat-msg.me { align-self: flex-end; background: rgba(90,110,160,0.3); }
+.ob-quickchat-input { display: flex; gap: 6px; }
+.ob-quickchat-input input {
+  flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12); background: #0f0f0f; color: #EDEDF0; font-size: 13px;
+}
+.ob-quickchat-input button {
+  padding: 8px 12px; border-radius: 8px; border: 0; background: #FFD600; color: #1a1a1a;
+  font-weight: 700; cursor: pointer; font-size: 13px;
+}
+.ob-quickchat-hint { font-size: 12px; color: #FFD600; text-align: center; padding: 6px 0; }
+
+/* ===== R5 分片C：Plaza3D 首启聚焦浮卡 ===== */
+.ob-focus-card {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%);
+  z-index: 55;
+  width: min(340px, calc(100vw - 32px));
+  background: rgba(18, 18, 22, 0.96);
+  border: 1px solid rgba(255, 214, 0, 0.55);
+  border-radius: 16px;
+  padding: 16px;
+  color: #EDEDF0;
+  text-align: center;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 214, 0, 0.12);
+  animation: ob-focus-in 0.3s ease-out;
+}
+@keyframes ob-focus-in {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.ob-focus-card__kicker { font-size: 11px; font-weight: 800; color: #FFD600; }
+.ob-focus-card__title { font-size: 20px; font-weight: 800; margin: 4px 0; }
+.ob-focus-card__sub { font-size: 12.5px; line-height: 1.55; color: rgba(237,237,240,0.7); margin-bottom: 12px; }
+.ob-focus-card__actions { display: flex; flex-direction: column; gap: 8px; }
+.ob-focus-card__cta {
+  padding: 10px; border: 0; border-radius: 10px; cursor: pointer;
+  background: #FFD600; color: #1a1a1a; font-size: 14px; font-weight: 800;
+}
+.ob-focus-card__cta:hover { filter: brightness(1.06); }
+.ob-focus-card__ghost {
+  padding: 9px; border-radius: 10px; cursor: pointer; font-size: 13px;
+  border: 1px solid rgba(79,179,165,0.5); background: transparent; color: #4fb3a5;
+}
+.ob-focus-card__ghost:hover { background: rgba(79,179,165,0.12); }
+.ob-focus-card__skip {
+  margin-top: 8px; padding: 4px; border: 0; background: transparent; cursor: pointer;
+  color: rgba(237,237,240,0.5); font-size: 12px;
+}
+.ob-focus-card__skip:hover { color: #fff; }
+
+/* 场景选择折叠模式里的「新手推荐」小标 */
+.plaza-scene-rec {
+  margin-left: auto; font-style: normal; font-size: 10px; font-weight: 700;
+  color: #1a1a1a; background: #FFD600; border-radius: 8px; padding: 1px 7px;
+}

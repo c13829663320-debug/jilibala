@@ -5,7 +5,7 @@ import { useIdentity } from './identity'
 import type { EmoteType, ReportCategory, SocialRoom, WSMessage, WSUser } from '@balabala/shared'
 import SafeCanvas from './SafeCanvas'
 import {
-  createWorldRuntime, buildColliders,
+  createWorldRuntime, buildColliders, getBuilding,
   type BuildingId, type RemotePlayer, type WorldManifest, type WorldRuntime,
 } from './world'
 import PlayerController from './world/PlayerController'
@@ -15,7 +15,11 @@ import Interaction from './world/Interaction'
 import Minimap from './world/Minimap'
 import MobileControls, { isTouchDevice } from './world/MobileControls'
 import SceneSelect from './world/SceneSelect'
+import FocusMarker from './world/FocusMarker'
 import { SCENE_LABELS } from './onboarding/onboardingProgress'
+import { loadOnboardingState, onboardingActions } from './onboarding/onboarding-store'
+import { shouldFocusRecommended, computeFocusSpawn, type FocusSpawn } from './onboarding/plaza-focus'
+import CelebrityQuickChat from './onboarding/CelebrityQuickChat'
 import { useSpatialVoice } from './voice/useSpatialVoice'
 import { getRoomPassword, clearRoomPassword } from './room-permissions/roomAuthStore'
 import { useSafety } from './safety/use-safety'
@@ -106,6 +110,34 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   const [colliders] = useState(() => buildColliders())
   const [manifest, setManifest] = useState<WorldManifest | null>(null)
   const [prompt, setPrompt] = useState<string | null>(null)
+
+  // ===== R5 分片C：首启聚焦推荐建筑（全新用户 + 有推荐场景 + 未聚焦过） =====
+  // 计算一次出生点：玩家传送到推荐建筑正前方，相机 yaw 对准建筑。
+  // 进入推荐建筑 / 点「跳过」后清空 focusState，恢复正常视图；回归用户恒为 null。
+  const [focus, setFocus] = useState<FocusSpawn | null>(() => {
+    if (!recommendedScene || roomId !== 'plaza') return null
+    try {
+      const state = loadOnboardingState()
+      if (!shouldFocusRecommended(state, recommendedScene)) return null
+      const b = getBuilding(recommendedScene)
+      return computeFocusSpawn(b.entranceX, b.entranceZ, b.x, b.z)
+    } catch { return null }
+  })
+  const [showQuickChat, setShowQuickChat] = useState(false)
+
+  // 把玩家/相机一次性摆到聚焦出生点（在第一帧渲染前完成位置写入）
+  useEffect(() => {
+    if (!focus) return
+    world.player.x = focus.x
+    world.player.z = focus.z
+    world.player.y = 0
+    world.player.velocityY = 0
+    world.player.onGround = true
+    world.camera.yaw = focus.yaw
+    localPosRef.current.x = focus.x
+    localPosRef.current.z = focus.z
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ===== R4-06 性能治理：设备分级 / 像素比上限 / 阴影降级 =====
   // 高配置设备保持原画质；低配设备（<4 核 / <4GB）压像素比、降阴影、跳过高分辨率纹理。
@@ -395,6 +427,11 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   // ===== 建筑 id → onEnter 回调映射 =====
   const enterHandlers = useCallback(
     (id: BuildingId) => {
+      // R5 分片C：进入推荐建筑 → 标记 plaza 首启完成，聚焦效果消失
+      if (focus && recommendedScene && id === recommendedScene) {
+        try { onboardingActions.markFirstTime('plaza') } catch { /* noop */ }
+        setFocus(null)
+      }
       switch (id) {
         case 'court': onEnterCourt(); break
         case 'talkshow': (onEnterTalkshow ?? (() => toast('脱口秀剧场即将开放')))(); break
@@ -404,8 +441,14 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         case 'gym': (onEnterGym ?? (() => toast('健身房即将开放')))(); break
       }
     },
-    [onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, toast],
+    [onEnterCourt, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, toast, focus, recommendedScene],
   )
+
+  // R5 分片C：手动跳过首启聚焦——标记完成并恢复正常视图
+  const dismissFocus = useCallback(() => {
+    try { onboardingActions.markFirstTime('plaza') } catch { /* noop */ }
+    setFocus(null)
+  }, [])
 
   // ===== 传送（小地图 / 场景选择） =====
   const teleport = useCallback((x: number, z: number) => {
@@ -560,6 +603,10 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
           <PlayerController world={world} colliders={colliders} onSync={handleSync} />
           <CameraRig world={world} colliders={colliders} />
           <Interaction world={world} onEnter={enterHandlers} onPrompt={setPrompt} toast={toast} />
+          {/* R5 分片C：首启聚焦——推荐建筑入口脉冲光环 + 浮动箭头 */}
+          {focus && recommendedScene && (
+            <FocusMarker x={focus.x} z={focus.z} />
+          )}
           {/* R4-04: 头顶文字喊话气泡（3D 世界空间，随玩家移动 3s 淡出） */}
           <TextShoutLayer shouts={shouts} playersRef={playersRef} />
         </Suspense>
@@ -616,7 +663,7 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
       )}
 
       {/* 新手推荐角标：指向兴趣选择后推荐的那栋建筑，点一下直接进 */}
-      {recommendedScene && (
+      {recommendedScene && !focus && (
         <button
           type="button"
           className="ob-recommend-badge"
@@ -624,6 +671,32 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
         >
           ⭐ 新手推荐：{SCENE_LABELS[recommendedScene]} ↗
         </button>
+      )}
+
+      {/* R5 分片C：首启聚焦浮卡——更醒目地引导进入推荐建筑 + 名人快车道入口 */}
+      {focus && recommendedScene && (
+        <div className="ob-focus-card">
+          <div className="ob-focus-card__kicker">⭐ 为你推荐</div>
+          <div className="ob-focus-card__title">{SCENE_LABELS[recommendedScene]}</div>
+          <div className="ob-focus-card__sub">金色光环就在你面前，走近按 E，或点这里直接进入</div>
+          <div className="ob-focus-card__actions">
+            <button type="button" className="ob-focus-card__cta" onClick={() => enterHandlers(recommendedScene)}>
+              立即进入 ↗
+            </button>
+            <button type="button" className="ob-focus-card__ghost" onClick={() => setShowQuickChat(true)}>
+              💬 先和名人聊聊
+            </button>
+          </div>
+          <button type="button" className="ob-focus-card__skip" onClick={dismissFocus}>暂时不逛，先转转</button>
+        </div>
+      )}
+
+      {/* R5 分片C：名人对话快车道浮层（纯 DOM，软件渲染可走通） */}
+      {showQuickChat && (
+        <CelebrityQuickChat
+          onClose={() => setShowQuickChat(false)}
+          onStartChat={() => { setShowQuickChat(false); if (onEnterLibrary) onEnterLibrary() }}
+        />
       )}
 
       {/* 交互提示（走近建筑/NPC/水晶时显示） */}
@@ -717,7 +790,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
 
       {/* 小地图 + 场景选择（DOM 覆盖层） */}
       <Minimap world={world} onTeleport={teleport} />
-      <SceneSelect onTeleport={teleport} />
+      {/* R5 分片C：首启时场景选择默认折叠，只露推荐项 */}
+      <SceneSelect onTeleport={teleport} collapsed={!!focus} recommendedId={recommendedScene} />
 
       {/* 移动端控件 */}
       {touch && <MobileControls world={world} />}
