@@ -1110,3 +1110,6 @@ export * from "./onboarding.js";
 // ===== R5: 组队 / 约局（多人社交关系链） =====
 // additive：仅新增，不改已有 Friend/PrivateMessage/SocialRoom 定义。
 export * from "./social-party.js";
+
+// ===== Round5 R5-UGC: 一句话造场景 / 发布分享闭环 / 照片头像化身 =====
+export * from "./ugc-pipeline.js";

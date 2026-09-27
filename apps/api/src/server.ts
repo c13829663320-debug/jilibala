@@ -24,6 +24,8 @@ import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
 // ===== R4-09: 场景 UGC — 模板市场 / 场景保存分享 / CC0 道具 =====
 import { registerSceneTemplateRoutes } from './scene-templates.js';
 import { registerSceneStoreRoutes } from './scene-store.js';
+// ===== R5-UGC: 一句话造场景 / 发布分享闭环 =====
+import { registerUgcRoutes } from './ugc/ugc-store.js';
 import { registerFriendRoutes } from './friends.js';
 import { registerChatRoutes } from './chat.js';
 // ===== R4-08: 排行榜 / 主题房间公告 / 内容治理 =====
@@ -1125,6 +1127,9 @@ registerSceneStudioRoutes(app, { chat: chatWithProviders });
 // ===== R4-09: 场景模板市场 + UGC 场景保存/分享（JSON 文件） =====
 registerSceneTemplateRoutes(app);
 registerSceneStoreRoutes(app);
+
+// ===== R5-UGC: 一句话造场景 / 发布分享闭环（JSON 文件） =====
+registerUgcRoutes(app);
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

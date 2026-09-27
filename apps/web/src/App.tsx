@@ -46,10 +46,14 @@ const MultiplayerLobby = lazy(() => import('./MultiplayerLobby'))
 const SceneStudio = lazy(() => import('./scene-studio/SceneStudio'))
 const MyScenes = lazy(() => import('./scene-studio/MyScenes'))
 const ScenePlay = lazy(() => import('./scene-studio/ScenePlay'))
+// R5-UGC: 一句话造场景闭环 + 他人经分享链接进入
+const UgcStudio = lazy(() => import('./ugc/UgcStudio'))
+const UgcSceneEntry = lazy(() => import('./ugc/UgcSceneEntry'))
 
 type HearingMode = 'quick' | 'evidence'
 type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play' | 'scenes'
   | 'onboarding-interest' | 'onboarding-quickstart' | 'multiplayer-lobby'
+  | 'ugc-studio' | 'ugc-scene'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -100,6 +104,8 @@ function AppInner() {
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
     const scene = new URLSearchParams(window.location.search).get('scene')
     if (scene === 'werewolf' || scene === 'gym') return scene as View
+    // R5-UGC: 分享链接 ?scene=ugc_<id> → 直接进入该 UGC 场景（deep link 优先）
+    if (scene && scene.startsWith('ugc_')) return 'ugc-scene'
     // R5 全新用户：由 R5Onboarding 全屏控制器驱动 welcome→identity→interest，落地 entry。
     if (shouldShowR5Onboarding(loadR5State())) return 'entry'
     // 新用户（localStorage 无引导记录）：开屏后先选兴趣，再直达推荐场景
@@ -117,6 +123,11 @@ function AppInner() {
   // 场景工作室：正在编辑的场景 id（undefined = 新建）；正在播放的场景 id
   const [sceneStudioId, setSceneStudioId] = useState<string | undefined>(undefined)
   const [scenePlayId, setScenePlayId] = useState<string | null>(null)
+  // R5-UGC: 分享链接进入的 UGC 场景 id
+  const [ugcSceneId, setUgcSceneId] = useState<string | null>(() => {
+    const s = new URLSearchParams(window.location.search).get('scene')
+    return s && s.startsWith('ugc_') ? s : null
+  })
   // 开庭前全局配置（合议庭流程在 CourtroomShell 内自治）
   const [caseText, setCaseText] = useState('泡泡借走了阿布的彩虹伞，但下雨后伞变成了会唱歌的蘑菇。')
   const [hearingMode, setHearingMode] = useState<HearingMode>('quick')
@@ -376,6 +387,18 @@ function AppInner() {
   if (view === 'scene-play' && scenePlayId) {
     return <LazyScene component={ScenePlay} label="场景播放"
       props={{ sceneId: scenePlayId, onBack: () => setView('my-scenes') }} />
+  }
+
+  // ===== R5-UGC: 创作间 =====
+  if (view === 'ugc-studio') {
+    return <LazyScene component={UgcStudio} label="UGC创作间"
+      props={{ onBack: () => setView('entry') }} />
+  }
+
+  // ===== R5-UGC: 他人经分享链接进入（加载失败内部降级回广场） =====
+  if (view === 'ugc-scene' && ugcSceneId) {
+    return <LazyScene component={UgcSceneEntry} label="UGC场景"
+      props={{ sceneId: ugcSceneId, onBackToPlaza: () => setView('plaza') }} />
   }
 
   // ===== 我的 =====
