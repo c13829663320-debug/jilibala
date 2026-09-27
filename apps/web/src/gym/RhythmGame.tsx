@@ -1,47 +1,35 @@
 // ===== M14 关2：节奏关 RhythmTap =====
 // 音符从右往左滚，到达中线时按空格/点击。Perfect ±50ms / Good ±150ms / Miss 0，连击加成。
+// 判定与计分全部由 GymOrchestrator 裁决（复用 shared 纯函数）。
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { judgeRhythm, rhythmPoints, type StationResult } from '@balabala/shared'
+import type { GymOrchestrator } from './engine'
 
 interface Note { id: number; spawnAt: number; hitTime: number; judged: boolean; grade?: 'perfect' | 'good' | 'miss' }
 
 interface Props {
+  orch: GymOrchestrator
   durationSec?: number
-  onComplete: (r: StationResult) => void
 }
 
 const SPAWN_MS = 800
 const TRAVEL_MS = 600
 
-export default function RhythmGame({ durationSec = 45, onComplete }: Props) {
+export default function RhythmGame({ orch, durationSec = 45 }: Props) {
   const [remaining, setRemaining] = useState(durationSec)
   const [, setFrame] = useState(0)
   const [gradePop, setGradePop] = useState<{ text: string; color: string; id: number } | null>(null)
-  const [combo, setCombo] = useState(0)
 
   const doneRef = useRef(false)
   const notes = useRef<Note[]>([])
   const noteId = useRef(0)
-  const scoreRef = useRef(0)
-  const perfects = useRef(0)
-  const goods = useRef(0)
-  const misses = useRef(0)
-  const comboRef = useRef(0)
-  const maxCombo = useRef(0)
   const startTime = useRef(0)
   const popId = useRef(0)
 
   const finish = useCallback(() => {
     if (doneRef.current) return
     doneRef.current = true
-    onComplete({
-      kind: 'rhythm',
-      hits: perfects.current + goods.current,
-      misses: misses.current,
-      maxCombo: maxCombo.current,
-      score: scoreRef.current,
-    })
-  }, [onComplete])
+    orch.completeStation()
+  }, [orch])
 
   const popGrade = (text: string, color: string) => {
     const id = ++popId.current
@@ -56,8 +44,7 @@ export default function RhythmGame({ durationSec = 45, onComplete }: Props) {
     const spawner = window.setInterval(() => {
       const now = performance.now()
       if (now - start > durationSec * 1000) { window.clearInterval(spawner); return }
-      const spawnAt = now
-      notes.current.push({ id: ++noteId.current, spawnAt, hitTime: spawnAt + TRAVEL_MS, judged: false })
+      notes.current.push({ id: ++noteId.current, spawnAt: now, hitTime: now + TRAVEL_MS, judged: false })
     }, SPAWN_MS)
     return () => window.clearInterval(spawner)
   }, [durationSec])
@@ -70,14 +57,12 @@ export default function RhythmGame({ durationSec = 45, onComplete }: Props) {
       const now = performance.now()
       const left = Math.max(0, durationSec * 1000 - (now - startTime.current))
       setRemaining(Math.ceil(left / 1000))
-      // 自动漏判：音符过中线超过 150ms 仍未处理
+      // 自动漏判：音符过中线超过 150ms 仍未处理 → 引擎判 Miss（combo 清零）
       for (const n of notes.current) {
         if (!n.judged && now - n.hitTime > 150) {
           n.judged = true
-          n.grade = 'miss'
-          misses.current += 1
-          comboRef.current = 0
-          setCombo(0)
+          const res = orch.rhythmTap(now - n.hitTime)
+          n.grade = res.grade
         }
       }
       setFrame((f) => f + 1)
@@ -86,7 +71,7 @@ export default function RhythmGame({ durationSec = 45, onComplete }: Props) {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [durationSec, finish])
+  }, [durationSec, finish, orch])
 
   const judgeInput = useCallback(() => {
     if (doneRef.current) return
@@ -100,30 +85,13 @@ export default function RhythmGame({ durationSec = 45, onComplete }: Props) {
       if (d < bestDist) { bestDist = d; best = n }
     }
     if (!best || bestDist > 200) return // 没有可打的音符
-    const offset = now - best.hitTime
-    const grade = judgeRhythm(offset)
     best.judged = true
-    best.grade = grade
-    const pts = rhythmPoints(grade, comboRef.current)
-    scoreRef.current += pts
-    if (grade === 'perfect') {
-      perfects.current += 1
-      comboRef.current += 1
-      maxCombo.current = Math.max(maxCombo.current, comboRef.current)
-      setCombo(comboRef.current)
-      popGrade(`PERFECT +${pts}`, '#ffd600')
-    } else if (grade === 'good') {
-      goods.current += 1
-      comboRef.current = 0
-      setCombo(0)
-      popGrade(`GOOD +${pts}`, '#4fb3a5')
-    } else {
-      misses.current += 1
-      comboRef.current = 0
-      setCombo(0)
-      popGrade('MISS', '#e08a8a')
-    }
-  }, [])
+    const res = orch.rhythmTap(now - best.hitTime)
+    best.grade = res.grade
+    if (res.grade === 'perfect') popGrade(`PERFECT +${res.points}`, '#ffd600')
+    else if (res.grade === 'good') popGrade(`GOOD +${res.points}`, '#4fb3a5')
+    else popGrade('MISS', '#e08a8a')
+  }, [orch])
 
   // 空格 / 点击判定
   useEffect(() => {
@@ -139,6 +107,7 @@ export default function RhythmGame({ durationSec = 45, onComplete }: Props) {
     const p = (now - n.spawnAt) / TRAVEL_MS
     return p >= 0 && p <= 2.2
   })
+  const combo = orch.state.rhythm.combo
 
   return (
     <div className="cc-stage" onPointerDown={judgeInput}>

@@ -1,13 +1,14 @@
 // ===== M14：今日三关预览 + 开始 =====
-import { CELEBRITIES, CIRCUIT_STATIONS, type Celebrity } from '@balabala/shared'
+import { CELEBRITIES, CIRCUIT_STATIONS, type Celebrity, type DailyChallenge } from '@balabala/shared'
 
 interface Props {
   celebrity: Celebrity | undefined
+  dailyChallenge?: DailyChallenge
   onCelebrityChange: (id: string) => void
   onStart: () => void
 }
 
-export default function CircuitSelector({ celebrity, onCelebrityChange, onStart }: Props) {
+export default function CircuitSelector({ celebrity, dailyChallenge, onCelebrityChange, onStart }: Props) {
   return (
     <div className="cc-center">
       <div className="cc-station-label">90 秒三关电路</div>
@@ -15,6 +16,15 @@ export default function CircuitSelector({ celebrity, onCelebrityChange, onStart 
         {celebrity?.name ?? '名人'}教练，给你排了三关
       </h1>
       <div style={{ color: 'rgba(237,237,240,0.6)', fontSize: 14 }}>连闯三关，总分解锁段位。输完不打卡就算你赢。</div>
+
+      {dailyChallenge && (
+        <div style={{
+          marginTop: 14, padding: '8px 14px', borderRadius: 10, fontSize: 12.5,
+          background: 'rgba(255,214,0,0.08)', border: '1px solid rgba(255,214,0,0.35)', color: '#ffd600',
+        }}>
+          📅 今日挑战 · {dailyChallenge.title}：{dailyChallenge.description}
+        </div>
+      )}
 
       <div className="cc-station-cards">
         {CIRCUIT_STATIONS.map((s, i) => (

@@ -14,6 +14,7 @@ import TrialInteraction, { type TrialInteractPayload } from './TrialInteraction'
 import VerdictCard from './VerdictCard'
 import CourtroomM13 from './CourtroomM13'
 import CourtFlow from './court/CourtFlow'
+import NewCourtGame from './court/NewCourtGame'
 import { playTts, stopTts } from './tts'
 import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
 
@@ -56,6 +57,8 @@ export default function CourtroomShell({
   const { user } = useIdentity()
   // M13 默认全屏 3D 模式；旧名人合议庭模式作为可选入口。
   const [m13Mode, setM13Mode] = useState(true)
+  // 玩法深化专项：默认走新引擎牌面对决（NewCourtGame），可切回旧 CourtFlow 经典模式。
+  const [newEngineMode, setNewEngineMode] = useState(true)
   const isGuest = Boolean(roomId)
   const [benchPhase, setBenchPhase] = useState<BenchPhase>(isGuest ? 'streaming' : 'config')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -362,6 +365,17 @@ export default function CourtroomShell({
 
   // ===== M13 全屏 3D 模式（默认） =====
   if (m13Mode) {
+    // 玩法深化专项：新引擎牌面对决为默认对局路径；旧 CourtFlow 保留为「经典模式」回退。
+    if (newEngineMode) {
+      return (
+        <div style={{ position: 'relative', height: '100vh', background: '#160d08', overflow: 'hidden' }}>
+          <NewCourtGame
+            onExit={onExitToEntry ?? (() => window.location.assign('/'))}
+            onSwitchClassic={() => setNewEngineMode(false)}
+          />
+        </div>
+      )
+    }
     // M13 大合并:上传版上传 UI(CourtFlow 5 屏)+ 当前工程真实后端(HttpCourtEngine)。
     // 保留旧 CourtroomM13 文件与下方 bench 模式入口(m13Mode=false)。
     return (

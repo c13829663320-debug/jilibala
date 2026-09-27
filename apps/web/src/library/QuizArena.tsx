@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   type QuizDomain,
   type QuizQuestion,
+  getDailyChallenge,
   planBuzzes,
   playerScoreDelta,
 } from "@balabala/shared";
@@ -12,6 +13,14 @@ import OpponentScoreboard, { type ScoreboardPlayer } from "./OpponentScoreboard"
 import ComboMeter from "./ComboMeter";
 import LivesMeter from "./LivesMeter";
 import QuizResults from "./QuizResults";
+
+// 首局新手引导四步（可跳过，localStorage 持久化）。
+const LIB_TUTORIAL = [
+  { title: "选领域", desc: "科学 / 文学 / 哲学 / 历史 / 艺术，选一个你最有把握的领域开战。" },
+  { title: "看对手", desc: "三位 AI 名人已就座，实时分数条跟你此消彼长；压过其中 2 位即赢。" },
+  { title: "抢答规则", desc: "每题 10 秒限时、4 选 1。答错或超时掉 1 命（共 3 命），命耗尽提前结束。" },
+  { title: "连击加成", desc: "连对 3 题后下一题得分 ×2；答错立即断连击。" },
+];
 
 interface OpponentInfo {
   id: string; name: string; title: string; portrait: string; field: string; accuracy: number;
@@ -34,6 +43,16 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
   const [remainingMs, setRemainingMs] = useState(10_000);
   const [buzzToast, setBuzzToast] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  // 每日挑战（共享种子池）+ 首局新手引导（可跳过）。
+  const dailyChallenge = getDailyChallenge("library", new Date());
+  const [tutorialStep, setTutorialStep] = useState<number>(() =>
+    typeof window !== "undefined" && window.localStorage.getItem("library-tutorial-done") === "1" ? -1 : 0
+  );
+  const dismissTutorial = () => {
+    if (typeof window !== "undefined") window.localStorage.setItem("library-tutorial-done", "1");
+    setTutorialStep(-1);
+  };
 
   // refs：给定时器回调读取最新值，避免闭包过期。
   const questionsRef = useRef<QuizQuestion[]>([]);
@@ -170,6 +189,12 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
     <div style={{ minHeight: "100%", padding: "20px 16px", background: BRAND.bg, color: BRAND.text }}>
       {phase === "select" && (
         <div style={{ paddingTop: 40 }}>
+          <div style={{
+            maxWidth: 640, margin: "0 auto 16px", padding: "8px 14px", borderRadius: 10, fontSize: 12.5,
+            background: "rgba(255,214,0,0.08)", border: "1px solid rgba(255,214,0,0.35)", color: "#ffd600", textAlign: "center",
+          }}>
+            📅 今日挑战 · {dailyChallenge.title}：{dailyChallenge.description}
+          </div>
           <DomainSelector onSelect={(d) => void startGame(d)} />
           {error && <div style={{ textAlign: "center", color: BRAND.danger, marginTop: 16 }}>{error}</div>}
         </div>
@@ -259,11 +284,50 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
           />
         </div>
       )}
+      {/* 新手引导浮层（可跳过） */}
+      {tutorialStep >= 0 && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            maxWidth: 400, background: "#141414", border: "1px solid #FFD600",
+            borderRadius: 14, padding: "18px 20px", boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ fontSize: 12, color: "#4fb3a5", letterSpacing: 2 }}>
+              新手引导 · {tutorialStep + 1}/{LIB_TUTORIAL.length}
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, margin: "4px 0", color: BRAND.text }}>
+              {LIB_TUTORIAL[tutorialStep].title}
+            </div>
+            <div style={{ fontSize: 13.5, color: "rgba(237,237,240,0.8)", lineHeight: 1.6 }}>
+              {LIB_TUTORIAL[tutorialStep].desc}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={dismissTutorial}
+                style={{
+                  padding: "6px 12px", borderRadius: 8, cursor: "pointer",
+                  background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: BRAND.dim,
+                }}
+              >跳过引导</button>
+              <button
+                onClick={() => {
+                  if (tutorialStep >= LIB_TUTORIAL.length - 1) dismissTutorial();
+                  else setTutorialStep(tutorialStep + 1);
+                }}
+                style={{
+                  padding: "6px 14px", borderRadius: 8, cursor: "pointer",
+                  background: BRAND.yellow, border: "none", color: "#141414", fontWeight: 700,
+                }}
+              >{tutorialStep >= LIB_TUTORIAL.length - 1 ? "开始" : "下一步"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-// 10 秒倒计时圆环
 function CountdownRing({ ms }: { ms: number }) {
   const R = 26;
   const C = 2 * Math.PI * R;

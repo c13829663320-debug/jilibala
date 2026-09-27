@@ -1,0 +1,476 @@
+{
+  "snapshot": {
+    "phase": "results",
+    "currentRound": 3,
+    "maxRounds": 3,
+    "slots": [
+      {
+        "slotId": "slot-0",
+        "role": "player_lawyer",
+        "isHuman": true,
+        "nickname": "你（律师）",
+        "score": 0,
+        "active": true,
+        "userId": "human-player"
+      },
+      {
+        "slotId": "slot-1",
+        "role": "opponent_lawyer",
+        "isHuman": false,
+        "nickname": "对方辩护律师（AI）",
+        "score": 0,
+        "active": true,
+        "aiPersona": "opponent-lawyer-ai"
+      },
+      {
+        "slotId": "slot-2",
+        "role": "judge",
+        "isHuman": false,
+        "nickname": "法官（AI）",
+        "score": 0,
+        "active": true,
+        "aiPersona": "judge-ai"
+      },
+      {
+        "slotId": "slot-3",
+        "role": "client",
+        "isHuman": false,
+        "nickname": "",
+        "score": 0,
+        "active": true,
+        "aiPersona": "client-ai"
+      }
+    ],
+    "state": {
+      "stage": "verdict",
+      "round": 3,
+      "balance": {
+        "plaintiff": 62,
+        "defendant": 38
+      },
+      "ammo": {
+        "plaintiff": 1,
+        "defendant": 2
+      },
+      "unresolved": [],
+      "resolved": [
+        "凌晨扰民",
+        "损失赔偿",
+        "责任认定"
+      ],
+      "facts": [],
+      "evidencePool": [
+        {
+          "id": "ev-1",
+          "name": "凌晨录音",
+          "content": "凌晨扰民的电钻录音"
+        },
+        {
+          "id": "ev-2",
+          "name": "维修发票",
+          "content": "损失赔偿的维修发票"
+        },
+        {
+          "id": "ev-3",
+          "name": "出警笔录",
+          "content": "责任认定的出警笔录"
+        }
+      ],
+      "playerSide": "plaintiff",
+      "opponentSide": "defendant",
+      "playerMoves": [
+        {
+          "round": 1,
+          "card": "evidence",
+          "targetEvidenceId": "ev-1",
+          "delta": 8,
+          "hit": true,
+          "judgeComment": "证据「凌晨录音」与「凌晨扰民」直接相关，此点已查明。"
+        },
+        {
+          "round": 2,
+          "card": "evidence",
+          "targetEvidenceId": "ev-2",
+          "delta": 8,
+          "hit": true,
+          "judgeComment": "证据「维修发票」与「损失赔偿」直接相关，此点已查明。"
+        },
+        {
+          "round": 3,
+          "card": "evidence",
+          "targetEvidenceId": "ev-3",
+          "delta": 8,
+          "hit": true,
+          "judgeComment": "证据「出警笔录」与「责任认定」直接相关，此点已查明。"
+        }
+      ],
+      "lastDelta": -4,
+      "rebuttalAppliedThisRound": true,
+      "rebuttalDebt": 0,
+      "usedMock": false
+    },
+    "startedAt": 1790466225375,
+    "finishedAt": 1790466225462,
+    "timer": null,
+    "tutorialCompleted": false,
+    "tutorialSkipped": false
+  },
+  "events": [
+    {
+      "type": "phase_changed",
+      "payload": {
+        "from": "lobby",
+        "to": "setup"
+      }
+    },
+    {
+      "type": "phase_changed",
+      "payload": {
+        "from": "setup",
+        "to": "playing"
+      }
+    },
+    {
+      "type": "game_started",
+      "payload": {}
+    },
+    {
+      "type": "court_balance_update",
+      "payload": {
+        "balance": {
+          "plaintiff": 50,
+          "defendant": 50
+        },
+        "lastDelta": 0,
+        "reason": "开庭，天平居中。"
+      }
+    },
+    {
+      "type": "round_started",
+      "payload": {
+        "round": 1,
+        "maxRounds": 3
+      }
+    },
+    {
+      "type": "round_started",
+      "payload": {
+        "round": 1,
+        "maxRounds": 3
+      }
+    },
+    {
+      "type": "court_player_turn",
+      "payload": {
+        "round": 1,
+        "ammo": 2,
+        "handCards": [
+          "attack",
+          "evidence",
+          "mock",
+          "request_record"
+        ],
+        "unresolved": [
+          "凌晨扰民",
+          "损失赔偿",
+          "责任认定"
+        ]
+      }
+    },
+    {
+      "type": "court_card_resolved",
+      "payload": {
+        "card": "evidence",
+        "hit": true,
+        "delta": 8,
+        "judgeComment": "证据「凌晨录音」与「凌晨扰民」直接相关，此点已查明。"
+      }
+    },
+    {
+      "type": "court_balance_update",
+      "payload": {
+        "balance": {
+          "plaintiff": 58,
+          "defendant": 42
+        },
+        "lastDelta": 8,
+        "reason": "证据「凌晨录音」与「凌晨扰民」直接相关，此点已查明。"
+      }
+    },
+    {
+      "type": "feedback:court_hit",
+      "payload": {
+        "round": 1,
+        "card": "evidence",
+        "delta": 8
+      }
+    },
+    {
+      "type": "court_player_turn",
+      "payload": {
+        "round": 1,
+        "ammo": 1,
+        "handCards": [
+          "attack",
+          "evidence",
+          "mock",
+          "request_record"
+        ],
+        "unresolved": [
+          "损失赔偿",
+          "责任认定"
+        ]
+      }
+    },
+    {
+      "type": "court_balance_update",
+      "payload": {
+        "balance": {
+          "plaintiff": 54,
+          "defendant": 46
+        },
+        "lastDelta": -4,
+        "reason": "对方律师针对性反驳，天平向对方倾斜 4 点。"
+      }
+    },
+    {
+      "type": "court_round_recap",
+      "payload": {
+        "round": 1,
+        "unresolved": [
+          "损失赔偿",
+          "责任认定"
+        ],
+        "balance": {
+          "plaintiff": 54,
+          "defendant": 46
+        }
+      }
+    },
+    {
+      "type": "round_started",
+      "payload": {
+        "round": 2,
+        "maxRounds": 3
+      }
+    },
+    {
+      "type": "round_started",
+      "payload": {
+        "round": 2,
+        "maxRounds": 3
+      }
+    },
+    {
+      "type": "court_player_turn",
+      "payload": {
+        "round": 2,
+        "ammo": 2,
+        "handCards": [
+          "attack",
+          "evidence",
+          "mock",
+          "request_record"
+        ],
+        "unresolved": [
+          "损失赔偿",
+          "责任认定"
+        ]
+      }
+    },
+    {
+      "type": "court_card_resolved",
+      "payload": {
+        "card": "evidence",
+        "hit": true,
+        "delta": 8,
+        "judgeComment": "证据「维修发票」与「损失赔偿」直接相关，此点已查明。"
+      }
+    },
+    {
+      "type": "court_balance_update",
+      "payload": {
+        "balance": {
+          "plaintiff": 62,
+          "defendant": 38
+        },
+        "lastDelta": 8,
+        "reason": "证据「维修发票」与「损失赔偿」直接相关，此点已查明。"
+      }
+    },
+    {
+      "type": "feedback:court_hit",
+      "payload": {
+        "round": 2,
+        "card": "evidence",
+        "delta": 8
+      }
+    },
+    {
+      "type": "court_player_turn",
+      "payload": {
+        "round": 2,
+        "ammo": 1,
+        "handCards": [
+          "attack",
+          "evidence",
+          "mock",
+          "request_record"
+        ],
+        "unresolved": [
+          "责任认定"
+        ]
+      }
+    },
+    {
+      "type": "court_balance_update",
+      "payload": {
+        "balance": {
+          "plaintiff": 58,
+          "defendant": 42
+        },
+        "lastDelta": -4,
+        "reason": "对方律师针对性反驳，天平向对方倾斜 4 点。"
+      }
+    },
+    {
+      "type": "court_round_recap",
+      "payload": {
+        "round": 2,
+        "unresolved": [
+          "责任认定"
+        ],
+        "balance": {
+          "plaintiff": 58,
+          "defendant": 42
+        }
+      }
+    },
+    {
+      "type": "round_started",
+      "payload": {
+        "round": 3,
+        "maxRounds": 3
+      }
+    },
+    {
+      "type": "round_started",
+      "payload": {
+        "round": 3,
+        "maxRounds": 3
+      }
+    },
+    {
+      "type": "court_player_turn",
+      "payload": {
+        "round": 3,
+        "ammo": 2,
+        "handCards": [
+          "attack",
+          "evidence",
+          "mock",
+          "request_record"
+        ],
+        "unresolved": [
+          "责任认定"
+        ]
+      }
+    },
+    {
+      "type": "court_card_resolved",
+      "payload": {
+        "card": "evidence",
+        "hit": true,
+        "delta": 8,
+        "judgeComment": "证据「出警笔录」与「责任认定」直接相关，此点已查明。"
+      }
+    },
+    {
+      "type": "court_balance_update",
+      "payload": {
+        "balance": {
+          "plaintiff": 66,
+          "defendant": 34
+        },
+        "lastDelta": 8,
+        "reason": "证据「出警笔录」与「责任认定」直接相关，此点已查明。"
+      }
+    },
+    {
+      "type": "feedback:court_hit",
+      "payload": {
+        "round": 3,
+        "card": "evidence",
+        "delta": 8
+      }
+    },
+    {
+      "type": "court_player_turn",
+      "payload": {
+        "round": 3,
+        "ammo": 1,
+        "handCards": [
+          "attack",
+          "evidence",
+          "mock",
+          "request_record"
+        ],
+        "unresolved": []
+      }
+    },
+    {
+      "type": "court_balance_update",
+      "payload": {
+        "balance": {
+          "plaintiff": 62,
+          "defendant": 38
+        },
+        "lastDelta": -4,
+        "reason": "对方律师针对性反驳，天平向对方倾斜 4 点。"
+      }
+    },
+    {
+      "type": "court_round_recap",
+      "payload": {
+        "round": 3,
+        "unresolved": [],
+        "balance": {
+          "plaintiff": 62,
+          "defendant": 38
+        }
+      }
+    },
+    {
+      "type": "phase_changed",
+      "payload": {
+        "from": "playing",
+        "to": "results"
+      }
+    },
+    {
+      "type": "game_result",
+      "payload": {
+        "result": {
+          "winner": "slot-0",
+          "scores": {
+            "slot-0": 62,
+            "slot-1": 38
+          },
+          "tier": {
+            "level": "expert",
+            "label": "王牌律师",
+            "score": 62,
+            "percentile": 62
+          },
+          "rankPoints": 25,
+          "highlights": [
+            "第1轮【出示证据】证据「凌晨录音」与「凌晨扰民」直接相关，此点已查明。",
+            "第2轮【出示证据】证据「维修发票」与「损失赔偿」直接相关，此点已查明。",
+            "第3轮【出示证据】证据「出警笔录」与「责任认定」直接相关，此点已查明。"
+          ],
+          "durationMs": 87
+        }
+      }
+    }
+  ]
+}

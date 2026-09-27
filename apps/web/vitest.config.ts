@@ -1,10 +1,13 @@
-// Vitest 配置（web 端）：node 环境，仅跑纯逻辑单测（如 courtroom-camera）。
+// Vitest 配置（web 端）：默认 node 环境跑纯逻辑单测；
+// 组件测试（.test.tsx）用 docblock `@vitest-environment jsdom` 自行声明环境。
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    globals: true,
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    setupFiles: ['./src/setupTests.ts'],
   },
 })

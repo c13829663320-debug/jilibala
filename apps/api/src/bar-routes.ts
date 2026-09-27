@@ -2,7 +2,7 @@
 // 负责端点、房间状态、WebSocket 广播与持久化。纯 AI 逻辑在 bar-orchestrator.ts。
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { type BarQuoteData, type SceneId } from "@balabala/shared";
+import { type BarQuoteData, type SceneId, getDailyChallenge } from "@balabala/shared";
 import { resolveCharacter } from "./character-resolver.js";
 import type { ChatFn } from "./bench-orchestrator.js";
 import {
@@ -154,6 +154,9 @@ export function registerBarRoutes(app: FastifyInstance, deps: { chat: ChatFn; co
 
   /** GET /api/bar/topics — 话题库。 */
   app.get("/api/bar/topics", async () => ({ topics: TOPIC_LIBRARY }));
+
+  /** GET /api/bar/daily — 今日辩论挑战。 */
+  app.get("/api/bar/daily", async () => ({ challenge: getDailyChallenge("bar", new Date()) }));
 
   /**
    * POST /api/bar/start

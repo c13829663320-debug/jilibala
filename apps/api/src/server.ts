@@ -30,6 +30,8 @@ import { registerChatRoutes } from './chat.js';
 import { getLeaderboard } from './leaderboard.js';
 import { getActiveAnnouncements, startScheduler as startThemeRoomScheduler } from './theme-rooms.js';
 import { readReports, addBlock, removeBlock, getBlockList } from './moderation.js';
+// ===== 玩法深化引擎桥接（六场景 BaseOrchestrator）=====
+import { registerEngineRoutes } from './engine-routes.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
@@ -1125,6 +1127,8 @@ registerSceneStudioRoutes(app, { chat: chatWithProviders });
 // ===== R4-09: 场景模板市场 + UGC 场景保存/分享（JSON 文件） =====
 registerSceneTemplateRoutes(app);
 registerSceneStoreRoutes(app);
+// ===== 玩法深化引擎桥接（六场景 BaseOrchestrator，确定性单局）=====
+registerEngineRoutes(app);
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

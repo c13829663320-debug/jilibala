@@ -1,0 +1,344 @@
+{
+  "joke": {
+    "text": "周一早会我假装网卡，其实是在给自己打气。",
+    "topic": "职场吐槽",
+    "scores": {
+      "punchline": 19,
+      "pacing": 25,
+      "resonance": 17
+    },
+    "total": 61,
+    "reaction": "mixed",
+    "note": "无 LLM 环境下的确定性参考分。"
+  },
+  "snapshot": {
+    "phase": "results",
+    "currentRound": 0,
+    "maxRounds": 3,
+    "slots": [
+      {
+        "slotId": "slot-0",
+        "role": "performer",
+        "isHuman": true,
+        "nickname": "你（开放麦演员）",
+        "score": 0,
+        "active": true,
+        "userId": "human-player"
+      },
+      {
+        "slotId": "slot-1",
+        "role": "host",
+        "isHuman": false,
+        "nickname": "主持人（AI）",
+        "score": 0,
+        "active": true,
+        "aiPersona": "host-ai"
+      },
+      {
+        "slotId": "slot-2",
+        "role": "audience-1",
+        "isHuman": false,
+        "nickname": "挑剔观众",
+        "score": 0,
+        "active": true,
+        "aiPersona": "audience-picky"
+      },
+      {
+        "slotId": "slot-3",
+        "role": "audience-2",
+        "isHuman": false,
+        "nickname": "捧场观众",
+        "score": 0,
+        "active": true,
+        "aiPersona": "audience-laugh"
+      },
+      {
+        "slotId": "slot-4",
+        "role": "audience-3",
+        "isHuman": false,
+        "nickname": "普通观众",
+        "score": 0,
+        "active": true,
+        "aiPersona": "audience-regular"
+      }
+    ],
+    "state": {
+      "stage": "results",
+      "topic": {
+        "id": "workplace",
+        "label": "职场吐槽",
+        "icon": "💼",
+        "subtopics": [
+          "老板画的饼",
+          "周一早会",
+          "加班文化",
+          "早高峰地铁",
+          "永远写不完的周报"
+        ]
+      },
+      "currentJokeIndex": 3,
+      "totalJokes": 3,
+      "jokeTimeLimitMs": 120000,
+      "jokes": [
+        {
+          "text": "老板凌晨三点在群里发「在吗」，我当场就写好了遗嘱。",
+          "topic": "职场吐槽",
+          "scores": {
+            "punchline": 19,
+            "pacing": 25,
+            "resonance": 17
+          },
+          "total": 61,
+          "reaction": "mixed",
+          "note": "无 LLM 环境下的确定性参考分。"
+        },
+        {
+          "text": "后来老板凌晨三点又发「在吗」，我把遗嘱改成了他的。",
+          "topic": "职场吐槽",
+          "scores": {
+            "punchline": 19,
+            "pacing": 25,
+            "resonance": 30
+          },
+          "total": 74,
+          "reaction": "applaud",
+          "note": "无 LLM 环境下的确定性参考分。",
+          "callbackTo": 0,
+          "callbackHit": true
+        },
+        {
+          "text": "周一早会我假装网卡，其实是在给自己打气。",
+          "topic": "职场吐槽",
+          "scores": {
+            "punchline": 19,
+            "pacing": 25,
+            "resonance": 17
+          },
+          "total": 61,
+          "reaction": "mixed",
+          "note": "无 LLM 环境下的确定性参考分。"
+        }
+      ],
+      "warmupJokes": [
+        "大家晚上好！我是今晚的主持——先说好，我讲的段子不包笑，包退。",
+        "掌声欢迎下一位上台的朋友……呃，掌声呢？没事，他脸皮比我厚。"
+      ],
+      "callbackOptions": [
+        {
+          "index": 0,
+          "preview": "老板凌晨三点在群里发「在吗」，我当场就写好了遗嘱…"
+        },
+        {
+          "index": 1,
+          "preview": "后来老板凌晨三点又发「在吗」，我把遗嘱改成了他的…"
+        },
+        {
+          "index": 2,
+          "preview": "周一早会我假装网卡，其实是在给自己打气。"
+        }
+      ],
+      "warnedLastTen": false
+    },
+    "startedAt": 1790466230596,
+    "finishedAt": 1790466230679,
+    "timer": null,
+    "tutorialCompleted": false,
+    "tutorialSkipped": false
+  },
+  "events": [
+    {
+      "type": "phase_changed",
+      "payload": {
+        "from": "lobby",
+        "to": "setup"
+      }
+    },
+    {
+      "type": "phase_changed",
+      "payload": {
+        "from": "setup",
+        "to": "playing"
+      }
+    },
+    {
+      "type": "game_started",
+      "payload": {}
+    },
+    {
+      "type": "talkshow_warmup",
+      "payload": {
+        "warmupJokes": [
+          "大家晚上好！我是今晚的主持——先说好，我讲的段子不包笑，包退。",
+          "掌声欢迎下一位上台的朋友……呃，掌声呢？没事，他脸皮比我厚。"
+        ]
+      }
+    },
+    {
+      "type": "talkshow_topic_options",
+      "payload": {
+        "topics": [
+          {
+            "id": "workplace",
+            "label": "职场吐槽",
+            "icon": "💼"
+          },
+          {
+            "id": "dating",
+            "label": "恋爱翻车",
+            "icon": "💘"
+          },
+          {
+            "id": "family",
+            "label": "我妈/我爸",
+            "icon": "🏠"
+          },
+          {
+            "id": "life",
+            "label": "当代生活",
+            "icon": "🛋️"
+          }
+        ]
+      }
+    },
+    {
+      "type": "talkshow_topic_picked",
+      "payload": {
+        "topic": "职场吐槽"
+      }
+    },
+    {
+      "type": "talkshow_joke_start",
+      "payload": {
+        "index": 0,
+        "timeLimitMs": 120000,
+        "callbackOptions": []
+      }
+    },
+    {
+      "type": "talkshow_joke_scored",
+      "payload": {
+        "index": 0,
+        "scores": {
+          "punchline": 19,
+          "pacing": 25,
+          "resonance": 17
+        },
+        "total": 61,
+        "reaction": "mixed",
+        "note": "无 LLM 环境下的确定性参考分。",
+        "callbackEligible": true
+      }
+    },
+    {
+      "type": "feedback:joke",
+      "payload": {
+        "index": 61,
+        "reaction": "mixed"
+      }
+    },
+    {
+      "type": "talkshow_joke_start",
+      "payload": {
+        "index": 1,
+        "timeLimitMs": 120000,
+        "callbackOptions": [
+          {
+            "index": 0,
+            "preview": "老板凌晨三点在群里发「在吗」，我当场就写好了遗嘱…"
+          }
+        ]
+      }
+    },
+    {
+      "type": "talkshow_joke_scored",
+      "payload": {
+        "index": 1,
+        "scores": {
+          "punchline": 19,
+          "pacing": 25,
+          "resonance": 30
+        },
+        "total": 74,
+        "reaction": "applaud",
+        "note": "无 LLM 环境下的确定性参考分。",
+        "callbackEligible": true
+      }
+    },
+    {
+      "type": "feedback:joke",
+      "payload": {
+        "index": 74,
+        "reaction": "applaud"
+      }
+    },
+    {
+      "type": "talkshow_joke_start",
+      "payload": {
+        "index": 2,
+        "timeLimitMs": 120000,
+        "callbackOptions": [
+          {
+            "index": 0,
+            "preview": "老板凌晨三点在群里发「在吗」，我当场就写好了遗嘱…"
+          },
+          {
+            "index": 1,
+            "preview": "后来老板凌晨三点又发「在吗」，我把遗嘱改成了他的…"
+          }
+        ]
+      }
+    },
+    {
+      "type": "talkshow_joke_scored",
+      "payload": {
+        "index": 2,
+        "scores": {
+          "punchline": 19,
+          "pacing": 25,
+          "resonance": 17
+        },
+        "total": 61,
+        "reaction": "mixed",
+        "note": "无 LLM 环境下的确定性参考分。",
+        "callbackEligible": false
+      }
+    },
+    {
+      "type": "feedback:joke",
+      "payload": {
+        "index": 61,
+        "reaction": "mixed"
+      }
+    },
+    {
+      "type": "phase_changed",
+      "payload": {
+        "from": "playing",
+        "to": "results"
+      }
+    },
+    {
+      "type": "game_result",
+      "payload": {
+        "result": {
+          "winner": null,
+          "scores": {
+            "slot-0": 65
+          },
+          "tier": {
+            "level": "expert",
+            "label": "炸场",
+            "score": 65,
+            "percentile": 65
+          },
+          "rankPoints": 65,
+          "highlights": [
+            "金句卡：「后来老板凌晨三点又发「在吗」，我把遗嘱改成了他的。」（74 分）",
+            "成功回扣 1 次，共鸣拉满。"
+          ],
+          "durationMs": 83
+        }
+      }
+    }
+  ]
+}

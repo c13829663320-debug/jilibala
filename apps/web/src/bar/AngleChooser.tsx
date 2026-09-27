@@ -27,6 +27,7 @@ export default function AngleChooser({
             <button
               key={angle}
               disabled={disabled}
+              data-testid={`bar-angle-${angle}`}
               onClick={() => onSelect(angle)}
               style={{
                 ...card,

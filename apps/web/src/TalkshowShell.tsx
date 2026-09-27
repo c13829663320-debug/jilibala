@@ -9,6 +9,7 @@ import JokeScoreRadar from './talkshow/JokeScoreRadar'
 import AudienceWave from './talkshow/AudienceWave'
 import CallbackChooser, { type NextMove } from './talkshow/CallbackChooser'
 import JokeTimer from './talkshow/JokeTimer'
+import NewTalkshowGame from './talkshow/NewTalkshowGame'
 import {
   REACTION_META, TIER_STYLE,
   type PerformedJoke, type TopicOption, type Tier,
@@ -21,7 +22,30 @@ const TEAL = '#4fb3a5'
 
 type Stage = 'warmup' | 'picking_topic' | 'performing' | 'results'
 
+/**
+ * 薄封装：默认新引擎玩法面板（覆盖 3D 剧场），「经典模式」切回旧 openmic 流程。
+ * 两个分支各自独立组件，避免条件调用 React Hooks。
+ */
 export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
+  const [newEngineMode, setNewEngineMode] = useState(true)
+  if (newEngineMode) {
+    const viewCelebs: Celebrity[] = [getCelebrity('libai')].filter((c): c is Celebrity => Boolean(c))
+    return (
+      <div style={{ position: 'relative', height: '100vh', background: '#000', overflow: 'hidden' }}>
+        <Suspense fallback={<div style={{ color: YELLOW, padding: 20 }}>布置剧场中…</div>}>
+          <TalkshowView celebrities={viewCelebs} activeSpeakerId={null} playerOnStage audienceExcitement={40} />
+        </Suspense>
+        <NewTalkshowGame
+          onBack={onBack}
+          onSwitchClassic={() => setNewEngineMode(false)}
+        />
+      </div>
+    )
+  }
+  return <ClassicTalkshowShell onBack={onBack} onPlaza={onPlaza} onSwitchNew={() => setNewEngineMode(true)} />
+}
+
+function ClassicTalkshowShell({ onBack, onPlaza, onSwitchNew }: { onBack: () => void; onPlaza?: () => void; onSwitchNew?: () => void }) {
   const { user } = useIdentity()
 
   const [stage, setStage] = useState<Stage>('warmup')
@@ -246,6 +270,7 @@ export default function TalkshowShell({ onBack, onPlaza }: { onBack: () => void;
         <span style={{ fontSize: 18, fontWeight: 800, color: YELLOW }}>🎤 脱口秀剧场 · 开放麦之星</span>
         <span style={{ fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>三维度评分 · callback 回扣 · 60 秒限时</span>
         <div style={{ flex: 1 }} />
+        {onSwitchNew && <button onClick={onSwitchNew} style={{ ...headerBtn, color: YELLOW }} data-testid="talkshow-new-btn">✨ 新引擎玩法</button>}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(237,237,240,0.7)' }}>
           <Users size={14} /> 现场观众
         </span>
