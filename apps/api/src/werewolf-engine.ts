@@ -9,6 +9,7 @@
 import {
   BaseOrchestrator,
   computeTier,
+  getDailyChallenge,
   type GameResult,
   type PlayerSlot,
   type TutorialStep,
@@ -302,15 +303,21 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
 
   // ---- 夜晚 ------------------------------------------------------------------
   /**
-   * 跑完整个夜晚：狼刀 → 查验 → 用药 → 结算死亡。
-   * 真人若已通过 act() 预提交行动则用之，否则用 AI 钩子（=超时代打）。
+   * 打开夜晚：重置 override、进入 night_wolf 子阶段。
+   * 真人在此之后通过 act() 预提交自己的夜间行动（刀人/查验/用药）。
    */
-  runNight(): void {
+  openNight(): void {
     this.state.sub = "night_wolf";
     this.state.wolfVotes = {};
     this.state.humanNightOverride = {};
     this.nextRound();
+  }
 
+  /**
+   * 结算整个夜晚：狼刀 → 查验 → 用药 → 结算死亡。
+   * 真人若已通过 act() 预提交行动则用之，否则用 AI 钩子（=超时代打）。
+   */
+  settleNight(): void {
     // 1) 狼刀
     const wolves = this.aliveWolves();
     for (const w of wolves) {
@@ -390,6 +397,12 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
     if (this.state.killTarget != null && !this.state.witchHealApplied) deaths.push(this.state.killTarget);
     if (this.state.witchPoisonTarget != null) deaths.push(this.state.witchPoisonTarget);
     this.state.lastNightDeaths = deaths;
+  }
+
+  /** 兼容旧测试/同步用法：打开夜晚并立即结算（真人不预提交，AI 代打）。 */
+  runNight(): void {
+    this.openNight();
+    this.settleNight();
   }
 
   // ---- 白天公布 + 死亡处理 + 猎人开枪 ----------------------------------------
@@ -477,10 +490,15 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
   }
 
   // ---- 投票 ------------------------------------------------------------------
-  runVote(): void {
+  /** 打开投票窗口：sub=vote，真人可通过 act({kind:"day_vote"}) 预提交。 */
+  openVote(): void {
     this.state.sub = "vote";
     this.state.votes = {};
     this.state.humanVote = undefined;
+  }
+
+  /** 结算投票：用真人预提交的 humanVote，否则 AI 代打。 */
+  settleVote(): void {
     const voters = this.alivePlayers();
     for (const v of voters) {
       let target: number | null;
@@ -525,6 +543,12 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
         this.addScore(`slot-${this.humanSeat}`, -5, "被好人正确识别放逐");
       }
     }
+  }
+
+  /** 兼容旧测试/同步用法：打开投票并立即结算。 */
+  runVote(): void {
+    this.openVote();
+    this.settleVote();
   }
 
   // ---- 胜负 ------------------------------------------------------------------
@@ -609,5 +633,10 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
 
   get playerSlots(): PlayerSlot[] {
     return this.slots;
+  }
+
+  /** 当日挑战（供路由 / 前端展示）。 */
+  static dailyChallenge(date: Date) {
+    return getDailyChallenge("werewolf", date);
   }
 }

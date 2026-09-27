@@ -14,6 +14,7 @@ import SpectatorMode from './werewolf/SpectatorMode'
 import WerewolfRecap from './werewolf/WerewolfRecap'
 
 const WerewolfView = lazy(() => import('./WerewolfView'))
+import NewWerewolfGame from './werewolf/NewWerewolfGame'
 
 const WOLF_RED = '#ff2a3a'
 const GOOD_GOLD = '#4fb3a5'
@@ -74,6 +75,15 @@ const PHASE_LABEL: Record<string, { emoji: string; text: string }> = {
 }
 
 export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
+  // 新引擎玩法为默认入口；?old-ww=1 或 preview= 可回退旧流程。
+  const isPreview = (new URLSearchParams(window.location.search).get('preview') ?? '').startsWith('werewolf-')
+  if (!new URLSearchParams(window.location.search).has('old-ww') && !isPreview) {
+    return <NewWerewolfGame onBack={onBack} />
+  }
+  return <OldWerewolfShell onBack={onBack} onPlaza={onPlaza} />
+}
+
+function OldWerewolfShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
   const { user } = useIdentity()
   const previewKind = new URLSearchParams(window.location.search).get('preview') ?? ''
   const isPreview = previewKind.startsWith('werewolf-')

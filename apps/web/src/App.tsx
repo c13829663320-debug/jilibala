@@ -93,7 +93,9 @@ function AppInner() {
     if (parseRoomParam()) return 'court'
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
     const scene = new URLSearchParams(window.location.search).get('scene')
-    if (scene === 'werewolf' || scene === 'gym') return scene
+    if (scene === 'werewolf' || scene === 'gym' || scene === 'bar' || scene === 'talkshow') return scene as View
+    // ?__e2e=1：自动化走查跳过开屏引导，直达入口
+    if (new URLSearchParams(window.location.search).has('__e2e')) return 'entry'
     // 新用户（localStorage 无引导记录）：开屏后先选兴趣，再直达推荐场景
     if (needsInterestSelection()) return 'onboarding-interest'
     return 'entry'

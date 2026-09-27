@@ -13,6 +13,7 @@ import type { ArgumentAngle, StanceTendency, AngleEffectiveness, ArgumentScore }
 import { ANGLE_META } from './bar/types'
 
 const BarView = lazy(() => import('./BarView'))
+import NewBarGame from './bar/NewBarGame'
 
 const YELLOW = '#FFD600'
 const TEAL = '#4fb3a5'
@@ -25,6 +26,14 @@ interface Turn { round: number; speaker: string; side: Side | 'player'; text: st
 const SIDE_LABEL: Record<Side, string> = { pro: '正方', con: '反方' }
 
 export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
+  // 新引擎玩法为默认入口；?old-bar=1 可回退到旧编排器流程（不破坏旧链路）。
+  if (!new URLSearchParams(window.location.search).has('old-bar')) {
+    return <NewBarGame onBack={onBack} />
+  }
+  return <OldBarShell onBack={onBack} onPlaza={onPlaza} />
+}
+
+function OldBarShell({ onBack, onPlaza }: { onBack: () => void; onPlaza?: () => void }) {
   const { user } = useIdentity()
 
   const [stage, setStage] = useState<Stage>('prepare')
