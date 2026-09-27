@@ -40,6 +40,20 @@ import {
   markRead,
   ChatError,
 } from "./chat.js";
+// R5: 组队 / 约局（additive：不改已有好友/私聊/房间 handler）
+import {
+  setPartyPresenceProvider,
+  createParty,
+  inviteToParty,
+  joinParty,
+  setReady,
+  chooseScene,
+  startGame,
+  leaveParty,
+  disbandParty,
+  flushOfflinePartyInvites,
+  PartyError,
+} from "./party.js";
 // R4-08: 内容治理（敏感词过滤 / 禁言 / 举报阈值自动禁言）
 import { moderateText, isMuted, registerReport } from "./moderation.js";
 
@@ -158,6 +172,11 @@ setFriendPresenceProvider({
   sendToUser: sendToGlobalUser,
 });
 setChatPresenceProvider({
+  isOnline: isUserGloballyOnline,
+  sendToUser: sendToGlobalUser,
+});
+// R5: 组队模块复用同一套跨房间投递通道。
+setPartyPresenceProvider({
   isOnline: isUserGloballyOnline,
   sendToUser: sendToGlobalUser,
 });
@@ -690,8 +709,9 @@ export function registerWebSocket(app: FastifyInstance): void {
       set.add({ socket, roomId });
     }
     if (wasOfflineBefore) {
-      // 首次上线：补发离线私聊 + 通知好友 online
+      // 首次上线：补发离线私聊 + 离线组队邀请 + 通知好友 online
       flushOfflineMessages(userId);
+      flushOfflinePartyInvites(userId);
       friendsNotifyOnline(userId, getUserSocialRoomCode(userId));
     }
 
@@ -859,6 +879,89 @@ export function registerWebSocket(app: FastifyInstance): void {
           const lastReadMessageId = String(data.lastReadMessageId ?? "");
           if (conversationId && lastReadMessageId) {
             markRead(conversationId, userId, lastReadMessageId);
+          }
+          break;
+        }
+        // ===== R5: 组队 / 约局（additive 分支；业务逻辑在 party.ts） =====
+        case "party_create": {
+          try {
+            createParty(userId);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "创建队伍失败", code: err.code } satisfies WSMessage);
+          }
+          break;
+        }
+        case "party_invite": {
+          const toUserId = String(data.toUserId ?? "");
+          const message = typeof data.message === "string" ? data.message : undefined;
+          try {
+            inviteToParty(userId, toUserId, message);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "邀请失败", code: err.code } satisfies WSMessage);
+          }
+          break;
+        }
+        case "party_join_request": {
+          const partyId = String(data.partyId ?? "");
+          try {
+            joinParty(userId, partyId);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "加入队伍失败", code: err.code } satisfies WSMessage);
+          }
+          break;
+        }
+        case "party_ready": {
+          const partyId = String(data.partyId ?? "");
+          const ready = data.ready === true;
+          try {
+            setReady(userId, partyId, ready);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "操作失败", code: err.code } satisfies WSMessage);
+          }
+          break;
+        }
+        case "party_leave": {
+          const partyId = String(data.partyId ?? "");
+          try {
+            leaveParty(userId, partyId);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "离开失败", code: err.code } satisfies WSMessage);
+          }
+          break;
+        }
+        case "party_choose_scene": {
+          const partyId = String(data.partyId ?? "");
+          const sceneId = String(data.sceneId ?? "") as import("@balabala/shared").SceneId;
+          try {
+            chooseScene(userId, partyId, sceneId);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "选择场景失败", code: err.code } satisfies WSMessage);
+          }
+          break;
+        }
+        case "party_start": {
+          const partyId = String(data.partyId ?? "");
+          try {
+            startGame(userId, partyId);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "开局失败", code: err.code } satisfies WSMessage);
+          }
+          break;
+        }
+        case "party_disband": {
+          const partyId = String(data.partyId ?? "");
+          try {
+            disbandParty(partyId, userId);
+          } catch (e) {
+            const err = e as PartyError;
+            safeSend(socket, { type: "error", message: err.message ?? "解散失败", code: err.code } satisfies WSMessage);
           }
           break;
         }

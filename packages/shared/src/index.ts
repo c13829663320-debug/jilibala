@@ -1106,3 +1106,7 @@ export * from "./perf.js";
 
 // ===== R5 新手引导（r5-onboarding 域）：状态机类型 + 纯函数（additive） =====
 export * from "./onboarding.js";
+
+// ===== R5: 组队 / 约局（多人社交关系链） =====
+// additive：仅新增，不改已有 Friend/PrivateMessage/SocialRoom 定义。
+export * from "./social-party.js";
