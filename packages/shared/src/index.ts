@@ -1090,3 +1090,6 @@ export * from "./scene-studio.js";
 
 // ===== Round4 R4-09: 场景 UGC（模板市场/保存分享/CC0 道具/可拾取） =====
 export * from "./scene-ugc.js";
+
+// ===== R5-IA: 信息架构 / 导航骨架 / Shell 契约（additive） =====
+export * from "./ia.js";

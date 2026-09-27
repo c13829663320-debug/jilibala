@@ -12,7 +12,8 @@ import BenchSelection from './BenchSelection'
 import LiveTranscript from './LiveTranscript'
 import TrialInteraction, { type TrialInteractPayload } from './TrialInteraction'
 import VerdictCard from './VerdictCard'
-import CourtroomM13 from './CourtroomM13'
+// R5-IA: CourtroomM13 已归档至 archive/（旧全屏法庭版，默认 m13Mode 实际渲染 CourtFlow，
+// 该文件此前为未使用的死导入）。保留归档文件供参考，不再被路由引用。
 import CourtFlow from './court/CourtFlow'
 import { playTts, stopTts } from './tts'
 import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
@@ -363,7 +364,7 @@ export default function CourtroomShell({
   // ===== M13 全屏 3D 模式（默认） =====
   if (m13Mode) {
     // M13 大合并:上传版上传 UI(CourtFlow 5 屏)+ 当前工程真实后端(HttpCourtEngine)。
-    // 保留旧 CourtroomM13 文件与下方 bench 模式入口(m13Mode=false)。
+    // R5-IA: 旧 CourtroomM13 全屏版已归档至 archive/；下方 bench 模式入口(m13Mode=false)保留。
     return (
       <CourtFlow
         onExit={onExitToEntry ?? (() => window.location.assign('/'))}
