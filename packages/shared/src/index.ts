@@ -1014,6 +1014,9 @@ export interface MatchStats {
   currentStreak: number;
 }
 
+/** 六场景战绩 key（R5 扩展为全部六场景）。 */
+export type SceneStatsKey = 'court' | 'talkshow' | 'werewolf' | 'bar' | 'gym' | 'library';
+
 /** 服务端档案（apps/api/.data/profiles/<userId>.json）：跨设备/重启不丢。 */
 export interface ServerProfile {
   userId: string;
@@ -1025,14 +1028,14 @@ export interface ServerProfile {
   achievements: string[];
   /** 每日挑战进度：challengeId -> 0~100 */
   dailyChallenge: Record<string, number>;
-  /** R4-08: 各玩法战绩快照（court/werewolf/bar 等） */
-  stats?: Partial<Record<'court' | 'werewolf' | 'bar', MatchStats>>;
+  /** R4-08: 各玩法战绩快照（R5: 六场景全覆盖） */
+  stats?: Partial<Record<SceneStatsKey, MatchStats>>;
   updatedAt: string;
 }
 
 // ===== R4-08: 排行榜 =====
-/** 排行榜分榜维度：全服 / 法庭 / 狼人杀 / 酒吧。 */
-export type LeaderboardScope = 'global' | 'court' | 'werewolf' | 'bar';
+/** 排行榜分榜维度：全服 / 六场景（R5 扩展）。 */
+export type LeaderboardScope = 'global' | SceneStatsKey;
 
 /** 排行榜单条记录（REST 返回）。 */
 export interface LeaderboardEntry {
@@ -1045,7 +1048,7 @@ export interface LeaderboardEntry {
   avatarRef: string;
   /** 该分榜依据的战绩（global 为 xp；分榜为对应玩法胜场/胜率）。 */
   score: number;
-  stats?: Partial<Record<'court' | 'werewolf' | 'bar', MatchStats>>;
+  stats?: Partial<Record<SceneStatsKey, MatchStats>>;
 }
 
 // ===== R4-08: 活动公告 / 主题房间 =====

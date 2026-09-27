@@ -8,3 +8,7 @@ export * from './scoring.js';
 export * from './daily-challenge.js';
 export * from './tutorial.js';
 export * from './base-orchestrator.js';
+export * from './relationship.js';
+export * from './highlights.js';
+export * from './result-card.js';
+export * from './streak.js';
