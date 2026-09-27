@@ -279,7 +279,7 @@ describe('传送：从广场传送到各建筑入口后位置正确', () => {
       expect(b.entranceZ).toBe(b.entranceZ)
       // 界内
       expect(Math.abs(b.entranceX)).toBeLessThanOrEqual(WORLD_HALF - PLAYER_RADIUS)
-      expect(Math.abs(b.entranceZ).toBeLessThanOrEqual(WORLD_HALF - PLAYER_RADIUS)
+      expect(Math.abs(b.entranceZ)).toBeLessThanOrEqual(WORLD_HALF - PLAYER_RADIUS)
       // 落点不在建筑/喷泉碰撞体里（否则玩家一落地就被卡住）
       expect(collidesAt(b.entranceX, b.entranceZ, PLAYER_RADIUS, colliders)).toBe(false)
     },
