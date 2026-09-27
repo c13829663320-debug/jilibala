@@ -685,6 +685,12 @@ export function registerWebSocket(app: FastifyInstance): void {
       }
       room.users.set(userId, roomUser);
 
+      // 用户用新连接重连：取消旧会话的宽限期，避免看门狗误删已重连的用户
+      const oldSess = transport.getSessionByUser(roomId, userId);
+      if (oldSess && oldSess.sessionId !== session.sessionId && oldSess.state !== "active") {
+        transport.destroySession(oldSess);
+      }
+
       // 发送 welcome 快照（携带心跳配置、会话 Token、状态同步配置）
       const welcome: WSMessage = {
         type: "welcome",

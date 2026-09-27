@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/e2e/**/*.test.ts"],
+    exclude: ["tests/e2e/room-permissions.test.ts"],
     testTimeout: 30000,
     hookTimeout: 30000,
   },

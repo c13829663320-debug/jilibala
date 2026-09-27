@@ -1,47 +1,49 @@
 {
-  "startedAt": "2026-09-26T23:35:46.058Z",
-  "eventCount": 45,
+  "startedAt": "2026-09-27T00:03:09.089Z",
+  "eventCount": 48,
   "events": [
     {
-      "t": 1790465743450,
+      "t": 1790467386480,
       "dir": "sys",
       "who": "sys",
       "type": "room_created",
       "payload": {
-        "id": "social:WPSZZ8",
-        "code": "WPSZZ8",
+        "id": "social:GLY5RK",
+        "code": "GLY5RK",
         "name": "E2E 韧性房",
         "creatorId": "owner1",
         "creatorName": "房主",
         "scene": "plaza",
         "maxPlayers": 16,
         "isPublic": true,
-        "createdAt": "2026-09-26T23:35:43.448Z",
+        "locked": false,
+        "hasPassword": false,
+        "createdAt": "2026-09-27T00:03:06.477Z",
         "playerCount": 0
       }
     },
     {
-      "t": 1790465743518,
+      "t": 1790467386544,
       "dir": "out",
       "who": "owner1",
       "type": "__open__"
     },
     {
-      "t": 1790465743519,
+      "t": 1790467386545,
       "dir": "in",
       "who": "owner1",
       "type": "welcome",
       "payload": {
         "type": "welcome",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "users": [
           {
             "userId": "owner1",
             "nickname": "匿名用户",
             "avatarType": "capsule",
             "avatarRef": "",
-            "x": 9.796456985093943,
-            "z": -3.3375883729011058,
+            "x": 5.156570296167242,
+            "z": 7.867597712185322,
             "rotation": 0
           }
         ],
@@ -51,37 +53,61 @@
           "reconnectWindowMs": 2500
         },
         "sessionToken": {
-          "sessionId": "56be6bc1-9703-4c9f-80e4-24b40445911e",
+          "sessionId": "7fe20a32-961c-402d-8e15-f8b707d26dd2",
           "userId": "owner1",
-          "roomId": "social:WPSZZ8",
-          "issuedAt": 1790465743516,
-          "expiresAt": 1790465863516
+          "roomId": "social:GLY5RK",
+          "issuedAt": 1790467386542,
+          "expiresAt": 1790467506542
+        },
+        "stateSync": {
+          "serverTickHz": 10,
+          "clientSendMaxHz": 15,
+          "interpolationDelayMs": 100,
+          "maxExtrapolationMs": 250,
+          "positionClipThreshold": 50,
+          "maxMessageBytes": 4096
         }
       }
     },
     {
-      "t": 1790465743519,
+      "t": 1790467386545,
+      "dir": "in",
+      "who": "owner1",
+      "type": "rtc_config",
+      "payload": {
+        "type": "rtc_config",
+        "iceServers": [
+          {
+            "urls": "stun:stun.l.google.com:19302"
+          }
+        ]
+      }
+    },
+    {
+      "t": 1790467386545,
       "dir": "in",
       "who": "owner1",
       "type": "room_info",
       "payload": {
         "type": "room_info",
         "room": {
-          "id": "social:WPSZZ8",
-          "code": "WPSZZ8",
+          "id": "social:GLY5RK",
+          "code": "GLY5RK",
           "name": "E2E 韧性房",
           "creatorId": "owner1",
           "creatorName": "房主",
           "scene": "plaza",
           "maxPlayers": 16,
           "isPublic": true,
-          "createdAt": "2026-09-26T23:35:43.448Z",
+          "locked": false,
+          "hasPassword": false,
+          "createdAt": "2026-09-27T00:03:06.477Z",
           "playerCount": 1
         }
       }
     },
     {
-      "t": 1790465743519,
+      "t": 1790467386545,
       "dir": "in",
       "who": "owner1",
       "type": "user_joined",
@@ -92,45 +118,45 @@
           "nickname": "匿名用户",
           "avatarType": "capsule",
           "avatarRef": "",
-          "x": 9.796456985093943,
-          "z": -3.3375883729011058,
+          "x": 5.156570296167242,
+          "z": 7.867597712185322,
           "rotation": 0
         }
       }
     },
     {
-      "t": 1790465743519,
+      "t": 1790467386545,
       "dir": "in",
       "who": "owner1",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 1
       }
     },
     {
-      "t": 1790465743522,
+      "t": 1790467386548,
       "dir": "out",
       "who": "alice",
       "type": "__open__"
     },
     {
-      "t": 1790465743522,
+      "t": 1790467386548,
       "dir": "in",
       "who": "alice",
       "type": "welcome",
       "payload": {
         "type": "welcome",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "users": [
           {
             "userId": "owner1",
             "nickname": "匿名用户",
             "avatarType": "capsule",
             "avatarRef": "",
-            "x": 9.796456985093943,
-            "z": -3.3375883729011058,
+            "x": 5.156570296167242,
+            "z": 7.867597712185322,
             "rotation": 0
           },
           {
@@ -138,8 +164,8 @@
             "nickname": "匿名用户",
             "avatarType": "capsule",
             "avatarRef": "",
-            "x": -7.446613581705055,
-            "z": -1.5736850772539412,
+            "x": 9.168792086902894,
+            "z": -8.067130732900303,
             "rotation": 0
           }
         ],
@@ -149,37 +175,61 @@
           "reconnectWindowMs": 2500
         },
         "sessionToken": {
-          "sessionId": "976ac6a5-5812-4a69-8adf-d34fa96489d7",
+          "sessionId": "03809b9d-eb9c-4ab6-a6d4-c1b424e2fa3d",
           "userId": "alice",
-          "roomId": "social:WPSZZ8",
-          "issuedAt": 1790465743521,
-          "expiresAt": 1790465863521
+          "roomId": "social:GLY5RK",
+          "issuedAt": 1790467386547,
+          "expiresAt": 1790467506547
+        },
+        "stateSync": {
+          "serverTickHz": 10,
+          "clientSendMaxHz": 15,
+          "interpolationDelayMs": 100,
+          "maxExtrapolationMs": 250,
+          "positionClipThreshold": 50,
+          "maxMessageBytes": 4096
         }
       }
     },
     {
-      "t": 1790465743522,
+      "t": 1790467386548,
+      "dir": "in",
+      "who": "alice",
+      "type": "rtc_config",
+      "payload": {
+        "type": "rtc_config",
+        "iceServers": [
+          {
+            "urls": "stun:stun.l.google.com:19302"
+          }
+        ]
+      }
+    },
+    {
+      "t": 1790467386548,
       "dir": "in",
       "who": "alice",
       "type": "room_info",
       "payload": {
         "type": "room_info",
         "room": {
-          "id": "social:WPSZZ8",
-          "code": "WPSZZ8",
+          "id": "social:GLY5RK",
+          "code": "GLY5RK",
           "name": "E2E 韧性房",
           "creatorId": "owner1",
           "creatorName": "房主",
           "scene": "plaza",
           "maxPlayers": 16,
           "isPublic": true,
-          "createdAt": "2026-09-26T23:35:43.448Z",
+          "locked": false,
+          "hasPassword": false,
+          "createdAt": "2026-09-27T00:03:06.477Z",
           "playerCount": 2
         }
       }
     },
     {
-      "t": 1790465743522,
+      "t": 1790467386548,
       "dir": "in",
       "who": "alice",
       "type": "user_joined",
@@ -190,25 +240,25 @@
           "nickname": "匿名用户",
           "avatarType": "capsule",
           "avatarRef": "",
-          "x": -7.446613581705055,
-          "z": -1.5736850772539412,
+          "x": 9.168792086902894,
+          "z": -8.067130732900303,
           "rotation": 0
         }
       }
     },
     {
-      "t": 1790465743522,
+      "t": 1790467386548,
       "dir": "in",
       "who": "alice",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 2
       }
     },
     {
-      "t": 1790465743524,
+      "t": 1790467386549,
       "dir": "in",
       "who": "owner1",
       "type": "user_joined",
@@ -219,37 +269,37 @@
           "nickname": "匿名用户",
           "avatarType": "capsule",
           "avatarRef": "",
-          "x": -7.446613581705055,
-          "z": -1.5736850772539412,
+          "x": 9.168792086902894,
+          "z": -8.067130732900303,
           "rotation": 0
         }
       }
     },
     {
-      "t": 1790465743524,
+      "t": 1790467386549,
       "dir": "in",
       "who": "owner1",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 2
       }
     },
     {
-      "t": 1790465743524,
+      "t": 1790467386550,
       "dir": "in",
       "who": "owner1",
       "type": "pong",
       "payload": {
         "type": "pong",
         "clientSeq": 42,
-        "serverTs": 1790465743524,
+        "serverTs": 1790467386550,
         "playerCount": 2
       }
     },
     {
-      "t": 1790465743525,
+      "t": 1790467386551,
       "dir": "in",
       "who": "owner1",
       "type": "chat",
@@ -261,7 +311,7 @@
       }
     },
     {
-      "t": 1790465743525,
+      "t": 1790467386551,
       "dir": "in",
       "who": "alice",
       "type": "chat",
@@ -273,13 +323,13 @@
       }
     },
     {
-      "t": 1790465743527,
+      "t": 1790467386553,
       "dir": "sys",
       "who": "owner1",
       "type": "__close__"
     },
     {
-      "t": 1790465743527,
+      "t": 1790467386553,
       "dir": "in",
       "who": "alice",
       "type": "player_disconnecting",
@@ -290,18 +340,18 @@
       }
     },
     {
-      "t": 1790465743527,
+      "t": 1790467386553,
       "dir": "in",
       "who": "alice",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 1
       }
     },
     {
-      "t": 1790465743529,
+      "t": 1790467386554,
       "dir": "in",
       "who": "alice",
       "type": "chat",
@@ -313,7 +363,7 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "alice",
       "type": "player_reconnected",
@@ -323,24 +373,24 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "alice",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 2
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "out",
       "who": "owner1",
       "type": "__open__"
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "reconnect_progress",
@@ -352,7 +402,7 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "reconnect_progress",
@@ -364,7 +414,7 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "user_joined",
@@ -375,25 +425,25 @@
           "nickname": "匿名用户",
           "avatarType": "capsule",
           "avatarRef": "",
-          "x": 9.796456985093943,
-          "z": -3.3375883729011058,
+          "x": 5.156570296167242,
+          "z": 7.867597712185322,
           "rotation": 0
         }
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 1
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "user_joined",
@@ -404,25 +454,25 @@
           "nickname": "匿名用户",
           "avatarType": "capsule",
           "avatarRef": "",
-          "x": -7.446613581705055,
-          "z": -1.5736850772539412,
+          "x": 9.168792086902894,
+          "z": -8.067130732900303,
           "rotation": 0
         }
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 2
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "chat",
@@ -434,7 +484,7 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "player_disconnecting",
@@ -445,18 +495,18 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 1
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "chat",
@@ -468,7 +518,7 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "reconnect_progress",
@@ -480,21 +530,21 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "welcome",
       "payload": {
         "type": "welcome",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "users": [
           {
             "userId": "owner1",
             "nickname": "匿名用户",
             "avatarType": "capsule",
             "avatarRef": "",
-            "x": 9.796456985093943,
-            "z": -3.3375883729011058,
+            "x": 5.156570296167242,
+            "z": 7.867597712185322,
             "rotation": 0
           },
           {
@@ -502,8 +552,8 @@
             "nickname": "匿名用户",
             "avatarType": "capsule",
             "avatarRef": "",
-            "x": -7.446613581705055,
-            "z": -1.5736850772539412,
+            "x": 9.168792086902894,
+            "z": -8.067130732900303,
             "rotation": 0
           }
         ],
@@ -514,16 +564,38 @@
           "reconnectWindowMs": 2500
         },
         "sessionToken": {
-          "sessionId": "56be6bc1-9703-4c9f-80e4-24b40445911e",
+          "sessionId": "7fe20a32-961c-402d-8e15-f8b707d26dd2",
           "userId": "owner1",
-          "roomId": "social:WPSZZ8",
-          "issuedAt": 1790465743516,
-          "expiresAt": 1790465863516
+          "roomId": "social:GLY5RK",
+          "issuedAt": 1790467386542,
+          "expiresAt": 1790467506542
+        },
+        "stateSync": {
+          "serverTickHz": 10,
+          "clientSendMaxHz": 15,
+          "interpolationDelayMs": 100,
+          "maxExtrapolationMs": 250,
+          "positionClipThreshold": 50,
+          "maxMessageBytes": 4096
         }
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
+      "dir": "in",
+      "who": "owner1",
+      "type": "rtc_config",
+      "payload": {
+        "type": "rtc_config",
+        "iceServers": [
+          {
+            "urls": "stun:stun.l.google.com:19302"
+          }
+        ]
+      }
+    },
+    {
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "reconnect_progress",
@@ -535,14 +607,14 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "reconnect_response",
       "payload": {
         "type": "reconnect_response",
         "accepted": true,
-        "sessionId": "56be6bc1-9703-4c9f-80e4-24b40445911e",
+        "sessionId": "7fe20a32-961c-402d-8e15-f8b707d26dd2",
         "progress": 1,
         "users": [
           {
@@ -550,8 +622,8 @@
             "nickname": "匿名用户",
             "avatarType": "capsule",
             "avatarRef": "",
-            "x": 9.796456985093943,
-            "z": -3.3375883729011058,
+            "x": 5.156570296167242,
+            "z": 7.867597712185322,
             "rotation": 0
           },
           {
@@ -559,15 +631,15 @@
             "nickname": "匿名用户",
             "avatarType": "capsule",
             "avatarRef": "",
-            "x": -7.446613581705055,
-            "z": -1.5736850772539412,
+            "x": 9.168792086902894,
+            "z": -8.067130732900303,
             "rotation": 0
           }
         ]
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "player_reconnected",
@@ -577,24 +649,24 @@
       }
     },
     {
-      "t": 1790465743530,
+      "t": 1790467386555,
       "dir": "in",
       "who": "owner1",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 2
       }
     },
     {
-      "t": 1790465743532,
+      "t": 1790467386557,
       "dir": "sys",
       "who": "owner1",
       "type": "__close__"
     },
     {
-      "t": 1790465743532,
+      "t": 1790467386557,
       "dir": "in",
       "who": "alice",
       "type": "player_disconnecting",
@@ -605,18 +677,18 @@
       }
     },
     {
-      "t": 1790465743532,
+      "t": 1790467386557,
       "dir": "in",
       "who": "alice",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 1
       }
     },
     {
-      "t": 1790465746057,
+      "t": 1790467389088,
       "dir": "in",
       "who": "alice",
       "type": "room_owner_changed",
@@ -627,7 +699,7 @@
       }
     },
     {
-      "t": 1790465746057,
+      "t": 1790467389088,
       "dir": "in",
       "who": "alice",
       "type": "user_left",
@@ -637,13 +709,13 @@
       }
     },
     {
-      "t": 1790465746057,
+      "t": 1790467389088,
       "dir": "in",
       "who": "alice",
       "type": "room_player_update",
       "payload": {
         "type": "room_player_update",
-        "roomId": "social:WPSZZ8",
+        "roomId": "social:GLY5RK",
         "playerCount": 1
       }
     }

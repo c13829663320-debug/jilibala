@@ -86,14 +86,21 @@ describe("房间权限分片", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
   let closeServer: (() => Promise<void>) | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let transport: any;
 
   beforeAll(async () => {
     dir = mkdtempSync(join(tmpdir(), "balabala-perm-"));
     process.env.DB_PATH = join(dir, "test.db");
-    const { registerWebSocket, _resetRoomsForTest, _setOwnerGraceMsForTest } = await import("./ws.js");
+    const wsMod = await import("./ws.js");
+    const { registerWebSocket, _resetRoomsForTest, _setOwnerGraceMsForTest, _resetTransportForTest } = wsMod;
+    transport = wsMod.transport;
     const { registerRoomRoutes, _resetSocialRoomsForTest } = await import("./room-routes.js");
-    // 用例里等待房主转移时只需要极短宽限。
+    // 用例里等待房主转移时只需要极短宽限（集成后由传输层引擎控制）。
     _setOwnerGraceMsForTest(60);
+    transport.config.reconnectWindowMs = 50;
+    // 注意：不缩短 heartbeatTimeoutMs——测试客户端不发 ping，
+    // 手动 tick(now+1000) 会把所有活跃会话误判为超时并关闭其 socket。
     app = Fastify({ logger: false });
     await app.register(fastifyWebSocket);
     registerWebSocket(app);
@@ -106,6 +113,8 @@ describe("房间权限分片", () => {
     beforeEachReset = async () => {
       _resetRoomsForTest();
       _resetSocialRoomsForTest();
+      _resetTransportForTest();
+      transport.config.reconnectWindowMs = 50;
     };
   });
 
@@ -361,6 +370,10 @@ describe("房间权限分片", () => {
 
     // 房主离开
     leaver.ws.close();
+
+    // 手动推进传输层看门狗：宽限已设为 50ms，tick 到未来即触发 finalizeRemoval → 房主转移
+    await new Promise((r) => setTimeout(r, 60));
+    transport.tick(Date.now() + 1000);
 
     // 宽限后 bob（最早在线）收到 room_owner_changed
     const ev = await bob.waitFor("room_owner_changed", 3000);

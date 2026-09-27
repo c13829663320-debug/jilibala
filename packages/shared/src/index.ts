@@ -5,6 +5,7 @@ import type {
   ReconnectProgress,
   ReconnectResponse,
   NetEnvelope,
+  StateSyncConfig,
 } from "./network-protocol.js";
 
 export const TRIAL_STAGES = ["立案", "开庭", "举证", "辩论", "判决", "执行"] as const;
@@ -476,7 +477,7 @@ export interface PresenceUser {
 }
 
 export type WSMessage =
-  | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState; sceneState?: SceneRoomState; heartbeat?: HeartbeatConfig; sessionToken?: SessionToken; resumed?: boolean }
+  | { type: 'welcome'; roomId: string; users: WSUser[]; courtState?: CourtRoomState; sceneState?: SceneRoomState; heartbeat?: HeartbeatConfig; sessionToken?: SessionToken; resumed?: boolean; stateSync?: StateSyncConfig }
   | { type: 'user_joined'; user: WSUser }
   | { type: 'user_left'; userId: string }
   // —— 传输层/断线重连（多人网络专项） ——
