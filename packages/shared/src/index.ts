@@ -1090,3 +1090,7 @@ export * from "./scene-studio.js";
 
 // ===== Round4 R4-09: 场景 UGC（模板市场/保存分享/CC0 道具/可拾取） =====
 export * from "./scene-ugc.js";
+
+// ===== R5: 组队 / 约局（多人社交关系链） =====
+// additive：仅新增，不改已有 Friend/PrivateMessage/SocialRoom 定义。
+export * from "./social-party.js";
