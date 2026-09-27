@@ -89,7 +89,7 @@ export default function PlayerController({ world, colliders, onSync }: PlayerCon
     const rX = Math.cos(cam.yaw)
     const rZ = -Math.sin(cam.yaw)
     let dx = fwd * fX + str * rX
-    let dz = fwd * fZ
+    let dz = fwd * fZ + str * rZ
     const mag = Math.hypot(dx, dz)
     if (mag > 1e-4) {
       dx /= mag
