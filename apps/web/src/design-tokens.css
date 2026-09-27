@@ -44,6 +44,61 @@
   --r-md: 14px;
   --r-lg: 20px;
   --r-xl: 28px;
+
+  /* ============================================================
+   * R5 视觉品牌域：品牌色 / 字体 / 间距 / 阴影 / 动效
+   * 铁律：业务 CSS 一律引用这些变量，不再硬编码品牌色 hex。
+   * ============================================================ */
+
+  /* ---- 品牌色（品牌规范） ---- */
+  --color-bg-pure: #000000;          /* 纯黑底色（可直接用于 --bg 等价场景） */
+  --color-avatar-bg: #ffffff;        /* 头像统一白底 */
+  --color-brand-yellow: #FFD600;     /* 主强调：明黄 */
+  --color-brand-yellow-alt: #FFD60A; /* 明黄备用（渐变/高光端） */
+  --color-brand-yellow-ink: #111111; /* 明黄底上的文字色（WCAG AA 对比 ≥12:1） */
+  --color-brand-teal: #4fb3a5;       /* 辅助：青绿（与既有 --accent 同源） */
+  --color-brand-teal-dark: #20A486;  /* 青绿深色（强调/按压态） */
+  --color-brand-teal-ink: #ffffff;   /* 青绿底上的文字色 */
+
+  /* 语义别名：组件库默认引用这两个，方便未来整域换色 */
+  --brand-primary: var(--color-brand-yellow);
+  --brand-primary-ink: var(--color-brand-yellow-ink);
+  --brand-secondary: var(--color-brand-teal);
+  --brand-secondary-ink: var(--color-brand-teal-ink);
+
+  /* ---- 字体层级 ---- */
+  --font-display: 'Anton', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-body: 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --fs-xs: 11px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-2xl: 28px;
+  --leading-tight: 1.2;
+  --leading-normal: 1.55;
+
+  /* ---- 间距（4px 基准） ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-8: 48px;
+
+  /* ---- 阴影（黑底上用薄高光+深投影，不用彩色阴影） ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, .45);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, .55);
+  --shadow-brand: 0 0 0 1px rgba(255, 214, 0, .35), 0 8px 28px rgba(255, 214, 0, .12);
+
+  /* ---- 动效曲线 / 时长 ---- */
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-spring: cubic-bezier(.32, .72, .42, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
 }
 
 /* ---- 玻璃通用类（缺一不可：1px 白边 + inset 顶部高光） ---- */

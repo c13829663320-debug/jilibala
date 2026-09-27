@@ -1,4 +1,4 @@
-/* ===== 新手引导：黑底 + 明黄 #FFD600 + 青绿 #4fb3a5 ===== */
+/* ===== 新手引导：黑底 + 明黄 var(--color-brand-yellow) + 青绿 var(--color-brand-teal) ===== */
 .ob-overlay {
   position: fixed;
   inset: 0;
@@ -15,7 +15,7 @@
 }
 
 .ob-kicker {
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 4px;
@@ -32,7 +32,7 @@
 }
 
 .ob-title em {
-  color: #FFD600;
+  color: var(--color-brand-yellow);
   font-style: normal;
 }
 
@@ -70,8 +70,8 @@
 
 .ob-interest-btn:hover {
   transform: translateY(-3px);
-  border-color: #FFD600;
-  background: #141414;
+  border-color: var(--color-brand-yellow);
+  background: var(--s2);
 }
 
 .ob-interest-btn .emoji { font-size: 30px; line-height: 1; }
@@ -88,7 +88,7 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.ob-skip:hover { color: #4fb3a5; }
+.ob-skip:hover { color: var(--color-brand-teal); }
 
 /* QuickStartCard：推荐卡片 */
 .ob-card {
@@ -107,7 +107,7 @@
   padding: 4px 12px;
   border-radius: 999px;
   background: rgba(255, 214, 0, .12);
-  color: #FFD600;
+  color: var(--color-brand-yellow);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -133,8 +133,8 @@
   padding: 15px 0;
   border: none;
   border-radius: 12px;
-  background: #FFD600;
-  color: #1a1a1a;
+  background: var(--color-brand-yellow);
+  color: var(--s3);
   font-size: 16px;
   font-weight: 800;
   cursor: pointer;
@@ -150,7 +150,7 @@
   font-size: 13px;
   cursor: pointer;
 }
-.ob-ghost:hover { color: #4fb3a5; }
+.ob-ghost:hover { color: var(--color-brand-teal); }
 
 /* FirstTimeGuide：场景内半透明底部浮层 */
 .ob-guide-backdrop {
@@ -170,7 +170,7 @@
   pointer-events: auto;
   width: min(92vw, 420px);
   background: rgba(13, 13, 13, .96);
-  border: 1px solid #4fb3a5;
+  border: 1px solid var(--color-brand-teal);
   border-radius: 16px;
   padding: 18px 20px 16px;
   box-shadow: 0 18px 60px rgba(0, 0, 0, .6);
@@ -184,7 +184,7 @@
 }
 
 .ob-guide-scene {
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -207,7 +207,7 @@
 .ob-guide-dots i {
   width: 18px; height: 4px; border-radius: 2px; background: #2a2a2a;
 }
-.ob-guide-dots i.is-on { background: #FFD600; }
+.ob-guide-dots i.is-on { background: var(--color-brand-yellow); }
 
 .ob-guide-actions {
   display: flex;
@@ -218,8 +218,8 @@
   padding: 11px 0;
   border: none;
   border-radius: 10px;
-  background: #FFD600;
-  color: #1a1a1a;
+  background: var(--color-brand-yellow);
+  color: var(--s3);
   font-size: 14.5px;
   font-weight: 800;
   cursor: pointer;
@@ -247,8 +247,8 @@
   gap: 8px;
   padding: 9px 16px;
   border-radius: 999px;
-  background: #FFD600;
-  color: #1a1a1a;
+  background: var(--color-brand-yellow);
+  color: var(--s3);
   font-size: 13.5px;
   font-weight: 800;
   border: none;

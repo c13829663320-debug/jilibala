@@ -5,7 +5,7 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: #0A0A0A;
+  background: var(--bg);
   color: #EDEDF0;
   font-family: inherit;
 }
@@ -16,7 +16,7 @@
   gap: 12px;
   padding: 10px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: #141414;
+  background: var(--s2);
   flex-shrink: 0;
 }
 
@@ -32,7 +32,7 @@
   overflow-y: auto;
   padding: 14px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
-  background: #0F0F0F;
+  background: var(--s1);
 }
 
 .gym-canvas-wrap {
@@ -49,7 +49,7 @@
 }
 
 .gym-card {
-  background: #141414;
+  background: var(--s2);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 14px;
@@ -69,7 +69,7 @@
 .gym-chip.is-active {
   background: rgba(79, 179, 165, 0.13);
   border-color: rgba(79, 179, 165, 0.42);
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
 }
 
 /* 动作列表 */
@@ -78,7 +78,7 @@
   border-radius: 10px;
   padding: 10px;
   margin-bottom: 8px;
-  background: #0F0F0F;
+  background: var(--s1);
 }
 .gym-exercise.is-done {
   border-color: rgba(79, 179, 165, 0.42);
@@ -93,12 +93,12 @@
 .gym-progress {
   height: 8px;
   border-radius: 4px;
-  background: #1A1A1A;
+  background: var(--s3);
   overflow: hidden;
 }
 .gym-progress__fill {
   height: 100%;
-  background: #4fb3a5;
+  background: var(--color-brand-teal);
   transition: width 0.4s ease;
 }
 
@@ -118,7 +118,7 @@
 .gym-workout-num {
   font-size: 96px;
   font-weight: 800;
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
   text-shadow: 0 0 30px rgba(79, 179, 165, 0.4);
   font-variant-numeric: tabular-nums;
 }
@@ -142,7 +142,7 @@
   padding: 10px 4px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #0F0F0F;
+  background: var(--s1);
   text-align: center;
 }
 .gym-badge.is-unlocked {
@@ -163,7 +163,7 @@
   color: #8aa898;
 }
 .gym-badge.is-unlocked .gym-badge__name {
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
 }
 
 /* 在线玩家列表 */
@@ -173,7 +173,7 @@
   gap: 8px;
   padding: 7px 10px;
   border-radius: 8px;
-  background: #0F0F0F;
+  background: var(--s1);
   margin-bottom: 6px;
   font-size: 13px;
 }
@@ -187,7 +187,7 @@
   z-index: 40;
   padding: 8px 18px;
   border-radius: 20px;
-  background: #141414;
+  background: var(--s2);
   border: 1px solid rgba(79, 179, 165, 0.42);
   color: #EDEDF0;
   font-size: 13px;
@@ -207,7 +207,7 @@
   padding: 8px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #0F0F0F;
+  background: var(--s1);
   cursor: pointer;
   text-align: left;
   width: 100%;
@@ -233,7 +233,7 @@
   gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: #0F0F0F;
+  background: var(--s1);
   margin-bottom: 6px;
   font-size: 12.5px;
 }
@@ -247,13 +247,13 @@
 .gym-stat {
   padding: 10px;
   border-radius: 10px;
-  background: #0F0F0F;
+  background: var(--s1);
   text-align: center;
 }
 .gym-stat__num {
   font-size: 22px;
   font-weight: 700;
-  color: #4fb3a5;
+  color: var(--color-brand-teal);
 }
 .gym-stat__label {
   font-size: 11px;

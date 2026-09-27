@@ -1,6 +1,6 @@
 /* ===== M13 全屏 3D 趣味法庭 ===== */
 :root {
-  --cr-yellow: #4fb3a5;
+  --cr-yellow: var(--color-brand-teal);
   --cr-yellow-dim: rgba(255, 214, 10, 0.14);
   --cr-bg: rgba(10, 10, 10, 0.86);
   --cr-bg-soft: rgba(18, 16, 12, 0.82);
@@ -132,7 +132,7 @@
 .cr-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .cr-btn--primary {
   background: var(--cr-yellow);
-  color: #1a1a1a;
+  color: var(--s3);
   border-color: transparent;
 }
 .cr-btn--primary:hover { background: #ffe246; }
@@ -188,7 +188,7 @@
   margin-top: 2px;
   width: fit-content;
 }
-.cr-role-tag--judge { background: var(--cr-yellow); color: #1a1a1a; }
+.cr-role-tag--judge { background: var(--cr-yellow); color: var(--s3); }
 .cr-role-tag--plaintiff { background: #2d5fa8; color: #eaf2ff; }
 .cr-role-tag--defendant { background: #a82d48; color: #ffeaf0; }
 .cr-role-tag--defender { background: #4a3a7a; color: #ece6ff; }
@@ -258,7 +258,7 @@
 }
 .cr-persp button.is-active {
   background: var(--cr-yellow);
-  color: #1a1a1a;
+  color: var(--s3);
   border-color: transparent;
 }
 

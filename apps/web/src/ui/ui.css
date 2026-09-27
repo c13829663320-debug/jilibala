@@ -1,0 +1,166 @@
+/* ============================================================
+ * R5 统一组件库样式（ui/*）
+ * 铁律：本文件不出现硬编码品牌色 hex，全部引用 design-tokens。
+ * ============================================================ */
+
+.ui-root,
+button.ui-btn {
+  font-family: var(--font-body);
+}
+
+/* ---------- Button ---------- */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.ui-btn:active { transform: scale(.97); }
+.ui-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.ui-btn--md { padding: var(--sp-2) var(--sp-4); font-size: var(--fs-md); }
+.ui-btn--sm { padding: var(--sp-1) var(--sp-3); font-size: var(--fs-sm); }
+.ui-btn--lg { padding: var(--sp-3) var(--sp-5); font-size: var(--fs-lg); }
+
+/* 主按钮：明黄底黑字 */
+.ui-btn--primary {
+  background: var(--brand-primary);
+  color: var(--brand-primary-ink);
+}
+.ui-btn--primary:hover:not(:disabled) { background: var(--color-brand-yellow-alt); }
+
+/* 次按钮：青绿底白字 */
+.ui-btn--secondary {
+  background: var(--brand-secondary);
+  color: var(--brand-secondary-ink);
+}
+.ui-btn--secondary:hover:not(:disabled) { background: var(--color-brand-teal-dark); }
+
+/* 幽灵按钮：描边 */
+.ui-btn--ghost {
+  background: transparent;
+  border-color: var(--hair-2);
+  color: var(--ink);
+}
+.ui-btn--ghost:hover:not(:disabled) { border-color: var(--brand-primary); color: var(--brand-primary); }
+
+/* ---------- Card ---------- */
+.ui-card {
+  background: var(--s1);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+.ui-card--accent-yellow { border-color: rgba(255, 214, 0, .35); }
+.ui-card--accent-teal { border-color: var(--accent-line); }
+.ui-card--pad { padding: var(--sp-4); }
+
+/* ---------- Badge ---------- */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.6;
+  background: var(--s3);
+  color: var(--ink-70);
+  border: 1px solid var(--hair);
+}
+.ui-badge--yellow { background: var(--brand-primary); color: var(--brand-primary-ink); border-color: transparent; }
+.ui-badge--teal { background: var(--accent-soft); color: var(--brand-secondary); border-color: var(--accent-line); }
+
+/* ---------- Spinner ---------- */
+.ui-spinner {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--hair-2);
+  border-top-color: var(--brand-primary);
+  animation: ui-spin .8s linear infinite;
+}
+.ui-spinner--lg { width: 28px; height: 28px; border-width: 3px; }
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+
+/* ---------- EmptyState ---------- */
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--ink-70);
+}
+.ui-empty__icon {
+  width: 56px; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-lg);
+  background: var(--s2);
+  border: 1px solid var(--hair);
+  color: var(--ink-48);
+}
+.ui-empty__title { margin: 0; font-size: var(--fs-lg); font-weight: 600; color: var(--ink); }
+.ui-empty__subtitle { margin: 0; font-size: var(--fs-sm); color: var(--ink-48); max-width: 320px; line-height: var(--leading-normal); }
+
+/* ---------- LoadingState（骨架屏） ---------- */
+.ui-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-4);
+}
+.ui-skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes ui-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ---------- Avatar（统一白底圆角） ---------- */
+.ui-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-avatar-bg);
+  border: 1px solid var(--hair);
+  overflow: hidden;
+  color: var(--ink-100);
+  font-weight: 600;
+}
+.ui-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ui-avatar--sm { width: 28px; height: 28px; font-size: var(--fs-xs); }
+.ui-avatar--md { width: 40px; height: 40px; font-size: var(--fs-sm); }
+.ui-avatar--lg { width: 64px; height: 64px; font-size: var(--fs-lg); }
+.ui-avatar__dot {
+  position: absolute; right: 0; bottom: 0;
+  width: 28%; height: 28%;
+  border-radius: 50%;
+  background: var(--brand-secondary);
+  border: 2px solid var(--color-bg-pure);
+}
+.ui-avatar__dot--off { background: var(--ink-30); }
+
+/* ---------- Logo ---------- */
+.ui-logo { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.ui-logo img { display: block; object-fit: contain; }
+.ui-logo__wordmark {
+  font-family: var(--font-display);
+  letter-spacing: .06em;
+  color: var(--ink);
+}
+.ui-logo--yellow .ui-logo__wordmark { color: var(--brand-primary); }
