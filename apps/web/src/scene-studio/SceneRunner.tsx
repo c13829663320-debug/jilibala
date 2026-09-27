@@ -30,6 +30,11 @@ import {
   isCompleted,
   type GameplayState,
 } from './gameplay'
+import {
+  UGC_UNIFIED_FOG,
+  UGC_UNIFIED_LIGHT,
+  ugcMaterialParams,
+} from './ugc-compat'
 import './scene-runner.css'
 
 export interface SceneRunnerProps {
@@ -66,6 +71,23 @@ const THEME_FOG: Record<string, string> = {
   plains: '#1a2418',
   cave: '#14141c',
   city: '#141820',
+}
+
+// ---------- UGC 美术兼容：遍历 GLTF，把 ugc_ 前缀材质规范化为低耗 PBR ----------
+function applyUgcMaterialPolicy(root: THREE.Object3D): void {
+  root.traverse((child) => {
+    const mesh = child as THREE.Mesh
+    if (!mesh.isMesh) return
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    for (const mat of mats) {
+      if (!mat) continue
+      const pbr = ugcMaterialParams((mat as THREE.MeshStandardMaterial).name)
+      if (!pbr) continue
+      const std = mat as THREE.MeshStandardMaterial
+      std.roughness = pbr.roughness
+      std.metalness = pbr.metalness
+    }
+  })
 }
 
 // ---------- 地形网格 ----------
@@ -304,6 +326,7 @@ function StructureModel({ url }: { url: string }) {
         m.receiveShadow = true
       }
     })
+    applyUgcMaterialPolicy(scene)
   }, [scene])
   return <primitive object={scene} />
 }
@@ -369,6 +392,7 @@ function NpcModel({ url }: { url: string }) {
         m.receiveShadow = true
       }
     })
+    applyUgcMaterialPolicy(scene)
   }, [scene])
   return <primitive object={scene} />
 }
@@ -693,8 +717,8 @@ export default function SceneRunner({
   }, [blueprint])
 
   const completed = isCompleted(gameplayState)
+  // 背景仍按主题给外层容器一点底色，但 Canvas 内雾/光照已统一走 art-spec
   const bgColor = THEME_BG[blueprint.terrain.theme] ?? '#0a0a0a'
-  const fogColor = THEME_FOG[blueprint.terrain.theme] ?? '#1a1a1a'
 
   const handleNpcInteract = useCallback(
     (npc: SceneNpc) => {
@@ -730,17 +754,29 @@ export default function SceneRunner({
         shadows
         camera={{ position: [0, 8, 12], fov: 60 }}
         gl={{ antialias: true }}
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
       >
-        <color attach="background" args={[bgColor]} />
-        <fog attach="fog" args={[fogColor, 30, 80]} />
-        <ambientLight intensity={0.6} />
+        {/* UGC 兼容：统一套用 art-spec 雾色与背景，避免各主题底色割裂 */}
+        <color attach="background" args={[UGC_UNIFIED_FOG.color]} />
+        <fog attach="fog" args={[UGC_UNIFIED_FOG.color, UGC_UNIFIED_FOG.near, UGC_UNIFIED_FOG.far]} />
+        <ambientLight intensity={UGC_UNIFIED_LIGHT.ambientIntensity} />
+        <hemisphereLight
+          args={[
+            UGC_UNIFIED_LIGHT.hemisphereSky,
+            UGC_UNIFIED_LIGHT.hemisphereGround,
+            UGC_UNIFIED_LIGHT.hemisphereIntensity,
+          ]}
+        />
         <directionalLight
-          position={[20, 30, 10]}
-          intensity={1.2}
+          position={[
+            UGC_UNIFIED_LIGHT.directionalPosition[0],
+            UGC_UNIFIED_LIGHT.directionalPosition[1],
+            UGC_UNIFIED_LIGHT.directionalPosition[2],
+          ]}
+          intensity={UGC_UNIFIED_LIGHT.directionalIntensity}
           castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
+          shadow-mapSize-width={UGC_UNIFIED_LIGHT.shadowMapSize}
+          shadow-mapSize-height={UGC_UNIFIED_LIGHT.shadowMapSize}
         />
         <TerrainMesh terrain={blueprint.terrain} />
         <Water level={blueprint.terrain.waterLevel} size={blueprint.terrain.size} />
