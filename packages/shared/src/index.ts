@@ -1090,3 +1090,6 @@ export * from "./scene-studio.js";
 
 // ===== Round4 R4-09: 场景 UGC（模板市场/保存分享/CC0 道具/可拾取） =====
 export * from "./scene-ugc.js";
+
+// ===== R5 新手引导（r5-onboarding 域）：状态机类型 + 纯函数（additive） =====
+export * from "./onboarding.js";

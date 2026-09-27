@@ -1,5 +1,7 @@
 import { VoiceToggleButton } from './voice-settings'
 import { useIdentity } from './identity'
+import { loadR5State } from './onboarding/useOnboarding'
+import { getEntryGate } from './onboarding/featureGates'
 
 /**
  * 统一顶部导航：左侧品牌 + 三大入口（人物 / 场景 / 广场），
@@ -43,17 +45,25 @@ export default function TopNav({ currentView, onNavigate }: TopNavProps) {
       </button>
 
       <nav className="topnav__links" aria-label="主导航">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.view}
-            type="button"
-            className={`topnav__link ${navActive === item.view ? 'is-active' : ''}`}
-            aria-current={navActive === item.view ? 'page' : undefined}
-            onClick={() => onNavigate(item.view)}
-          >
-            {item.label}
-          </button>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          // R5 渐进披露：高级入口（创造/场景工作室）在新手期隐藏或灰化。
+          let gate: { visible: boolean; locked: boolean; unlockHint: string } | null = null
+          if (item.view === 'scene-studio') gate = getEntryGate('scene-studio', loadR5State())
+          if (gate && !gate.visible) return null
+          return (
+            <button
+              key={item.view}
+              type="button"
+              className={`topnav__link ${navActive === item.view ? 'is-active' : ''} ${gate?.locked ? 'is-locked' : ''}`}
+              aria-current={navActive === item.view ? 'page' : undefined}
+              title={gate?.locked ? gate.unlockHint : item.label}
+              onClick={() => { if (gate?.locked) return; onNavigate(item.view) }}
+            >
+              {item.label}
+              {gate?.locked ? ' 🔒' : ''}
+            </button>
+          )
+        })}
       </nav>
 
       <div className="topnav__actions">
