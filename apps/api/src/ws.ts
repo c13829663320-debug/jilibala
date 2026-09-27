@@ -91,6 +91,26 @@ export function _resetRoomsForTest(): void {
 
 const rooms = new Map<string, Room>();
 
+// ===== R5: 全局 WS 心跳巡检（additive）=====
+// 每 30s 对房间内所有连接发一次协议层 ping；上一轮没回 pong 的视为僵死连接，terminate。
+// terminate 后会触发上面 socket.on("close") 走既有宽限/清理逻辑，不重复清理房间状态。
+const WS_HEARTBEAT_MS = 30_000;
+const heartbeatTimer = setInterval(() => {
+  for (const room of rooms.values()) {
+    for (const user of room.users.values()) {
+      const sock = user.socket as WebSocket & { isAlive?: boolean };
+      if (sock.isAlive === false) {
+        try { sock.terminate(); } catch { /* noop */ }
+        continue;
+      }
+      sock.isAlive = false;
+      try { sock.ping(); } catch { /* noop */ }
+    }
+  }
+}, WS_HEARTBEAT_MS);
+// 测试/部署时不让定时器挂住事件循环
+heartbeatTimer.unref?.();
+
 /**
  * R4-07: 全局用户连接注册表 —— userId -> 该用户所有在线 socket（可能多房间/多标签页）。
  * 用于：好友在线状态、私聊跨房间投递、离线消息补发。
@@ -693,6 +713,15 @@ export function registerWebSocket(app: FastifyInstance): void {
       }
     }
 
+    // ===== R5: WS 心跳超时检测（additive，不影响已有逻辑）=====
+    // 每条连接标记 isAlive；全局定时器每隔 30s 对未回应 ping 的僵死连接 terminate。
+    // 客户端已有应用层 ping/pong（见下方 case "ping"），这里用 ws 协议层 ping 补充
+    // 「半开连接」（TCP 已断但对端不发 FIN）的回收，避免僵尸连接占着房间席位。
+    (socket as WebSocket & { isAlive?: boolean }).isAlive = true;
+    socket.on("pong", () => {
+      (socket as WebSocket & { isAlive?: boolean }).isAlive = true;
+    });
+
     // ===== 消息处理 =====
     socket.on("message", (raw: Buffer) => {
       let data: Record<string, unknown>;
@@ -1049,6 +1078,21 @@ export function registerWebSocket(app: FastifyInstance): void {
           // R4-08: 该 target 24h 内被举报达到阈值 → 自动临时禁言 10 分钟
           registerReport(targetUserId);
           safeSend(socket, { type: "report_ack", accepted: true, reportedAt: new Date().toISOString() } satisfies WSMessage);
+          break;
+        }
+        case "request_replay": {
+          // R5: 客户端检测到 presence 序号跳变后请求补发。这里重发一次当前房间
+          // presence 快照给该连接，使其位置状态自愈（不重播历史聊天，避免重复弹 toast）。
+          const r = rooms.get(roomId);
+          if (!r) break;
+          const all = [...r.users.values()].map((u) => ({
+            userId: u.userId,
+            x: u.x,
+            z: u.z,
+            rotation: u.rotation,
+            seq: u.seq ?? 0,
+          }));
+          safeSend(socket, { type: "presence", users: all } satisfies WSMessage);
           break;
         }
         case "ping": {

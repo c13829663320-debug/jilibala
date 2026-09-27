@@ -38,6 +38,7 @@ import './onboarding/onboarding.css'
 import { detectDeviceTier, preloadAssets, PLAZA_PRIORITY_ASSETS } from './performance/asset-preloader'
 import { getModelUnloadManager } from './performance/model-unload-manager'
 import { maxPixelRatio, shadowQualityFor } from './performance/use-cleanup'
+import { detectSeqGap, buildRetransmitRequest } from './performance/reconnect-strategy'
 
 /** 数字键 1-7 → 手势 */
 const KEY_EMOTES: Record<string, EmoteType> = {
@@ -150,6 +151,8 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
   // ===== WS 远端玩家存储 =====
   const playersRef = useRef(new Map<string, RemotePlayer>())
   const [remoteUserIds, setRemoteUserIds] = useState<string[]>([])
+  // R5: 每个远端玩家最近一次 presence 的 seq（检测丢包缺口，触发重传请求）
+  const lastPresenceSeqRef = useRef(new Map<string, number>())
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<number | null>(null)
   const shouldReconnect = useRef(true)
@@ -276,6 +279,18 @@ export default function Plaza3D({ onBack, onEnterCourt, onEnterTalkshow, onEnter
                 existing.rotation = p.rotation
                 if (typeof p.talkingIntensity === 'number') existing.talkingIntensity = p.talkingIntensity
                 if (p.expression) existing.expression = p.expression as RemotePlayer['expression']
+              }
+              // R5: presence 序号跳变 = 丢包 → 向服务端请求补发最近窗口
+              if (typeof p.seq === 'number') {
+                const prevSeq = lastPresenceSeqRef.current.get(p.userId)
+                const gap = detectSeqGap(prevSeq, p.seq)
+                lastPresenceSeqRef.current.set(p.userId, p.seq)
+                if (gap > 0) {
+                  const sock = wsRef.current
+                  if (sock && sock.readyState === WebSocket.OPEN) {
+                    sock.send(JSON.stringify(buildRetransmitRequest(p.seq, 10)))
+                  }
+                }
               }
             }
             break

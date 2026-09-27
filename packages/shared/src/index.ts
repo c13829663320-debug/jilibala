@@ -1100,3 +1100,6 @@ export * from "./gameplay-loop.js";
 // ===== R5: 名人关系 / 记忆 / 收集 / 邀约 / 广场偶遇（additive） =====
 export * from "./celebrity-relation.js";
 export * from "./celebrity-facts.js";
+
+// ===== R5: 性能 / 稳定性域（懒加载/LOD/AI网关/崩溃恢复） =====
+export * from "./perf.js";

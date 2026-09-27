@@ -17,6 +17,7 @@ import VerdictCard from './VerdictCard'
 import CourtFlow from './court/CourtFlow'
 import { playTts, stopTts } from './tts'
 import { getVoiceEnabled, VoiceToggleButton } from './voice-settings'
+import { callAI } from './performance/ai-gateway'
 
 const CourtroomView = lazy(() => import('./CourtroomView'))
 
@@ -216,12 +217,13 @@ export default function CourtroomShell({
     setBenchPhase('streaming'); setIsStreaming(true); setShowToast(true)
     window.setTimeout(() => setShowToast(false), 2200)
     try {
-      const created = await fetch('/api/cases', {
+      // R5: AI 网关——30s 超时 + 3 路并发上限 + 失败兜底文案（不白屏）
+      const created = await callAI<{ id: string }>('/api/cases', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ input, mode: hearingMode, perspective, evidence: evidenceFiles }),
       })
-      if (!created.ok) { const e = await created.json().catch(() => ({})) as { message?: string }; throw new Error(e.message ?? '案件创建失败') }
-      const { id } = await created.json() as { id: string }
+      if (!created.ok || !created.data) throw new Error(created.fallback)
+      const { id } = created.data
       setCaseId(id)
 
       const response = await fetch(`/api/cases/${id}/bench/stream`, {

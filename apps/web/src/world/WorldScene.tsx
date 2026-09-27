@@ -13,6 +13,9 @@ import type { BuildingConfig, RemotePlayer, WorldManifest, WorldRuntime } from '
 import { BUILDINGS, FOUNTAIN, WORLD_HALF } from './config'
 import { RemoteAvatar } from '../avatar/RemoteAvatar'
 import PickupableProps from './PickupableProps'
+import { useCrowdLimit, DEFAULT_CROWD_MAX } from '../performance/useCrowdLimit'
+import type { CrowdPlayer } from '../performance/crowdRenderList'
+import type { CrowdRenderTier } from '@balabala/shared'
 
 // ---------------------------------------------------------------------------
 // 确定性伪随机（让植被布局每次加载一致，不随渲染抖动）
@@ -236,6 +239,16 @@ export default function WorldScene({ world, manifest, playersRef, remoteUserIds,
   const assetFor = (building: BuildingConfig) =>
     manifest?.assets.find((a) => a.id === building.assetId) ?? undefined
 
+  // R5: 同屏人群上限——远端玩家集合变化时（join/leave）重算一次降级档位；
+  // 近处 N 个完整 3D 化身，远处降级为公告板/胶囊，避免同屏几十人全高模拖垮帧率。
+  const crowdPlayers: CrowdPlayer[] = remoteUserIds.map((uid) => {
+    const p = playersRef.current.get(uid)
+    return { userId: uid, x: p?.targetX ?? p?.x ?? 0, z: p?.targetZ ?? p?.z ?? 0 }
+  })
+  const local = { x: localPosRef?.current.x ?? 0, z: localPosRef?.current.z ?? 0 }
+  const crowdTierMap = useCrowdLimit(crowdPlayers, local, { maxVisible: DEFAULT_CROWD_MAX })
+  const tierFor = (uid: string): CrowdRenderTier | undefined => crowdTierMap.get(uid)
+
   return (
     <>
       <color attach="background" args={['#0a0a0a']} />
@@ -303,6 +316,7 @@ export default function WorldScene({ world, manifest, playersRef, remoteUserIds,
           playersRef={playersRef}
           localPosRef={localPosRef}
           onSelect={onRemotePlayerSelect}
+          crowdTier={tierFor(uid)}
         />
       ))}
     </>

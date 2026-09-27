@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { buildCrashSnapshot, recordCrashSnapshot, resolveSafeReturn } from './performance/crash-recovery'
 
 type Props = {
   children: ReactNode
@@ -28,6 +29,15 @@ export default class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     // 控制台仍输出原始错误，便于调试；用户侧不暴露技术栈。
     console.error('[ErrorBoundary]', error, info.componentStack)
+    // R5: 记录崩溃前路由/场景快照，恢复时引导回广场而非白屏
+    try {
+      if (typeof window !== 'undefined') {
+        recordCrashSnapshot(
+          buildCrashSnapshot(window.location.pathname, null),
+          window.localStorage,
+        )
+      }
+    } catch { /* storage unavailable */ }
   }
 
   private handleReload = () => {
@@ -38,6 +48,10 @@ export default class ErrorBoundary extends Component<Props, State> {
     } else {
       window.location.reload()
     }
+  }
+
+  private handleBackToPlaza = () => {
+    window.location.href = resolveSafeReturn(null)
   }
 
   render() {
@@ -65,6 +79,17 @@ export default class ErrorBoundary extends Component<Props, State> {
           }}
         >
           重新加载
+        </button>
+        <button
+          type="button"
+          onClick={this.handleBackToPlaza}
+          style={{
+            minHeight: 44, minWidth: 140, padding: '10px 22px',
+            border: '1px solid #4fb3a5', borderRadius: 10, background: 'transparent',
+            color: '#4fb3a5', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          返回广场
         </button>
       </div>
     )

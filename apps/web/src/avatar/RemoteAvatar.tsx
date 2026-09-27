@@ -13,6 +13,7 @@ import { createAnimationMachine, getPose, type AnimState } from './animation-sta
 import { levelToMouthOpen, smoothIntensity } from './lip-sync'
 import { computeLodTier, lodProfile, type LodTier } from './avatar-lod'
 import { hashColor, getCelebrity } from '../identity'
+import type { CrowdRenderTier } from '@balabala/shared'
 
 /** RemoteAvatar 所需的玩家结构（Plaza3D 的 RemotePlayer 兼容此结构） */
 export interface PresencePlayer {
@@ -42,9 +43,11 @@ interface RemoteAvatarProps {
   localPosRef?: MutableRefObject<{ x: number; z: number }>
   /** 点击化身时触发（弹出玩家上下文菜单） */
   onSelect?: (userId: string, clientX: number, clientY: number) => void
+  /** R5: 人群上限给出的降级档位（billboard 强制公告板，capsule 强制简化体）；不传按距离 LOD */
+  crowdTier?: CrowdRenderTier
 }
 
-export function RemoteAvatar({ userId, playersRef, localPosRef, onSelect }: RemoteAvatarProps) {
+export function RemoteAvatar({ userId, playersRef, localPosRef, onSelect, crowdTier }: RemoteAvatarProps) {
   const rootRef = useRef<THREE.Group>(null)
   const rigRef = useRef<AvatarRig | null>(null)
   const machineRef = useRef(createAnimationMachine())
@@ -57,6 +60,9 @@ export function RemoteAvatar({ userId, playersRef, localPosRef, onSelect }: Remo
   // R4-03 LOD：当前渲染层级（tier 变化时切渲染分支；原始模型数据不卸载）
   const [lodTier, setLodTier] = useState<LodTier>('high')
   const lastLodRef = useRef<LodTier>('high')
+  // R5: 人群降级档位 ref（useFrame 高频读取，避免闭包陈旧）
+  const crowdTierRef = useRef<CrowdRenderTier | undefined>(crowdTier)
+  crowdTierRef.current = crowdTier
 
   const player = playersRef.current.get(userId)
 
@@ -97,6 +103,9 @@ export function RemoteAvatar({ userId, playersRef, localPosRef, onSelect }: Remo
       const d = Math.hypot(root.position.x - localPosRef.current.x, root.position.z - localPosRef.current.z)
       tier = computeLodTier(d)
     }
+    // R5: 人群上限降级——billboard 强制公告板，capsule 强制中距离简化体（不跑口型/表情）
+    if (crowdTierRef.current === 'billboard') tier = 'billboard'
+    else if (crowdTierRef.current === 'capsule') tier = tier === 'hidden' ? 'hidden' : 'medium'
     if (tier !== lastLodRef.current) {
       lastLodRef.current = tier
       setLodTier(tier)
