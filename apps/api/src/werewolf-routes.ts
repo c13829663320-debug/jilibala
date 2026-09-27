@@ -2,6 +2,7 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import type { WerewolfPublicPlayer, WerewolfReportData } from "@balabala/shared";
+import { getDailyChallenge } from "@balabala/shared";
 import * as db from "./db.js";
 import type { StoredContent } from "./db.js";
 import type { ChatFn } from "./bench-orchestrator.js";
@@ -23,6 +24,11 @@ export function registerWerewolfRoutes(
   app: FastifyInstance,
   deps: { chat: ChatFn; contents: StoredContent[] },
 ): void {
+  // ===== 每日挑战（同一天同种子全员同一条）=====
+  app.get("/api/werewolf/daily", async () => {
+    return { challenge: getDailyChallenge("werewolf", new Date()) };
+  });
+
   // ===== 创建房间（自动把房主入座）=====
   app.post("/api/werewolf/create", async (req, reply) => {
     const body = (req.body ?? {}) as { userId?: string };
