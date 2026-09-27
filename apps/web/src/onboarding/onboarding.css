@@ -273,3 +273,185 @@
   0%, 100% { box-shadow: 0 8px 30px rgba(255, 214, 0, .35); }
   50% { box-shadow: 0 8px 44px rgba(255, 214, 0, .7); }
 }
+
+/* ===== CoachMark：轻量高亮气泡（箭头 + 文案 + 下一步/跳过） ===== */
+.ob-coach-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 85000;
+  pointer-events: none;
+}
+
+.ob-coach-bubble {
+  position: fixed;
+  z-index: 85001;
+  width: min(86vw, 320px);
+  background: rgba(13, 13, 13, .97);
+  border: 1px solid #FFD600;
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, .65);
+  pointer-events: auto;
+}
+
+.ob-coach-bubble[data-placement="top"]::after,
+.ob-coach-bubble[data-placement="bottom"]::after {
+  content: '';
+  position: absolute;
+  left: var(--arrow-x, 50%);
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+}
+.ob-coach-bubble[data-placement="top"]::after {
+  bottom: -16px;
+  border-top-color: #FFD600;
+}
+.ob-coach-bubble[data-placement="bottom"]::after {
+  top: -16px;
+  border-bottom-color: #FFD600;
+}
+
+.ob-coach-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #FFD600;
+}
+
+.ob-coach-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #d8dad2;
+}
+
+.ob-coach-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.ob-coach-actions .next {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  border-radius: 9px;
+  background: #FFD600;
+  color: #1a1a1a;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ob-coach-actions .skip {
+  background: none;
+  border: none;
+  color: #6a6d64;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ob-coach-actions .skip:hover { color: #4fb3a5; }
+
+/* ===== FirstWowReward：首次庆祝弹窗 ===== */
+.ob-reward-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95000;
+  background: rgba(0, 0, 0, .72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: ob-reward-fade .25s ease;
+}
+
+.ob-reward-card {
+  width: min(92vw, 380px);
+  background: linear-gradient(160deg, #161305, #0d0d0d 60%);
+  border: 1px solid #FFD600;
+  border-radius: 20px;
+  padding: 30px 26px 24px;
+  text-align: center;
+  box-shadow: 0 24px 90px rgba(255, 214, 0, .25);
+  animation: ob-reward-pop .35s cubic-bezier(.2, 1.4, .4, 1);
+}
+
+.ob-reward-emoji {
+  font-size: 46px;
+  line-height: 1;
+  display: block;
+  animation: ob-reward-bounce 1s ease-in-out infinite;
+}
+
+.ob-reward-card h2 {
+  margin: 14px 0 6px;
+  font-size: 21px;
+  font-weight: 800;
+  color: #FFD600;
+}
+
+.ob-reward-card p {
+  margin: 0;
+  color: #9a9c92;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ob-reward-badge {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(79, 179, 165, .15);
+  color: #4fb3a5;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px dashed #4fb3a5;
+}
+
+.ob-reward-card .ob-cta { margin-top: 20px; }
+
+@keyframes ob-reward-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ob-reward-pop { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes ob-reward-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* ===== RoomEntry 渐进式披露 ===== */
+.ob-signature-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: min(92vw, 560px);
+  margin: 22px auto 0;
+  padding: 20px 22px;
+  border-radius: 18px;
+  border: 1px solid #FFD600;
+  background: linear-gradient(135deg, rgba(255, 200, 61, .14), rgba(13, 13, 13, .9));
+  color: #f4f2ec;
+  cursor: pointer;
+  text-align: left;
+  animation: ob-pulse 2s ease-in-out infinite;
+}
+
+.ob-signature-card .emoji { font-size: 34px; }
+.ob-signature-card b { display: block; font-size: 18px; font-weight: 800; }
+.ob-signature-card small { display: block; margin-top: 4px; color: #9a9c92; font-size: 13px; line-height: 1.5; }
+.ob-signature-card i { margin-left: auto; color: #FFD600; font-style: normal; font-size: 20px; }
+
+.ob-all-experiences-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: min(92vw, 560px);
+  margin: 14px auto 0;
+  padding: 13px 0;
+  border-radius: 14px;
+  border: 1px dashed #3a3a3a;
+  background: transparent;
+  color: #9a9c92;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ob-all-experiences-btn:hover { border-color: #4fb3a5; color: #4fb3a5; }

@@ -38,9 +38,18 @@ import {
   type ChatMessage,
 } from './api-client'
 import { useIdentity } from '../identity'
+import FirstTimeGuide from '../onboarding/FirstTimeGuide'
+import { loadOnboardingState, needsFirstTimeGuide, onboardingActions } from '../onboarding/onboarding-store'
 import './scene-studio.css'
 
 type Step = 1 | 2 | 3
+
+/** R5 分片B：首次进创作工作室的 3 步引导文案。 */
+const CREATION_GUIDE_STEPS = [
+  '一句话描述你的世界 —— 比如：樱花山谷里，李白在树下饮酒。',
+  '点「开始生成」，AI 会自动造出地形、建筑和名人 NPC。',
+  '生成完可以布置道具、拉 NPC 聊天，满意后发布给朋友冒险。',
+]
 
 const THEME_TAGS: Array<{ id: TerrainTheme; emoji: string; label: string }> = [
   { id: 'forest', emoji: '🌲', label: '森林' },
@@ -100,6 +109,15 @@ function parseBlueprint(json: string | undefined): SceneBlueprint | null {
 
 export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudioProps) {
   const { user } = useIdentity()
+
+  // R5 分片B：首次创作引导（仅新建模式、且未看过）。
+  const [creationGuideVisible, setCreationGuideVisible] = useState(() =>
+    !sceneId && typeof window !== 'undefined' && needsFirstTimeGuide(loadOnboardingState(), 'creation'),
+  )
+  const dismissCreationGuide = () => {
+    onboardingActions.markFirstTime('creation')
+    setCreationGuideVisible(false)
+  }
 
   // ---- 向导状态 ----
   const [step, setStep] = useState<Step>(1)
@@ -541,6 +559,10 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
 
   return (
     <div className="ss__root">
+      {/* R5 分片B：首次创作 3 步引导浮层 */}
+      {creationGuideVisible && (
+        <FirstTimeGuide steps={CREATION_GUIDE_STEPS} sceneLabel="创造世界" onDone={dismissCreationGuide} />
+      )}
       {/* 顶栏 */}
       <header className="ss__topbar">
         <button type="button" className="ss__iconbtn" onClick={onBack}><ArrowLeft size={18} /></button>

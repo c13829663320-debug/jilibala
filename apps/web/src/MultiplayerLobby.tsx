@@ -7,9 +7,28 @@ import {
   Lock, KeyRound,
 } from 'lucide-react'
 import type { CreateRoomRequest, RoomScene, SocialRoom } from '@balabala/shared'
-import { SCENE_LABELS } from './onboarding/onboardingProgress'
+import {
+  MULTIPLAYER_TOUR_STEPS,
+  SCENE_LABELS,
+  advanceMultiplayerTour,
+  currentMultiplayerStep,
+  needsMultiplayerTour,
+  skipMultiplayerTour,
+  type MultiplayerTourStep,
+  type MultiplayerTourTarget,
+} from './onboarding/onboardingProgress'
+import CoachMark from './onboarding/CoachMark'
 import { setRoomPassword } from './room-permissions/roomAuthStore'
 import './multiplayer-lobby.css'
+
+/** 多人引导各步骤在大厅内的锚点（选择器）；大厅内没有的目标为 null，气泡居中悬浮。 */
+const TOUR_TARGET_SELECTOR: Record<MultiplayerTourTarget, string | null> = {
+  'lobby-create': '.mp-lobby-tabs [data-tour="lobby-create"]',
+  'room-code': '.mp-room-card [data-tour="room-code"]',
+  'voice-or-chat': null, // 进入房间后才有麦克风/喊话入口（网络专项域负责）
+  'emote-wheel': null,
+  'safety-menu': null,
+}
 
 type Tab = 'list' | 'create' | 'join'
 
@@ -41,6 +60,19 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
   onEnterRoom: (roomId: string) => void
 }) {
   const [tab, setTab] = useState<Tab>('list')
+
+  // —— R5 分片B：首次多人 5 步引导（CoachMark 序列，可走可跳） ——
+  const [tourStep, setTourStep] = useState<MultiplayerTourStep | null>(() =>
+    typeof window === 'undefined' || !needsMultiplayerTour() ? null : currentMultiplayerStep(),
+  )
+  const handleTourNext = () => {
+    const p = advanceMultiplayerTour()
+    setTourStep(p.multiplayerTour.done ? null : (MULTIPLAYER_TOUR_STEPS[p.multiplayerTour.step] ?? null))
+  }
+  const handleTourSkip = () => {
+    skipMultiplayerTour()
+    setTourStep(null)
+  }
 
   // —— 房间列表状态 ——
   const [rooms, setRooms] = useState<SocialRoom[]>([])
@@ -177,6 +209,7 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
         </button>
         <button
           role="tab"
+          data-tour="lobby-create"
           aria-selected={tab === 'create'}
           className={tab === 'create' ? 'is-active' : ''}
           onClick={() => setTab('create')}
@@ -386,6 +419,22 @@ export default function MultiplayerLobby({ onBack, onEnterRoom }: {
           </form>
         </div>
       )}
+
+      {/* R5 分片B：首次多人 5 步引导 CoachMark */}
+      {tourStep && (
+        <CoachMark
+          target={
+            TOUR_TARGET_SELECTOR[tourStep.target]
+              ? { kind: 'selector', selector: TOUR_TARGET_SELECTOR[tourStep.target]! }
+              : { kind: 'point', x: (typeof window === 'undefined' ? 640 : window.innerWidth) / 2, y: (typeof window === 'undefined' ? 400 : window.innerHeight) - 140 }
+          }
+          title={tourStep.title}
+          body={tourStep.body}
+          nextLabel={tourStep.id === MULTIPLAYER_TOUR_STEPS.length - 1 ? '开始体验' : '下一步'}
+          onNext={handleTourNext}
+          onSkip={handleTourSkip}
+        />
+      )}
     </div>
   )
 }
@@ -424,7 +473,7 @@ function RoomCard({ room, onJoin }: { room: SocialRoom; onJoin: (room: SocialRoo
       <div className="mp-room-foot">
         <span className="mp-room-time">{formatTime(room.createdAt)}</span>
         <div className="mp-room-actions">
-          <button className="mp-code-chip" onClick={copyCode} title="复制房间码">
+          <button className="mp-code-chip" data-tour="room-code" onClick={copyCode} title="复制房间码">
             {copied ? <Check size={12} /> : <Copy size={12} />}
             {room.code}
           </button>

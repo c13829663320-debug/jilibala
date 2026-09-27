@@ -5,6 +5,8 @@ import { OrbitControls, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import './room-entry.css'
 import TopNav, { type TopView } from './TopNav'
+import { loadOnboardingState } from './onboarding/onboarding-store'
+import { computeRoomEntryLayout } from './onboarding/room-entry-layout'
 
 export type RoomEntryProps = {
   onEnter: () => void
@@ -322,6 +324,12 @@ function OrbScene({ items, activeId, onActivate, onHover }: { items: Item[]; act
 export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalkshow, onEnterWerewolf, onEnterBar, onEnterLibrary, onEnterGym, onMyPage, onEnterSceneStudio, onMyScenes, onMultiplayer }: RoomEntryProps) {
   const [activeId, setActiveId] = useState('court')
   const [notice, setNotice] = useState('')
+  // R5 分片B：首启用户（flowCompleted=false）收敛布局 —— 只亮招牌法庭 + 「全部体验」折叠入口。
+  // 展开状态仅本地、不持久化；回归用户（flowCompleted=true）保持现有完整展示。
+  const [converged] = useState(() => {
+    try { return !loadOnboardingState().flowCompleted } catch { return false }
+  })
+  const [panelOpen, setPanelOpen] = useState(false)
   const items = SCENES
 
   // 统一顶部导航：把 TopNav 的 view 映射到本页回调。
@@ -357,8 +365,36 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
     <img src="/brand/hero-bg.png" alt="" aria-hidden="true" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.12, zIndex: 0, pointerEvents: 'none' }} />
     <TopNav currentView="home" onNavigate={onNavigate} />
 
-    <section className="main-home__hero"><span className="main-home__kicker">BALA BALA SOCIAL WORLD</span><h1>选择一个场景，<em>开始你的故事。</em></h1><p>六大互动空间全部开放，自由进出。</p></section>
+    <section className="main-home__hero"><span className="main-home__kicker">BALA BALA SOCIAL WORLD</span><h1>选择一个场景，<em>开始你的故事。</em></h1><p>{converged ? '先从招牌体验开始，其余空间随时展开。' : '六大互动空间全部开放，自由进出。'}</p></section>
 
+    {/* R5 分片B：首启用户收敛布局 —— 招牌法庭大卡片 + 「全部体验」折叠入口 */}
+    {converged && !panelOpen && (
+      <>
+        <button
+          type="button"
+          className="ob-signature-card"
+          data-testid="ob-signature-card"
+          onClick={() => { setActiveId('court'); onEnter() }}
+        >
+          <span className="emoji" aria-hidden="true">⚖️</span>
+          <span>
+            <b>趣味法庭 · 从这里开始</b>
+            <small>一句话立案，AI 陪审团当庭辩论当庭宣判 —— 平台最招牌的 3 分钟体验。</small>
+          </span>
+          <i aria-hidden="true">↗</i>
+        </button>
+        <button
+          type="button"
+          className="ob-all-experiences-btn"
+          data-testid="ob-all-experiences"
+          onClick={() => setPanelOpen(true)}
+        >
+          🔮 全部体验（其他 5 个场景 + 创造入口）
+        </button>
+      </>
+    )}
+
+    {!(converged && !panelOpen) && (
     <section className="main-home__create" aria-label="创造入口">
       <button type="button" className="main-home__create-card" onClick={() => onEnterSceneStudio?.()}>
         <span className="main-home__create-emoji">🎨</span>
@@ -376,11 +412,13 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
         <i>↗</i>
       </button>
     </section>
+    )}
 
     <section className="main-home__scene" aria-label="场景空间">
       <OrbScene items={items} activeId={activeId} onActivate={openScene} onHover={(item) => setActiveId(item.id)} />
     </section>
 
+    {!(converged && !panelOpen) && (
     <section className="main-home__modules" aria-label="场景列表">
       {items.map((item) => (
         <button type="button" key={item.id} className={activeId === item.id ? 'is-active' : ''} onMouseEnter={() => setActiveId(item.id)} onFocus={() => setActiveId(item.id)} onClick={() => openScene(item)}>
@@ -389,6 +427,7 @@ export default function RoomEntry({ onEnter, onCharacters, onPlaza, onEnterTalks
         </button>
       ))}
     </section>
+    )}
 
     {notice && <button type="button" className="main-home__notice" onClick={() => setNotice('')}>{notice}<span>×</span></button>}
     <footer className="main-home__footer"><span>© 2025 BALABALA</span><span>6 / 6 个场景已开放</span></footer>
