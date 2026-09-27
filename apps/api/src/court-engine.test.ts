@@ -217,3 +217,61 @@ describe("每日挑战", () => {
     expect(typeof d.title).toBe("string");
   });
 });
+
+describe("R5 钩子：高光 / 关系 / 翻盘 / 战果卡元数据", () => {
+  it("evidence 命中 delta>=8 → captureHighlight(key_evidence)", () => {
+    const e = new CourtOrchestrator();
+    e.start(makeConfig());
+    e.act({ kind: "play_card", card: "evidence", targetEvidenceId: "ev-1" });
+    const hl = e.getHighlights();
+    expect(hl.some((h) => h.type === "key_evidence")).toBe(true);
+    e.cancelTimer();
+  });
+
+  it("settle 返回 metadata（outcome / relationshipDelta / opponentCelebrity / highlights）", () => {
+    const e = new CourtOrchestrator();
+    e.start(makeConfig({
+      opponentCelebrity: { id: "isaac-newton", name: "牛顿" },
+      disputePoints: ["凌晨扰民", "损失赔偿", "责任认定"],
+      evidencePool: [
+        { id: "ev-1", name: "录音", content: "凌晨扰民的电钻录音" },
+        { id: "ev-2", name: "发票", content: "损失赔偿的维修发票" },
+        { id: "ev-3", name: "笔录", content: "责任认定的出警笔录" },
+      ],
+    }));
+    e.act({ kind: "play_card", card: "evidence", targetEvidenceId: "ev-1" });
+    e.act({ kind: "pass" });
+    e.act({ kind: "play_card", card: "evidence", targetEvidenceId: "ev-2" });
+    e.act({ kind: "pass" });
+    e.act({ kind: "play_card", card: "evidence", targetEvidenceId: "ev-3" });
+    e.act({ kind: "pass" });
+    const result = e.settle();
+    expect(result.metadata).toBeDefined();
+    expect(result.metadata!.opponentCelebrity.id).toBe("isaac-newton");
+    expect(result.metadata!.outcome).toBe("win");
+    expect(result.metadata!.relationshipDelta).toBeGreaterThan(0);
+    expect(result.metadata!.highlights.length).toBeGreaterThan(0);
+    e.cancelTimer();
+  });
+
+  it("scoreHistory 记录每轮天平（翻盘检测可复算）", () => {
+    const e = new CourtOrchestrator();
+    e.start(makeConfig());
+    e.act({ kind: "pass" });
+    e.act({ kind: "pass" });
+    e.act({ kind: "pass" });
+    // 每轮 -4：起点 50 → 46 → 42 → 38
+    expect(e.state.scoreHistory).toEqual([50, 46, 42, 38]);
+    e.cancelTimer();
+  });
+
+  it("惜败局 metadata.outcome=loss 且关系分为负", () => {
+    const e = new CourtOrchestrator();
+    e.start(makeConfig());
+    for (let i = 0; i < 3; i += 1) e.act({ kind: "pass" });
+    const result = e.settle();
+    expect(result.metadata!.outcome).toBe("loss");
+    expect(result.metadata!.relationshipDelta).toBeLessThan(0);
+    e.cancelTimer();
+  });
+});
