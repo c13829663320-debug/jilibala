@@ -96,7 +96,6 @@ export default function CourtInterior({ onExit }: { onExit: () => void }) {
   useInstanceMatrices(deskRef, SIDE_DESK_POS, 0.4)
   useInstanceMatrices(chairRef, SIDE_CHAIR_POS, 0.225)
   useInstanceMatrices(shaftRef, PILLAR_POS, HEIGHT / 2)
-  useInstanceMatrices(shaftRef, PILLAR_POS, HEIGHT / 2)
   useInstanceMatrices(capitalRef, PILLAR_POS, HEIGHT - 0.45)
 
   return (
