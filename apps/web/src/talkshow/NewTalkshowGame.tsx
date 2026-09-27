@@ -17,6 +17,7 @@ import TopicPicker from './TopicPicker'
 import JokeScoreRadar from './JokeScoreRadar'
 import AudienceWave from './AudienceWave'
 import JokeTimer from './JokeTimer'
+import R5SettlementPanel, { type R5Bundle } from '../lib/r5'
 import { submitGameResult } from '../profile'
 
 const YELLOW = '#FFD600'
@@ -54,6 +55,8 @@ export default function NewTalkshowGame({ onBack, onSwitchClassic }: NewTalkshow
   const [currentResult, setCurrentResult] = useState<PerformedJoke | null>(null)
   const [pendingCallback, setPendingCallback] = useState<number | null>(null)
   const [result, setResult] = useState<GameResultLike | null>(null)
+  const [r5, setR5] = useState<R5Bundle | null>(null)
+  const [shareText, setShareText] = useState('')
   const [tutorialStep, setTutorialStep] = useState<number>(() =>
     typeof window !== 'undefined' && window.localStorage.getItem(LS_TUTORIAL_DONE) === '1' ? -1 : 0,
   )
@@ -121,6 +124,8 @@ export default function NewTalkshowGame({ onBack, onSwitchClassic }: NewTalkshow
       setCurrentResult(resp.joke)
       setMyJoke('')
       setPendingCallback(null)
+      setR5((resp as { r5?: R5Bundle | null }).r5 ?? null)
+      setShareText((resp as { shareText?: string }).shareText ?? '')
       if (resp.snapshot.phase === 'results') {
         const ev = resp.events.find((e) => e.type === 'game_result')
         if (ev?.payload) setResult((ev.payload as { result: GameResultLike }).result)
@@ -332,9 +337,10 @@ export default function NewTalkshowGame({ onBack, onSwitchClassic }: NewTalkshow
               ))}
             </div>
 
-            <button onClick={() => window.location.reload()} style={{ ...primaryBtn, width: '100%' }} data-testid="talkshow-again">
-              <RefreshCw size={14} /> 再来一轮
-            </button>
+            {/* R5：高光回放 / 关系变化 / 连胜 / 战果卡 / 再来一局钩子 */}
+            {r5 && (
+              <R5SettlementPanel bundle={r5} shareText={shareText} onAgain={() => window.location.reload()} />
+            )}
           </div>
         )}
       </div>
