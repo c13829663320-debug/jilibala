@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "terrain": {
+    "theme": "city",
+    "size": 60,
+    "heightSeed": 1,
+    "waterLevel": -1,
+    "weather": "clear",
+    "light": "day",
+    "params": { "amplitude": 0, "frequency": 0.05, "octaves": 1 }
+  },
+  "scatter": [],
+  "structures": [
+    {
+      "id": "ugc_building_01",
+      "kind": "building",
+      "label": "样例建筑",
+      "position": [0, 0, -12],
+      "rotation": [0, 0, 0],
+      "scale": [4, 4, 4],
+      "assetUrl": "",
+      "source": "parametric"
+    }
+  ],
+  "npcs": [],
+  "gameplay": {
+    "template": "explore",
+    "config": { "objective": "自由探索样例场景" }
+  },
+  "spawnPoint": [0, 0, 8],
+  "bounds": [-30, -30, 30, 30],
+  "colliders": [
+    { "kind": "aabb", "box": { "minX": -3, "maxX": 3, "minZ": -15, "maxZ": -9 } },
+    { "kind": "circle", "c": { "x": 6, "z": 4, "r": 1.2 } }
+  ],
+  "collectibleSlots": [
+    { "x": 3, "y": 0.6, "z": 3 }
+  ]
+}
