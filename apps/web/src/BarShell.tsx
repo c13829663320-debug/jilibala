@@ -6,6 +6,7 @@ import { ArrowLeft, Beer, Users, Send, Scale, RotateCcw, Gavel, Coins, Vote } fr
 import { getCelebrity, type Celebrity } from '@balabala/shared'
 import { useIdentity } from './identity'
 import { submitGameResult } from './profile'
+import { recordResult as recordStreak } from './gameplay/streak'
 import AngleChooser from './bar/AngleChooser'
 import TendencyMeter from './bar/TendencyMeter'
 import CounterPopup, { type PopupData } from './bar/CounterPopup'
@@ -148,6 +149,8 @@ export default function BarShell({ onBack, onPlaza }: { onBack: () => void; onPl
       const s = data.state?.argumentStrength ?? strength
       const won = data.verdict.winner !== 'tie' && betSide != null && data.verdict.winner === betSide
       submitGameResult('bar', { won, score: Math.round(Math.abs(s.pro - s.con)) })
+      // R5 核心循环：记录酒吧辩论连胜（已有「换个辩题再来一局」入口）。
+      recordStreak('bar', won)
     } catch (e) {
       window.alert(e instanceof Error ? e.message : '裁决失败')
     } finally {

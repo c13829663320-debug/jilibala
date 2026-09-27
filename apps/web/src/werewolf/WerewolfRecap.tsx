@@ -1,5 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
 import { Upload, Crown, Skull, Brain } from 'lucide-react'
-import type { WerewolfPersonalReport, WerewolfPublicPlayer, WerewolfReportData, WerewolfRole } from '@balabala/shared'
+import type { WerewolfPersonalReport, WerewolfPublicPlayer, WerewolfReportData, WerewolfRole, R5StreakState } from '@balabala/shared'
+import PlayAgainBar from '../gameplay/PlayAgainBar'
+import { recordResult } from '../gameplay/streak'
 
 const YELLOW = '#FFD600'
 const TEAL = '#4fb3a5'
@@ -40,6 +43,16 @@ export default function WerewolfRecap({
   const winColor = winner === 'wolf' ? RED : TEAL
   const myRole = personal?.myRole
   const roleInfo = myRole ? ROLE_INFO[myRole] : null
+
+  // R5 核心循环：本局一次性记录连胜（阵营胜负），ref 防重复上报。
+  const [streak, setStreak] = useState<R5StreakState>({ current: 0, best: 0, lastPlayedAt: null })
+  const reportedRef = useRef(false)
+  useEffect(() => {
+    if (reportedRef.current || !perf) return
+    reportedRef.current = true
+    setStreak(recordResult('werewolf', perf.won).outcome.streak)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div style={{
@@ -142,9 +155,13 @@ export default function WerewolfRecap({
         }}>
           <Upload size={15} /> {publishMsg || '发布战报到广场'}
         </button>
-        <button onClick={onRestart} style={{ ...btn, width: '100%', justifyContent: 'center', marginTop: 8, background: '#1a1a1a' }}>
-          再来一局
-        </button>
+        {/* R5 统一再来一局条：连胜钩子 + 本局高光一句话 */}
+        <PlayAgainBar
+          streak={streak}
+          highlight={personal?.highlights?.[0]}
+          onPlayAgain={onRestart}
+          playAgainLabel="再来一局"
+        />
         {onPlaza && (
           <button onClick={onPlaza} style={{ ...btn, width: '100%', justifyContent: 'center', marginTop: 8, background: 'transparent', border: '1px solid rgba(255,255,255,0.14)' }}>
             去广场

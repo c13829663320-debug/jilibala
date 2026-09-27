@@ -1093,3 +1093,6 @@ export * from "./scene-ugc.js";
 
 // ===== R5-IA: 信息架构 / 导航骨架 / Shell 契约（additive） =====
 export * from "./ia.js";
+
+// ===== R5 招牌玩法/核心循环：统一长期目标线与结算契约 =====
+export * from "./gameplay-loop.js";

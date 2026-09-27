@@ -1,9 +1,11 @@
 // 结算：排名 + 段位 + 败者名人金句 + 再来一局
-import { useEffect, useRef } from "react";
-import { rankPlayers, tierForRank, type QuizPlayer } from "@balabala/shared";
+import { useEffect, useRef, useState } from "react";
+import { rankPlayers, tierForRank, type QuizPlayer, type R5StreakState } from "@balabala/shared";
 import { BRAND } from "./DomainSelector";
 import { submitGameResult } from "../profile";
 import type { ScoreboardPlayer } from "./OpponentScoreboard";
+import PlayAgainBar from "../gameplay/PlayAgainBar";
+import { recordResult } from "../gameplay/streak";
 
 /** 败者（输给你的名人）的 canned 金句——整局不再调 LLM，预置数条轮换。 */
 const LOSER_QUIPS = [
@@ -40,6 +42,7 @@ export default function QuizResults({
 
   // 全局档案上报一次：第 1 名视为获胜，答对题数用于「图书馆宗师」成就。
   const reportedRef = useRef(false);
+  const [streak, setStreak] = useState<R5StreakState>({ current: 0, best: 0, lastPlayedAt: null });
   useEffect(() => {
     if (reportedRef.current) return;
     reportedRef.current = true;
@@ -48,6 +51,8 @@ export default function QuizResults({
       score: me.score,
       detail: { correctCount, totalQuestions },
     });
+    // R5 核心循环：记录图书馆连胜。
+    setStreak(recordResult("library", won).outcome.streak);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -82,8 +87,14 @@ export default function QuizResults({
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-        <button onClick={onReplay} style={{ ...btn, background: BRAND.yellow, color: "#000", border: "none" }}>再来一局</button>
+      {/* R5 统一再来一局条：连胜钩子 + 高光（最高连击） */}
+      <PlayAgainBar
+        streak={streak}
+        highlight={`最高连击 ×${maxCombo}${won ? "，势如破竹！" : ""}`}
+        onPlayAgain={onReplay}
+        playAgainLabel="再来一局"
+      />
+      <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 12 }}>
         <button onClick={onDeepChat} style={{ ...btn, background: "transparent", color: BRAND.teal, border: `1px solid ${BRAND.teal}` }}>想深聊？去找名人</button>
       </div>
     </div>
