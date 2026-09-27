@@ -47,11 +47,14 @@ export type CourtroomShellProps = {
   onExitToEntry?: () => void
   /** M13 上传流程:打开案卷库视图。 */
   onOpenArchive?: () => void
+  /** R5 分片A:判决结果出炉（benchPhase → verdict）时回调一次，用于触发「首个哇时刻」。 */
+  onVerdictReady?: () => void
 }
 
 export default function CourtroomShell({
   caseText, onCaseTextChange, hearingMode, onHearingModeChange, perspective, onPerspectiveChange,
   evidenceFiles, onEvidenceFilesChange, onOpenAvatarStudio, onPublishToPlaza, roomId, onExitToEntry, onOpenArchive,
+  onVerdictReady,
 }: CourtroomShellProps) {
   const { user } = useIdentity()
   // M13 默认全屏 3D 模式；旧名人合议庭模式作为可选入口。
@@ -95,6 +98,11 @@ export default function CourtroomShell({
   }, [caseText])
 
   useEffect(() => () => { abortRef.current?.abort(); stopTts() }, [])
+
+  // R5: 判决出炉即通知宿主（首个哇时刻）。onVerdictReady 内部自带幂等去重，可安全重复触发。
+  useEffect(() => {
+    if (benchPhase === 'verdict' && verdict && onVerdictReady) onVerdictReady()
+  }, [benchPhase, verdict, onVerdictReady])
 
   // ===== WebSocket room connection（指数退避自动重连） =====
   // Guest mode: connect to ?room=court:<id> immediately.

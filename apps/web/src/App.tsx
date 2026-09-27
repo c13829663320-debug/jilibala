@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Gavel } from 'lucide-react'
 import RoomEntry from './RoomEntry'
@@ -16,17 +16,24 @@ import LoadingFallback from './LoadingFallback'
 import InterestPicker from './onboarding/InterestPicker'
 import QuickStartCard from './onboarding/QuickStartCard'
 import FirstTimeGuide from './onboarding/FirstTimeGuide'
+import SplashScreen from './SplashScreen'
 import './onboarding/onboarding.css'
 import PwaUpdatePrompt from './pwa-update'
+import {
+  FLOW_TOTAL_STEPS,
+  loadOnboardingState,
+  needsFirstTimeGuide,
+  onboardingActions,
+  type OnboardingState,
+} from './onboarding/onboarding-store'
+import { onboardingBus } from './onboarding/onboarding-events'
+import { resolveOnboardingGate, shouldShowSplash } from './onboarding/onboarding-routing'
 import {
   FIRST_TIME_STEPS,
   INTEREST_SCENE_MAP,
   SCENE_LABELS,
   getRecommendedScene,
   hasPlayedScene,
-  needsInterestSelection,
-  recordInterest,
-  recordInterestSkipped,
   recordScenePlayed,
   type InterestId,
   type SceneId,
@@ -47,7 +54,7 @@ const ScenePlay = lazy(() => import('./scene-studio/ScenePlay'))
 
 type HearingMode = 'quick' | 'evidence'
 type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play'
-  | 'onboarding-interest' | 'onboarding-quickstart' | 'multiplayer-lobby'
+  | 'multiplayer-lobby'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
 function LazyScene({ component: C, props, label }: {
@@ -90,17 +97,18 @@ function SceneFirstTimeGuide({ scene }: { scene: SceneId }) {
 }
 
 function AppInner() {
-  const { phase } = useIdentity()
+  const { phase: identityPhase } = useIdentity()
+  // R5 分片A：主流程由 onboarding-store 的 phase 状态机驱动（开屏→身份→兴趣→推荐→招牌体验）
+  const [obState, setObState] = useState<OnboardingState>(() => loadOnboardingState())
   const [view, setView] = useState<View>(() => {
     if (parseRoomParam()) return 'court'
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
     const scene = new URLSearchParams(window.location.search).get('scene')
     if (scene === 'werewolf' || scene === 'gym') return scene
-    // 新用户（localStorage 无引导记录）：开屏后先选兴趣，再直达推荐场景
-    if (needsInterestSelection()) return 'onboarding-interest'
+    // 默认 underlying 视图；引导层（兴趣/推荐卡片）由 obState gate 在上面叠加
     return 'entry'
   })
-  // 新手引导：兴趣选择后推荐的那个兴趣（用于渲染 QuickStartCard）
+  // 新手引导：兴趣选择后推荐的那个兴趣（用于渲染 QuickStartCard）；刷新后从持久化 selectedInterest 恢复
   const [quickStartInterest, setQuickStartInterest] = useState<InterestId | null>(null)
   const [roomId] = useState<string | null>(() => parseRoomParam())
   // Round3: 正在进入的社交房间 id（social:<code>）；null = 全局开放广场
@@ -137,8 +145,18 @@ function AppInner() {
       .then(setSharedCase).catch(() => setSharedCase(null))
   }, [shareId])
 
+  // R5：身份建完（setup→ready）且仍是新用户、停在 identity 阶段时，自动推进到 interest
+  useEffect(() => {
+    if (identityPhase !== 'ready') return
+    if (obState.flowCompleted || obState.flowSkipped) return
+    if (obState.phase !== 'identity') return
+    const next = onboardingActions.advance('interest')
+    setObState(next)
+    onboardingBus.publish({ type: 'phase-change', phase: 'interest' })
+  }, [identityPhase, obState.phase, obState.flowCompleted, obState.flowSkipped])
+
   // Identity still loading: show nothing (the setup modal covers 'setup' phase)
-  if (phase === 'loading') return null
+  if (identityPhase === 'loading') return null
 
   const fetchArchives = async () => {
     setArchiveLoading(true); setArchiveError('')
@@ -164,21 +182,45 @@ function AppInner() {
     </main>
   }
 
-  // ===== 新手引导：选兴趣（新用户第一步，直接覆盖全屏） =====
-  if (view === 'onboarding-interest') {
+  // ===== R5 新手引导主流程（phase 状态机驱动）=====
+  // 深链直达（?room=court:xxx）不被兴趣选择打断；其余按状态机 gate 渲染
+  const gate = roomId ? 'none' : resolveOnboardingGate(obState, identityPhase)
+
+  // 选兴趣（新用户第一步，直接覆盖全屏）
+  if (gate === 'interest') {
     return <InterestPicker
-      onPick={(interest) => { recordInterest(interest); setQuickStartInterest(interest); setView('onboarding-quickstart') }}
-      onSkip={() => { recordInterestSkipped(); setView('entry') }}
+      stepLabel={`${obState.currentStep} / ${FLOW_TOTAL_STEPS}`}
+      onPick={(interest) => {
+        setObState(onboardingActions.selectInterest(interest))
+        setObState(onboardingActions.advance('quickstart'))
+        setQuickStartInterest(interest)
+        onboardingBus.publish({ type: 'phase-change', phase: 'quickstart' })
+      }}
+      onSkip={() => {
+        setObState(onboardingActions.skip())
+        onboardingBus.publish({ type: 'flow-skipped' })
+        setView('entry')
+      }}
     />
   }
 
-  // ===== 新手引导：推荐卡片 → 一个大按钮直达场景（跳过广场） =====
-  if (view === 'onboarding-quickstart') {
-    const interest = quickStartInterest ?? 'debate'
+  // 推荐卡片 → 一个大按钮直达招牌体验（跳过广场）
+  if (gate === 'quickstart') {
+    const interest = quickStartInterest ?? obState.selectedInterest ?? 'debate'
     return <QuickStartCard
       interest={interest}
-      onStart={() => setView(INTEREST_SCENE_MAP[interest] as View)}
-      onSkip={() => setView('entry')}
+      stepLabel={`${obState.currentStep} / ${FLOW_TOTAL_STEPS}`}
+      onStart={() => {
+        onboardingActions.advance('signature')
+        setObState(onboardingActions.complete())
+        onboardingBus.publish({ type: 'flow-completed' })
+        setView(INTEREST_SCENE_MAP[interest] as View)
+      }}
+      onSkip={() => {
+        setObState(onboardingActions.skip())
+        onboardingBus.publish({ type: 'flow-skipped' })
+        setView('entry')
+      }}
     />
   }
 
@@ -382,6 +424,7 @@ function AppInner() {
   return (
     <main className="app-shell">
       <ApiHealthBanner />
+      <CourtFirstTimeWatcher />
       <CourtroomShell
         caseText={caseText} onCaseTextChange={setCaseText}
         hearingMode={hearingMode} onHearingModeChange={setHearingMode}
@@ -392,10 +435,34 @@ function AppInner() {
         roomId={roomId ?? undefined}
         onExitToEntry={() => setView('entry')}
         onOpenArchive={() => openArchives('court')}
+        onVerdictReady={() => {
+          // 首个哇时刻：判决出炉即领奖（内部幂等，只领一次），通知分片B弹奖励窗
+          if (onboardingActions.claimFirstWow()) {
+            onboardingBus.publish({ type: 'reward', reward: 'firstWow' })
+          }
+        }}
       />
       <SceneFirstTimeGuide scene="court" />
     </main>
   )
+}
+
+/**
+ * R5 分片A：首次进入法庭（招牌体验）时，标记 firstTime('court') 并广播事件。
+ * 只在挂载时执行一次，不随重渲染重复触发；markFirstTime 本身幂等。
+ */
+function CourtFirstTimeWatcher() {
+  const firedRef = useRef(false)
+  useEffect(() => {
+    if (firedRef.current) return
+    firedRef.current = true
+    const state = loadOnboardingState()
+    if (needsFirstTimeGuide(state, 'court')) {
+      onboardingActions.markFirstTime('court')
+      onboardingBus.publish({ type: 'first-time', key: 'court' })
+    }
+  }, [])
+  return null
 }
 
 /**
@@ -430,16 +497,43 @@ function ApiHealthBanner() {
   )
 }
 
+/**
+ * R5 分片A：开屏闸门。
+ * - 仅全新用户（onboarding phase === 'splash' 且未完成）才播放开屏；
+ * - 开屏盖在整个应用之上（z-index 高于建身份弹窗 100000），下层 IdentityProvider 并行加载身份；
+ * - 点击/键盘消散后，把 phase 从 splash 推进到 identity，再进入建身份 / 选兴趣流程。
+ * - 回归用户 / 中途刷新（phase 已推进）直接放行，不二次播放开屏。
+ */
+function SplashGate({ children }: { children: ReactNode }) {
+  const [dismissed, setDismissed] = useState(() => !shouldShowSplash(loadOnboardingState()))
+  if (dismissed) return <>{children}</>
+  return (
+    <>
+      {children}
+      {/* 高 z-index 容器：盖在 SetupModal(100000) 与引导浮层(90000)之上 */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 110000 }}>
+        <SplashScreen onDone={() => {
+          onboardingActions.advance('identity')
+          onboardingBus.publish({ type: 'phase-change', phase: 'identity' })
+          setDismissed(true)
+        }} />
+      </div>
+    </>
+  )
+}
+
 function App() {
   return (
     // R4-04: 最外层全局错误边界——任何子树渲染崩溃都不白屏，显示品牌化错误页
     <GlobalErrorBoundary>
-      <IdentityProvider>
-        <ErrorBoundary>
-          <AppInner />
-        </ErrorBoundary>
-        <PwaUpdatePrompt />
-      </IdentityProvider>
+      <SplashGate>
+        <IdentityProvider>
+          <ErrorBoundary>
+            <AppInner />
+          </ErrorBoundary>
+          <PwaUpdatePrompt />
+        </IdentityProvider>
+      </SplashGate>
     </GlobalErrorBoundary>
   )
 }

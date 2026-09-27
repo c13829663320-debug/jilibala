@@ -23,6 +23,18 @@
   margin-bottom: 14px;
 }
 
+/* 引导主流程轻量进度（如 2 / 5）——固定在右上角，不干扰主操作 */
+.ob-progress {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 90001;
+  color: #6a6d64;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
 .ob-title {
   margin: 0;
   font-size: clamp(26px, 5vw, 40px);
