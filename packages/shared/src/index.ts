@@ -1096,3 +1096,7 @@ export * from "./ia.js";
 
 // ===== R5 招牌玩法/核心循环：统一长期目标线与结算契约 =====
 export * from "./gameplay-loop.js";
+
+// ===== R5: 名人关系 / 记忆 / 收集 / 邀约 / 广场偶遇（additive） =====
+export * from "./celebrity-relation.js";
+export * from "./celebrity-facts.js";
