@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>叽里呱啦 BalaBala · 答辩 PPT</title>
+<style>
+  :root{
+    --bg:#000000;
+    --yellow:#FFD700;
+    --teal:#00CED1;
+    --teal2:#20B2AA;
+    --card:#0d0d10;
+    --line:#1e1e24;
+    --text:#ececef;
+    --muted:#9a9aa4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    overflow:hidden;}
+  /* progress */
+  #bar{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--yellow),var(--teal));
+    width:0;z-index:50;transition:width .3s;}
+  .slide{position:fixed;inset:0;display:none;flex-direction:column;justify-content:center;
+    padding:5vh 7vw;gap:2.2vh;overflow:auto;
+    background:
+      radial-gradient(ellipse at 85% -10%, rgba(0,206,209,.12), transparent 55%),
+      radial-gradient(ellipse at 0% 110%, rgba(255,215,0,.08), transparent 55%);}
+  .slide.active{display:flex;animation:fade .45s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+  .tag{color:var(--teal);font-size:clamp(13px,1.4vw,17px);letter-spacing:3px;text-transform:uppercase;}
+  h1{color:var(--yellow);font-size:clamp(30px,5.2vw,64px);line-height:1.15;text-shadow:0 0 30px rgba(255,215,0,.35);}
+  h2{color:var(--yellow);font-size:clamp(24px,3.6vw,44px);line-height:1.2;}
+  .sub{color:var(--teal);font-size:clamp(16px,2.1vw,26px);}
+  ul{list-style:none;display:flex;flex-direction:column;gap:1.4vh;}
+  li{font-size:clamp(15px,1.9vw,22px);line-height:1.5;padding-left:1.6em;position:relative;}
+  li::before{content:"▸";color:var(--teal);position:absolute;left:0;font-weight:700;}
+  li b{color:var(--yellow);font-weight:600;}
+  .grid{display:grid;gap:18px;}
+  .grid.c2{grid-template-columns:1fr 1fr;}
+  .grid.c3{grid-template-columns:repeat(3,1fr);}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .card h3{color:var(--teal);font-size:clamp(15px,1.7vw,20px);margin-bottom:8px;}
+  .card p,.card li{font-size:clamp(13px,1.45vw,17px);color:var(--text);line-height:1.5;}
+  .card ul{gap:6px;}
+  .pill{display:inline-block;border:1px solid var(--teal);color:var(--teal);border-radius:999px;
+    padding:3px 12px;font-size:clamp(12px,1.3vw,15px);margin:3px 6px 3px 0;}
+  .kv{color:var(--yellow);}
+  .shot{border-radius:12px;border:1px solid var(--line);width:100%;object-fit:cover;max-height:34vh;}
+  /* ascii arch diagram */
+  .arch{font-family:"SF Mono",Consolas,monospace;font-size:clamp(10px,1.25vw,14px);line-height:1.45;
+    color:var(--text);background:#08080a;border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+    white-space:pre;overflow:auto;}
+  .arch .y{color:var(--yellow);} .arch .t{color:var(--teal);}
+  #nav{position:fixed;bottom:18px;right:22px;color:var(--muted);font-size:14px;z-index:40;
+    font-variant-numeric:tabular-nums;}
+  #hint{position:fixed;bottom:18px;left:22px;color:#555;font-size:12px;z-index:40;}
+  #dots{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:40;}
+  #dots i{width:8px;height:8px;border-radius:50%;background:#333;cursor:pointer;}
+  #dots i.on{background:var(--yellow);}
+  .center{text-align:center;align-items:center;}
+  .quote{font-size:clamp(18px,2.6vw,32px);color:var(--yellow);line-height:1.5;}
+  @media (max-width:760px){ .grid.c2,.grid.c3{grid-template-columns:1fr;} }
+  @media print{
+    html,body{overflow:visible;background:#fff;}
+    .slide{position:static;display:flex !important;page-break-after:always;min-height:100vh;color:#111;
+      background:none;}
+    #bar,#nav,#hint,#dots{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<!-- 1 封面 -->
+<section class="slide center active">
+  <div class="tag">AI 原生 3D 社交与 UGC 平台 · 答辩路演</div>
+  <h1>叽里呱啦 · BalaBala</h1>
+  <div class="sub">和古今名人一起开庭、辩论、造世界</div>
+  <img class="shot" style="max-height:38vh" src="promo-images/promo-01.png" alt="主视觉 KV" />
+</section>
+
+<!-- 2 痛点 -->
+<section class="slide">
+  <div class="tag">01 · 产品价值</div>
+  <h2>痛点：现有社交空间「开不了局」</h2>
+  <ul>
+    <li><b>空旷等人来填</b>：VRChat 类世界需要凑齐真人、自建内容，一个人上线就是冷场。</li>
+    <li><b>内容门槛高</b>：想造一个世界要会 3D 建模 + SDK，普通用户被挡在门外。</li>
+    <li><b>有社交没玩法</b>： avatar 社交重在表演，缺少可结算、可上头的博弈循环。</li>
+    <li><b>AI 只是聊天</b>：多数产品把 LLM 当问答框，没把它变成玩法规则与对手。</li>
+  </ul>
+</section>
+
+<!-- 3 解决方案 + 目标用户 -->
+<section class="slide">
+  <div class="tag">01 · 产品价值</div>
+  <h2>解决方案 + 目标用户</h2>
+  <div class="grid c2">
+    <div class="card">
+      <h3>我们的解法</h3>
+      <ul>
+        <li>百位古今名人 <b>AI NPC</b> 随时当对手/队友/观众，单人即开局。</li>
+        <li><b>一句话造场景</b>，AI 生成可玩 3D 世界，门槛降到「会说话」。</li>
+        <li>6 套<b>可结算的博弈玩法</b>，规则由 AI 实时判定。</li>
+        <li>浏览器 PWA，零安装、可离线。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>目标用户</h3>
+      <ul>
+        <li>喜欢<b>社交博弈</b>：剧本杀、狼人杀、脱口秀爱好者。</li>
+        <li>爱<b>知识竞技</b>与文化梗的年轻用户。</li>
+        <li>想<b>低成本创作</b>、把点子变成 3D 世界的 UGC 玩家。</li>
+        <li>不想下载大包、点开浏览器就玩的轻用户。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 4 差异化 -->
+<section class="slide">
+  <div class="tag">01 · 产品价值</div>
+  <h2>差异化：与 VRChat 一句话对比</h2>
+  <ul>
+    <li><b>范式</b>：VRChat 是 UGC 原生（自己建模造世界）；我们是 <b>AI 原生</b>（AI 备好玩法与 NPC，开箱即玩）。</li>
+    <li><b>开局</b>：它要凑真人；我们 <b>一个人也能开局</b>，名人陪你打。</li>
+    <li><b>造内容</b>：专业建模 SDK；我们 <b>自然语言一句话生成</b>。</li>
+    <li><b>成长</b>：弱段位；我们 <b>全局 XP 段位</b>跨场景累积。</li>
+  </ul>
+  <div class="quote">「它给你一个空旷的世界等人来填；我们把名人、玩法和规则都备好，你上线就能玩。」</div>
+</section>
+
+<!-- 5 技术架构总览 -->
+<section class="slide">
+  <div class="tag">02 · 技术架构</div>
+  <h2>技术架构：monorepo 四层</h2>
+  <div class="grid c2">
+    <div class="card"><h3>前端 apps/web</h3><p>React 18 + Vite 5 + TypeScript；Three.js + <b class="kv">React Three Fiber</b> + drei 渲染 3D；WebRTC 距离语音/空间音频；vite-plugin-pwa 离线。</p></div>
+    <div class="card"><h3>后端 apps/api</h3><p>Node.js + <b class="kv">Fastify 5</b>；@fastify/websocket 承载房间与玩法状态同步；glTF-Transform + draco 压缩模型。</p></div>
+    <div class="card"><h3>AI 层</h3><p><b class="kv">StepFun / Evomap LLM</b>：NPC 对话、玩法规则生成、自然语言造场景；<b class="kv">Tripo 3D</b>：照片/文本 → 全身 3D；TTS 按人设配音。</p></div>
+    <div class="card"><h3>数据层</h3><p>node:sqlite 本地持久化（用户/房间/XP/审核记录）；Redis 会话；glTF 资产库与对象缓存。</p></div>
+  </div>
+</section>
+
+<!-- 6 架构图 -->
+<section class="slide">
+  <div class="tag">02 · 技术架构</div>
+  <h2>架构图</h2>
+<div class="arch">┌──────────────── <span class="y">浏览器端 (PWA)</span> ────────────────┐
+│  React18 + Vite5  ·  <span class="t">Three.js / React Three Fiber</span> 3D 渲染   │
+│  WebRTC 距离语音·空间音频   ·   vite-plugin-pwa 离线/安装          │
+└──────────────┬──────────────────────────┬───────────────┘
+               │ HTTPS (REST)            │ WSS (房间/玩法状态)
+┌──────────────▼──────────────────────────▼───────────────┐
+│        Node.js + <span class="y">Fastify 5</span> (apps/api, 8787)            │
+│  @fastify/websocket · cors · undici · 审核中间件           │
+└───────┬──────────────────┬──────────────────┬─────────┘
+        ▼                  ▼                  ▼
+  <span class="t">Tripo 3D API</span>    <span class="t">StepFun/Evomap LLM</span>    node:sqlite
+  照片→3D 化身         NPC对话/规则/造场景       用户·房间·XP·审核
+</div>
+</section>
+
+<!-- 7 部署运维：四服务 -->
+<section class="slide">
+  <div class="tag">03 · 部署运维</div>
+  <h2>部署：Docker Compose 四服务</h2>
+  <ul>
+    <li><b>web</b>（nginx）：托管前端静态资源，对外 <b class="kv">:8080</b>，反代 /api 与 /wss。</li>
+    <li><b>api</b>（Fastify）：内网 8787，不直接暴露，承载 REST + WebSocket。</li>
+    <li><b>coturn</b>：TURN/STUN 中继 WebRTC 距离语音，NAT 穿透。</li>
+    <li><b>redis</b>：房间会话与实时状态 Pub/Sub。</li>
+  </ul>
+  <div>
+    <span class="pill">HTTPS 全站加密</span><span class="pill">WSS 加密长连</span>
+    <span class="pill">coturn WebRTC</span><span class="pill">Docker Compose 一键起栈</span>
+  </div>
+</section>
+
+<!-- 8 备份回滚 + CI/CD -->
+<section class="slide">
+  <div class="tag">03 · 部署运维</div>
+  <h2>运维：备份回滚 + 自动化</h2>
+  <div class="grid c2">
+    <div class="card"><h3>可靠发布</h3><ul>
+      <li>SQLite 定时备份 + 迁移版本化（backup-migration）。</li>
+      <li>镜像 tag 化，故障一键 <b>回滚上一版本</b>。</li>
+      <li>健康检查 <code>/health</code>， unhealthy 自动重启。</li>
+    </ul></div>
+    <div class="card"><h3>CI/CD</h3><ul>
+      <li>push/PR 自动跑 <b>npm test + build</b>（GitHub Actions）。</li>
+      <li>单测 Vitest，每文件独立 DB 隔离。</li>
+      <li>观测：日志 + 指标 + 发布 checklist 可追溯。</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 9 内容合规：三级处置 -->
+<section class="slide">
+  <div class="tag">04 · 内容合规 · R5 亮点</div>
+  <h2>审核三级处置 + 禁言封禁</h2>
+  <ul>
+    <li><b>一级 · 拦截</b>：公屏/UGC 敏感词 <b class="kv">毫秒级拦截</b>，消息不上屏，明黄 toast 提示。</li>
+    <li><b>二级 · 禁言</b>：命中规则自动禁言 10 分钟，玩家端青绿状态条，可申诉。</li>
+    <li><b>三级 · 封禁</b>：严重违规管理员一键永久封禁，处置全程留痕可审计。</li>
+    <li>AI 生成内容同样过审：名人发言与 UGC 造场景输出均经安全过滤。</li>
+  </ul>
+  <img class="shot" src="promo-images/promo-03.png" alt="法庭场景" style="max-height:20vh" />
+</section>
+
+<!-- 10 举报 + 名人免责 + 未成年人 -->
+<section class="slide">
+  <div class="tag">04 · 内容合规 · R5 亮点</div>
+  <h2>举报闭环 · 名人免责 · 未成年人保护</h2>
+  <div class="grid c3">
+    <div class="card"><h3>举报处置</h3><p>用户一键举报 → 后台工单流转 → 管理员处置 → 向举报人反馈闭环。</p></div>
+    <div class="card"><h3>名人免责</h3><p>历史人物言行仅为 AI 演绎娱乐，标注「虚构演绎」，不代表现实立场。</p></div>
+    <div class="card"><h3>未成年人保护</h3><p>注册年龄校验；13 岁进入<b class="kv">青少年模式</b>，UGC 受限、夜间强制休息提示。</p></div>
+  </div>
+</section>
+
+<!-- 11 商业化 -->
+<section class="slide">
+  <div class="tag">05 · 商业化</div>
+  <h2>收入模式：免费增值为主</h2>
+  <div class="grid c2">
+    <div class="card"><h3>免费增值 Freemium</h3><p>基础广场与 6 场景免费；会员解锁更多名人皮肤、专属房间与排位加成。</p></div>
+    <div class="card"><h3>虚拟道具</h3><p>avatar 装扮、3D 家具/场景装饰、限定名人开场短片皮肤。</p></div>
+    <div class="card"><h3>AI 生成付费</h3><p>照片转 3D、自然语言造场景按次/额度计费，重度创作者包月。</p></div>
+    <div class="card"><h3>企业定制</h3><p>品牌名人 NPC、定制营销场景、企业团建/教育版私有化部署。</p></div>
+  </div>
+</section>
+
+<!-- 12 路线图 -->
+<section class="slide">
+  <div class="tag">05 · 商业化</div>
+  <h2>路线图</h2>
+  <ul>
+    <li><b>当前 R5</b>：6 场景闭环 + 名人 NPC + AI 造场景/照片转 3D + <b class="kv">内容合规闭环</b> + PWA。</li>
+    <li><b>下阶段</b>：UGC 场景广场分享、创作者分成、排位赛赛季。</li>
+    <li><b>中期</b>：移动端原生壳、VR 模式接入、名人 IP 联名。</li>
+    <li><b>远期</b>：企业/教育定制市场，开放 AI NPC 创作平台。</li>
+  </ul>
+</section>
+
+<!-- 13 收尾 -->
+<section class="slide center">
+  <div class="tag">开源 · 欢迎体验</div>
+  <h1>和古今名人一起玩</h1>
+  <div class="sub">叽里呱啦 BalaBala —— AI 原生 3D 社交广场</div>
+  <div>
+    <span class="pill">github.com/your-org/balabala</span>
+    <span class="pill">扫码体验</span>
+    <span class="pill">Docker Compose 一键启动</span>
+  </div>
+  <div class="quote">谢谢！</div>
+</section>
+
+<div id="dots"></div>
+<div id="hint">← → / 空格 翻页 · F 全屏</div>
+<div id="nav">1 / 13</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var cur = 0;
+  var bar = document.getElementById('bar');
+  var nav = document.getElementById('nav');
+  var dots = document.getElementById('dots');
+
+  slides.forEach(function(_, i){
+    var d = document.createElement('i');
+    d.addEventListener('click', function(){ go(i); });
+    dots.appendChild(d);
+  });
+  var dotEls = Array.prototype.slice.call(dots.children);
+
+  function go(n){
+    cur = Math.max(0, Math.min(slides.length-1, n));
+    slides.forEach(function(s, i){ s.classList.toggle('active', i===cur); });
+    dotEls.forEach(function(d, i){ d.classList.toggle('on', i===cur); });
+    bar.style.width = ((cur+1)/slides.length*100) + '%';
+    nav.textContent = (cur+1) + ' / ' + slides.length;
+  }
+  document.addEventListener('keydown', function(e){
+    if(['ArrowRight','ArrowDown','PageDown',' '].indexOf(e.key) > -1){ e.preventDefault(); go(cur+1); }
+    else if(['ArrowLeft','ArrowUp','PageUp'].indexOf(e.key) > -1){ e.preventDefault(); go(cur-1); }
+    else if(e.key==='Home'){ go(0); }
+    else if(e.key==='End'){ go(slides.length-1); }
+    else if(e.key==='f' || e.key==='F'){
+      if(!document.fullscreenElement){ document.documentElement.requestFullscreen(); }
+      else{ document.exitFullscreen(); }
+    }
+  });
+  // click right/left half
+  document.addEventListener('click', function(e){
+    if(e.target.closest('a,button,i,code')) return;
+    if(e.clientX > window.innerWidth/2){ go(cur+1); } else { go(cur-1); }
+  });
+  go(0);
+})();
+</script>
+</body>
+</html>

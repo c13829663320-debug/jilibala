@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest, type FastifyReply } from "fastify";
 import cors from "@fastify/cors";
 import { TRIAL_STAGES, type TrialEvent, type Verdict, type CourtRole, type PlazaContent, type PlazaLiveEvent, type ContentSort, type SceneId, CELEBRITIES, getCelebrity, type BenchStartRequest, type BenchInteraction, type BenchInteractionKind, type Perspective, type User, type CertRecord, type MsgRecord, isValidVoice, DEFAULT_VOICE } from "@balabala/shared";
 import { runBenchTrial } from "./bench-orchestrator.js";
@@ -31,7 +31,9 @@ import { registerChatRoutes } from './chat.js';
 // ===== R4-08: 排行榜 / 主题房间公告 / 内容治理 =====
 import { getLeaderboard } from './leaderboard.js';
 import { getActiveAnnouncements, startScheduler as startThemeRoomScheduler } from './theme-rooms.js';
-import { readReports, addBlock, removeBlock, getBlockList, listReports, resolveReport, type ReportResolutionAction } from './moderation.js';
+import { readReports, addBlock, removeBlock, getBlockList, listReports, resolveReport, type ReportResolutionAction, banUser, unbanUser, isBanned, getModerationStats } from './moderation.js';
+// ===== R5 嫁接：未成年人保护 · 年龄门 =====
+import { registerAgeGateRoutes } from './age-gate.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
@@ -1152,6 +1154,42 @@ registerSceneStoreRoutes(app);
 
 // ===== R5-UGC: 一句话造场景 / 发布分享闭环（JSON 文件） =====
 registerUgcRoutes(app);
+
+// ===== R5 嫁接：未成年人保护 · 年龄门路由 =====
+registerAgeGateRoutes(app);
+
+// ===== R5 嫁接：管理员封禁 / 解封 / 审核统计（X-Admin-Token 鉴权） =====
+// 与 main 已有的 /api/admin/reports（演示版无鉴权）并存：这里新增的封禁/统计路由
+// 走轻量 token 校验。token 取 ADMIN_TOKEN 环境变量，默认 dev-admin-token（仅本地内测）。
+const R5_ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? 'dev-admin-token';
+function checkAdminToken(req: FastifyRequest, reply: FastifyReply): boolean {
+  const token = (req.headers['x-admin-token'] ?? req.headers['authorization'] ?? '').toString().replace(/^Bearer\s+/i, '');
+  if (token !== R5_ADMIN_TOKEN) {
+    void reply.code(401).send({ error: '需要管理员 token（X-Admin-Token）' });
+    return false;
+  }
+  return true;
+}
+
+app.post('/api/admin/users/:id/ban', async (req, reply) => {
+  if (!checkAdminToken(req, reply)) return;
+  const { id } = req.params as { id: string };
+  const body = (req.body ?? {}) as { reason?: string };
+  banUser(id, (body.reason ?? '管理员手动封禁').trim());
+  return { ok: true, userId: id, banned: isBanned(id) };
+});
+
+app.post('/api/admin/users/:id/unban', async (req, reply) => {
+  if (!checkAdminToken(req, reply)) return;
+  const { id } = req.params as { id: string };
+  unbanUser(id);
+  return { ok: true, userId: id, banned: isBanned(id) };
+});
+
+app.get('/api/admin/moderation/stats', async (req, reply) => {
+  if (!checkAdminToken(req, reply)) return;
+  return getModerationStats();
+});
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

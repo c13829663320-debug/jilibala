@@ -23,6 +23,9 @@ import {
   type CustomCharacterApi, type UiCharacter,
 } from './custom-characters'
 import './character-hall.css'
+// R5 嫁接：名人 AI 对话合规免责横幅 + 举报按钮
+import ComplianceBanner from './components/ComplianceBanner'
+import ReportButton from './components/ReportButton'
 
 // 3D 长廊独立懒加载：three/r3f 已在 manualChunks，长廊代码本身再分一个 chunk。
 const CharacterGallery3D = lazy(() => import('./CharacterGallery3D'))
@@ -952,6 +955,11 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
                   </div>
                 ) : (
                   <>
+                    {/* R5 嫁接：AI 虚拟形象免责声明 + 举报入口（仅在非通话模式展示） */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ flex: 1 }}><ComplianceBanner /></div>
+                      <ReportButton targetUserId={selected.id} targetNickname={selected.name} size={13} />
+                    </div>
                     <div className="character-dialog__chat" aria-live="polite">
                       {currentMessages.map((m, i) => (
                         <div className={`character-chat ${m.from}`} key={`${m.from}-${i}`}>

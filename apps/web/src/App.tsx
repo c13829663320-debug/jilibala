@@ -24,6 +24,8 @@ import './onboarding/onboarding.css'
 import PwaUpdatePrompt from './pwa-update'
 import { ModerationToast } from './safety/ModerationToast'
 import { MuteIndicator } from './safety/MuteIndicator'
+// R5 嫁接：未成年人保护 · 年龄门（挂载在 IdentityProvider 内，依赖 useIdentity）
+import { AgeGateProvider } from './components/AgeGate'
 import {
   FIRST_TIME_STEPS,
   INTEREST_SCENE_MAP,
@@ -477,13 +479,15 @@ function App() {
     // R4-04: 最外层全局错误边界——任何子树渲染崩溃都不白屏，显示品牌化错误页
     <GlobalErrorBoundary>
       <IdentityProvider>
-        <ErrorBoundary>
-          <AppInner />
-        </ErrorBoundary>
-        <PwaUpdatePrompt />
-        {/* R5: 全局审核提示（敏感词替换 toast + 禁言倒计时浮标） */}
-        <ModerationToast />
-        <MuteIndicator />
+        <AgeGateProvider>
+          <ErrorBoundary>
+            <AppInner />
+          </ErrorBoundary>
+          <PwaUpdatePrompt />
+          {/* R5: 全局审核提示（敏感词替换 toast + 禁言倒计时浮标） */}
+          <ModerationToast />
+          <MuteIndicator />
+        </AgeGateProvider>
       </IdentityProvider>
     </GlobalErrorBoundary>
   )

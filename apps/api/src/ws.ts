@@ -55,7 +55,7 @@ import {
   PartyError,
 } from "./party.js";
 // R4-08: 内容治理（敏感词过滤 / 禁言 / 举报阈值自动禁言）
-import { moderateText, isMuted, getMutedUntil, registerReport, recordProfanityHit, recordStructuredReport } from "./moderation.js";
+import { moderateText, isMuted, getMutedUntil, registerReport, recordProfanityHit, recordStructuredReport, recordReplaceEvent, listMatchedWords } from "./moderation.js";
 
 // ===== 房间数据结构 =====
 export type RoomUser = {
@@ -823,6 +823,8 @@ export function registerWebSocket(app: FastifyInstance): void {
           const mod = moderateText(userId, raw);
           // R5: 命中敏感词累计计数，达阈值自动禁言 5 分钟并通知本人
           if (mod.hit) {
+            // R5 嫁接：L1 替换留痕（审计台账 + totalReplaced 统计）
+            recordReplaceEvent(userId, listMatchedWords(raw), raw, mod.text);
             const hit = recordProfanityHit(userId);
             if (hit.autoMuted && hit.mutedUntil) {
               safeSend(socket, { type: "mute_status", muted: true, mutedUntil: hit.mutedUntil, reason: "profanity" } satisfies WSMessage);
@@ -1081,6 +1083,8 @@ export function registerWebSocket(app: FastifyInstance): void {
           if (!raw) return;
           const mod = moderateText(userId, raw);
           if (mod.hit) {
+            // R5 嫁接：L1 替换留痕（审计台账 + totalReplaced 统计）
+            recordReplaceEvent(userId, listMatchedWords(raw), raw, mod.text);
             const hit = recordProfanityHit(userId);
             if (hit.autoMuted && hit.mutedUntil) {
               safeSend(socket, { type: "mute_status", muted: true, mutedUntil: hit.mutedUntil, reason: "profanity" } satisfies WSMessage);

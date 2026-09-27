@@ -1,15 +1,33 @@
-# 叽里呱啦 · BalaBala —— Docker Compose 一键部署
-#
+# =============================================================================
+# 叽里呱啦 · BalaBala —— Docker Compose 编排（快速启动 + 公网生产双形态）
+# -----------------------------------------------------------------------------
 # 架构：
-#   web (nginx)  ──:80──▶ 宿主 ${WEB_PORT:-8080}
-#        │  静态托管 apps/web/dist，并反向代理 /api、/api/ws、/health
-#        ▼
-#   api (Fastify) ── 内网 8787，不对外暴露
-#        │  SQLite + JSON 持久化到命名卷 balabala_data:/data
 #
-# 用法：cp .env.example .env && 编辑密钥 && docker compose up -d --build
+#   【快速启动 / 内网调试】 profile 缺省（不带 --profile）
+#     浏览器 ──HTTP:${WEB_PORT}──▶ web(nginx:80) ──▶ api(Fastify:8787)
+#
+#   【公网生产】 --profile production
+#     浏览器 ──HTTPS/443──▶ gateway(生产 nginx, TLS 终止 + 安全头)
+#                              │  全部流量反代到 web:80（内网）
+#                              ▼
+#                            web(nginx:80, 静态 SPA + /api 反代)
+#                              │  /api、/api/ws、/health
+#                              ▼
+#                            api(Fastify:8787, SQLite+JSON 持久化)
+#
+#     浏览器 WebRTC ──UDP/TCP 3478 + UDP 49152-65535──▶ coturn(host 网络)
+#
+# 用法：
+#   快速启动（仅 api + web，HTTP 调试）：
+#       cp .env.example .env && docker compose up -d --build
+#
+#   公网生产（四服务全开，HTTPS）：
+#       docker compose --profile production up -d --build
+#   完整步骤见 docs/production-deployment.md
+# =============================================================================
 
 services:
+  # ------------------------------------------------------------------ API ---
   api:
     build:
       context: .
@@ -48,14 +66,16 @@ services:
       - balabala_internal
     # API 不直接对外暴露，仅内网可达；如需直连调试可取消下一行注释
     # ports:
-    #   - "${PORT:-8787}:8787"
+    #   - "127.0.0.1:${PORT:-8787}:8787"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      # /healthz = 存活探针（Fastify 已暴露）
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
 
+  # -------------------------------------------------------------- Web(nginx) ---
   web:
     build:
       context: .
@@ -67,8 +87,10 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    # 快速启动时直接对外提供 HTTP；生产形态下 gateway 才是入口，
+    # 建议在 .env 里把 WEB_HOST 绑到 127.0.0.1，避免 8080 绕过 HTTPS 暴露公网。
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_HOST:-0.0.0.0}:${WEB_PORT:-8080}:80"
     networks:
       - balabala_internal
     healthcheck:
@@ -78,10 +100,83 @@ services:
       retries: 3
       start_period: 10s
 
+  # --------------------------------------------------- Gateway(生产 HTTPS 反代) ---
+  # 仅在 --profile production 下启动。职责：TLS 终止、80→443 跳转、安全响应头、
+  # gzip、ACME webroot 验证；全部业务流量反代到内网 web:80。
+  gateway:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    image: balabala/gateway:latest
+    container_name: balabala-gateway
+    restart: unless-stopped
+    profiles:
+      - production
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "80:80"    # ACME 验证 + 301 跳转
+      - "443:443"  # HTTPS/http2
+    networks:
+      - balabala_internal
+    volumes:
+      # TLS 证书：Let's Encrypt 签发后放入命名卷 certs，
+      # 容器内约定路径 /etc/nginx/certs/fullchain.pem + privkey.pem
+      - certs:/etc/nginx/certs:ro
+      # ACME webroot：certbot 在宿主写 ./deploy/letsencrypt，容器只读挂载续期
+      - ./deploy/letsencrypt:/var/www/letsencrypt:ro
+    healthcheck:
+      # 经 gateway 自身反代到 web→api 的 /health，全链路探活
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 15s
+
+  # ------------------------------------------------------------- coturn(STUN/TURN) ---
+  # 仅在 --profile production 下启动。WebRTC 空间语音的 NAT 穿越中继。
+  # 使用 host 网络：TURN 需要直接暴露大量 UDP 中继端口（49152-65535），
+  # host 模式下端口直通宿主，无需逐个映射，且 external-ip 探测最可靠。
+  coturn:
+    image: coturn/coturn:latest
+    container_name: balabala-coturn
+    restart: unless-stopped
+    profiles:
+      - production
+    # host 网络下不能声明 networks / ports
+    network_mode: host
+    volumes:
+      - ./deploy/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - coturn_data:/var/log/coturn
+    # CLI 参数覆盖配置文件里的占位值，外部 IP / realm / 密钥全部从 .env 注入。
+    # CLI 选项优先级高于 turnserver.conf 同名项。
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --external-ip=${TURN_EXTERNAL_IP}
+      - --realm=${TURN_REALM}
+      - --server-name=${TURN_REALM}
+      - --user=${TURN_USER}:${TURN_PASSWORD}
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "turnserver"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# ------------------------------------------------------------- 网络与卷 ---
 networks:
   balabala_internal:
     driver: bridge
 
 volumes:
+  # api 的 SQLite + JSON 数据
   balabala_data:
+    driver: local
+  # gateway 的 TLS 证书（fullchain.pem / privkey.pem）
+  certs:
+    driver: local
+  # coturn 日志
+  coturn_data:
     driver: local

@@ -138,6 +138,8 @@ export function configureModerationForTest(opts: { dataDir: string; runtimeDir: 
   badWords = loadBadWords();
   loadPersistedMutes();
   blocks = loadBlocks();
+  bans = loadBans();
+  counters = loadCounters();
 }
 
 /** 测试用：重置为生产路径。 */
@@ -147,6 +149,8 @@ export function resetModerationForTest(): void {
   badWords = loadBadWords();
   loadPersistedMutes();
   blocks = loadBlocks();
+  bans = loadBans();
+  counters = loadCounters();
 }
 
 // ===== 敏感词过滤 =====
@@ -493,4 +497,182 @@ export function resolveReport(
 export function _resetModerationInMemoryForTest(): void {
   mutes.clear();
   profanityHits.clear();
+  bans.clear();
 }
+
+// ===== R5 嫁接：L1 替换留痕 + 封禁 + 审核统计（JSON 文件持久化，非 SQLite） =====
+// 设计：复用本文件已有的 runtimeDir（.data/）模式。
+//   - bans.json        ：当前生效中的封禁列表（JSON 数组）
+//   - moderation-stats.json：累计计数器（totalBlocked / totalReplaced）
+//   - moderation.log   ：追加式审计日志（复用 appendModerationLog）
+
+/** 一条封禁记录。 */
+export interface BanRecord {
+  userId: string;
+  reason: string;
+  bannedAt: string;
+}
+
+/** 当前生效中的封禁表：userId -> BanRecord。持久化到 .data/bans.json。 */
+let bans = new Map<string, BanRecord>();
+
+function bansFilePath(): string {
+  return resolve(runtimeDir, "bans.json");
+}
+
+function loadBans(): Map<string, BanRecord> {
+  const map = new Map<string, BanRecord>();
+  try {
+    const parsed = JSON.parse(readFileSync(bansFilePath(), "utf8")) as BanRecord[];
+    if (Array.isArray(parsed)) {
+      for (const b of parsed) if (b && typeof b.userId === "string" && b.userId) map.set(b.userId, b);
+    }
+  } catch {
+    /* 首次使用无文件 */
+  }
+  return map;
+}
+
+function persistBans(): void {
+  try {
+    mkdirSync(runtimeDir, { recursive: true });
+    writeFileSync(bansFilePath(), JSON.stringify([...bans.values()], null, 2), "utf8");
+  } catch (e) {
+    console.warn("[moderation] 写入 bans.json 失败:", e);
+  }
+}
+
+/** 累计审核计数器（跨重启保留）。 */
+interface ModerationCounters {
+  totalBlocked: number;
+  totalReplaced: number;
+}
+
+let counters: ModerationCounters = { totalBlocked: 0, totalReplaced: 0 };
+
+function statsFilePath(): string {
+  return resolve(runtimeDir, "moderation-stats.json");
+}
+
+function loadCounters(): ModerationCounters {
+  try {
+    const parsed = JSON.parse(readFileSync(statsFilePath(), "utf8")) as Partial<ModerationCounters>;
+    return {
+      totalBlocked: typeof parsed.totalBlocked === "number" ? parsed.totalBlocked : 0,
+      totalReplaced: typeof parsed.totalReplaced === "number" ? parsed.totalReplaced : 0,
+    };
+  } catch {
+    return { totalBlocked: 0, totalReplaced: 0 };
+  }
+}
+
+function persistCounters(): void {
+  try {
+    mkdirSync(runtimeDir, { recursive: true });
+    writeFileSync(statsFilePath(), JSON.stringify(counters, null, 2), "utf8");
+  } catch (e) {
+    console.warn("[moderation] 写入 moderation-stats.json 失败:", e);
+  }
+}
+
+/**
+ * L1 替换留痕：当一条消息命中敏感词被自动替换为 *** 放行时调用。
+ *  - 累计 totalReplaced 计数（持久化）
+ *  - 追加一条结构化审计事件到 moderation.log
+ * 不触发任何自动处置（自动禁言由 recordProfanityHit 负责）。
+ */
+export function recordReplaceEvent(
+  userId: string,
+  matchedWords: string[],
+  originalText: string,
+  replacedText: string,
+): void {
+  counters.totalReplaced += 1;
+  persistCounters();
+  appendModerationLog({
+    at: new Date().toISOString(),
+    action: "replace",
+    userId,
+    matchedWords,
+    originalText,
+    replacedText,
+  });
+}
+
+/**
+ * 扫描原文，返回命中的敏感词列表（不修改文本）。
+ * 供 ws 层在替换留痕时传入 recordReplaceEvent。
+ */
+export function listMatchedWords(raw: string): string[] {
+  if (!raw || badWords.length === 0) return [];
+  const lower = raw.toLowerCase();
+  const out: string[] = [];
+  for (const w of badWords) {
+    if (w && lower.includes(w.toLowerCase())) out.push(w);
+  }
+  return out;
+}
+
+/** 永久封禁用户（拒绝一切连接/发言）。幂等。持久化到 bans.json。 */
+export function banUser(userId: string, reason: string): void {
+  if (!userId) return;
+  bans.set(userId, { userId, reason: reason || "", bannedAt: new Date().toISOString() });
+  persistBans();
+  appendModerationLog({ at: new Date().toISOString(), action: "ban", userId, reason: reason || "" });
+}
+
+/** 解除封禁。 */
+export function unbanUser(userId: string): void {
+  if (!userId) return;
+  if (bans.delete(userId)) persistBans();
+}
+
+/** 用户是否处于封禁中。 */
+export function isBanned(userId: string): boolean {
+  if (!userId) return false;
+  return bans.has(userId);
+}
+
+/** 审核运营统计快照。 */
+export interface ModerationStats {
+  totalBlocked: number;
+  totalReplaced: number;
+  totalMuted: number;
+  totalBanned: number;
+  openReports: number;
+}
+
+/** 当前生效中的禁言数量（惰性过期）。 */
+function activeMuteCount(): number {
+  const now = Date.now();
+  let n = 0;
+  for (const until of mutes.values()) {
+    if (until > now) n += 1;
+  }
+  return n;
+}
+
+/** 审核统计：累计拦截/替换 + 当前生效禁言/封禁 + 待处理举报数。 */
+export function getModerationStats(): ModerationStats {
+  let open = 0;
+  try {
+    open = listReports({ status: "open" }).length;
+  } catch {
+    open = 0;
+  }
+  return {
+    totalBlocked: counters.totalBlocked,
+    totalReplaced: counters.totalReplaced,
+    totalMuted: activeMuteCount(),
+    totalBanned: bans.size,
+    openReports: open,
+  };
+}
+
+// ===== 生产启动：加载默认路径下的敏感词/禁言/屏蔽/封禁/统计 =====
+// 测试通过 configureModerationForTest 切换到临时目录后会重新加载，覆盖此处。
+badWords = loadBadWords();
+loadPersistedMutes();
+blocks = loadBlocks();
+bans = loadBans();
+counters = loadCounters();
