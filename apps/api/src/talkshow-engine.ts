@@ -12,7 +12,11 @@ import {
   computeTier,
   clampScore,
   getDailyChallenge,
+  detectHighlight,
+  detectComeback,
   type GameResult,
+  type Highlight,
+  type SettlementType,
   type TierLevel,
   type TutorialStep,
 } from "@balabala/shared";
@@ -58,6 +62,25 @@ export interface TalkshowConfig {
     reaction: OpenMicReaction;
     note: string;
   }>;
+  /** R5：主持人名人 id（默认鲁迅，犀利吐槽担当）。 */
+  hostCelebrityId?: string;
+  /** R5：三位观众评委名人 id。 */
+  audienceCelebrityIds?: [string, string, string];
+}
+
+/** R5：脱口秀默认对手名人阵容（主持人 + 3 位观众评委）。 */
+export const TALKSHOW_DEFAULT_HOST = "lu-xun";
+export const TALKSHOW_DEFAULT_AUDIENCES: [string, string, string] = [
+  "su-shi",
+  "li-bai",
+  "wang-bo",
+];
+
+/** R5：对手名人引用（战果卡 / 关系变化用）。 */
+export interface TalkshowOpponent {
+  celebrityId: string;
+  name: string;
+  reason: string;
 }
 
 export type TalkshowAction =
@@ -100,6 +123,13 @@ export class TalkshowOrchestrator extends BaseOrchestrator<
   TalkshowAction,
   TalkshowConfig
 > {
+  /** R5：玩家得分轨迹（每段后压入运行平均分，翻盘检测用）。 */
+  private scoreHistory: number[] = [];
+  /** R5：本局对手名人阵容（开局确定）。 */
+  private hostCelebrityId = TALKSHOW_DEFAULT_HOST;
+  private audienceCelebrityIds: [string, string, string] = TALKSHOW_DEFAULT_AUDIENCES;
+  private perfectSetCaptured = false;
+
   constructor() {
     super({
       maxRounds: 3,
@@ -128,16 +158,17 @@ export class TalkshowOrchestrator extends BaseOrchestrator<
       config.jokeTimeLimitMs ?? 60_000,
     );
     super.start(config);
+    // R5：记录对手名人阵容（可被配置覆盖）。
+    this.hostCelebrityId = config.hostCelebrityId ?? TALKSHOW_DEFAULT_HOST;
+    this.audienceCelebrityIds = config.audienceCelebrityIds ?? TALKSHOW_DEFAULT_AUDIENCES;
     // slot-0 真人演员；slot-1 主持人；slot-2..4 三位观众评委（AI）
     this.setupSlots(["performer", "host", "audience-1", "audience-2", "audience-3"], 1, [
-      "host-ai",
-      "audience-picky",
-      "audience-laugh",
-      "audience-regular",
+      this.hostCelebrityId,
+      ...this.audienceCelebrityIds,
     ]);
     this.assignHuman("human-player", "你", "slot-0");
     this.slots[0].nickname = "你（开放麦演员）";
-    this.slots[1].nickname = "主持人（AI）";
+    this.slots[1].nickname = "主持人";
     this.slots[2].nickname = "挑剔观众";
     this.slots[3].nickname = "捧场观众";
     this.slots[4].nickname = "普通观众";
@@ -284,7 +315,12 @@ export class TalkshowOrchestrator extends BaseOrchestrator<
     });
     this.emitFeedback("joke", { index: joke.total, reaction: joke.reaction });
 
+    // ===== R5：高光捕捉 + 分数轨迹 =====
+    this.captureJokeHighlights(joke);
+    this.trackScoreHistory();
+
     if (this.state.currentJokeIndex >= this.state.totalJokes) {
+      this.capturePerfectSet();
       this.state.stage = "results";
       this.finish();
     } else {
@@ -328,6 +364,113 @@ export class TalkshowOrchestrator extends BaseOrchestrator<
       rankPoints: average,
       highlights,
       durationMs: this.elapsedMs,
+    };
+  }
+
+  // ---- R5：高光捕捉 / 分数轨迹 / 结算元数据 --------------------------------
+
+  /** 一段段子讲完后：golden_quote（包袱>=35）+ callback_master（回扣命中）。 */
+  private captureJokeHighlights(joke: PerformedJoke): void {
+    const round = this.state.currentJokeIndex;
+    // 1) 通用规则：joke_scored 且 punchline>=35 → golden_quote
+    const hl = detectHighlight("talkshow", {
+      type: "joke_scored",
+      payload: { scores: joke.scores, round, timestamp: Date.now() },
+    });
+    if (hl) this.captureHighlight(hl);
+
+    // 2) 自定义：callback 真命中 → callback_master（映射到 high_combo 连击高光）
+    if (joke.callbackHit) {
+      this.captureHighlight({
+        id: this.nextHighlightId(),
+        scene: "talkshow",
+        type: "high_combo",
+        timestamp: Date.now(),
+        round,
+        description: `callback 命中，共鸣 +15`,
+        data: { callbackTo: joke.callbackTo, callbackMaster: true },
+      });
+    }
+  }
+
+  /** 压入运行平均分，并同步 slot-0 分数（供 BaseOrchestrator 结算演出判定）。 */
+  private trackScoreHistory(): void {
+    const count = this.state.jokes.length;
+    if (count === 0) return;
+    const avg = Math.round(this.state.jokes.reduce((s, j) => s + j.total, 0) / count);
+    this.scoreHistory.push(avg);
+    const prev = this.getScore("slot-0");
+    if (avg !== prev) this.addScore("slot-0", avg - prev, "段子累计分");
+  }
+
+  /** 三段平均 >=80 → perfect_set（仅在讲完后捕一次）。 */
+  private capturePerfectSet(): void {
+    if (this.perfectSetCaptured) return;
+    const count = this.state.jokes.length;
+    if (count < this.state.totalJokes || count === 0) return;
+    const avg = Math.round(this.state.jokes.reduce((s, j) => s + j.total, 0) / count);
+    if (avg >= 80) {
+      this.perfectSetCaptured = true;
+      this.captureHighlight({
+        id: this.nextHighlightId(),
+        scene: "talkshow",
+        type: "perfect_round",
+        timestamp: Date.now(),
+        description: `三段平均 ${avg} 分，场场炸场`,
+        data: { average: avg },
+      });
+    }
+  }
+
+  /** 本局对手名人：主持人 + 评分最高的观众。 */
+  listOpponents(): TalkshowOpponent[] {
+    const hosts = [this.hostCelebrityId];
+    // 主持人是主要对手；观众里选反应最热烈的那位（兜底全取）。
+    return [
+      { celebrityId: hosts[0], name: "主持人", reason: "主持台反应点评" },
+      ...this.audienceCelebrityIds.map((id, i) => ({
+        celebrityId: id,
+        name: ["挑剔观众", "捧场观众", "普通观众"][i] ?? `观众${i + 1}`,
+        reason: "观众席笑声反馈",
+      })),
+    ];
+  }
+
+  /**
+   * R5 结算元数据（纯计算，无 IO）。路由层在 finish 后调用，再做关系落库 / 连胜 / 战果卡。
+   */
+  collectR5Meta(): {
+    outcome: "win" | "draw" | "loss";
+    score: number;
+    maxScore: number;
+    highlights: Highlight[];
+    comeback: boolean;
+    settlementType: SettlementType;
+    opponents: TalkshowOpponent[];
+    primaryOpponent: { id: string; name: string; type: "celebrity" };
+  } {
+    const result = this.settle();
+    const score = result.scores["slot-0"] ?? 0;
+    const maxScore = 100;
+    // 单人表演：expert/master=炸场/今日之星→胜；novice=冷场→负；其余平。
+    const outcome: "win" | "draw" | "loss" =
+      result.tier.level === "expert" || result.tier.level === "master"
+        ? "win"
+        : result.tier.level === "novice"
+          ? "loss"
+          : "draw";
+    const settlement = this.buildSettlement(result);
+    const comeback = detectComeback(this.scoreHistory, score, maxScore);
+    const opponents = this.listOpponents();
+    return {
+      outcome,
+      score,
+      maxScore,
+      highlights: this.getHighlights(),
+      comeback,
+      settlementType: settlement.type,
+      opponents,
+      primaryOpponent: { id: this.hostCelebrityId, name: "主持人", type: "celebrity" },
     };
   }
 

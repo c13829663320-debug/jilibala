@@ -58,6 +58,9 @@ export interface TalkshowJokeResponse {
   joke: PerformedJoke
   snapshot: TalkshowSnapshot
   events: EngineEvent[]
+  /** R5：结算演出包（讲完最后一段后返回）。 */
+  r5?: import('../lib/r5').R5Bundle | null
+  shareText?: string
 }
 
 export type TalkshowSimpleResponse = {

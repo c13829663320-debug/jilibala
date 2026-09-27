@@ -8,7 +8,12 @@ import {
   BaseOrchestrator,
   computeTier,
   getDailyChallenge,
+  detectHighlight,
+  detectComeback,
+  CELEBRITIES,
   type GameResult,
+  type Highlight,
+  type SettlementType,
   type TutorialStep,
 } from "@balabala/shared";
 import {
@@ -59,7 +64,19 @@ export interface BarConfig {
   topic: string;
   playerSide: DebateSide;
   opponentName?: string;
+  /** R5：对手名人 id（关系落库用，默认巴菲特）。 */
+  opponentCelebrityId?: string;
   humanThinkMs?: number;
+}
+
+/** R5：酒吧默认对手名人。 */
+export const BAR_DEFAULT_OPPONENT = "warren-buffett";
+
+/** R5：对手名人引用。 */
+export interface BarOpponent {
+  celebrityId: string;
+  name: string;
+  reason: string;
 }
 
 /** 双维评分钩子：线上接 LLM，测试给确定性桩。 */
@@ -107,6 +124,11 @@ export class BarEngine extends BaseOrchestrator<BarState, BarAction, BarConfig> 
   readonly humanSlot = "slot-0";
   private scoreHook: ScoreHook;
   private rand: () => number;
+  /** R5：玩家强度轨迹（翻盘检测用）。 */
+  private scoreHistory: number[] = [];
+  /** R5：本局对手名人 id。 */
+  private opponentCelebrityId = BAR_DEFAULT_OPPONENT;
+  private perfectDebateCaptured = false;
 
   constructor(opts: { score?: ScoreHook; rand?: () => number } = {}) {
     super({ maxRounds: BAR_TOTAL_ROUNDS, initialState: emptyState(), tutorialSteps: TUTORIAL });
@@ -120,11 +142,16 @@ export class BarEngine extends BaseOrchestrator<BarState, BarAction, BarConfig> 
     this.state.topic = config.topic;
     this.state.playerSide = config.playerSide;
     this.state.aiSide = config.playerSide === "pro" ? "con" : "pro";
+    this.opponentCelebrityId = config.opponentCelebrityId ?? BAR_DEFAULT_OPPONENT;
+    const oppName =
+      config.opponentName ??
+      CELEBRITIES.find((c) => c.id === this.opponentCelebrityId)?.name ??
+      "对手名人";
     // 槽位：slot-0 真人辩手，slot-1 AI 对手，slot-2 酒保裁判。
-    this.setupSlots(["debater", "opponent", "bartender"], 1, ["celebrity-opponent", "socrates-bartender"]);
+    this.setupSlots(["debater", "opponent", "bartender"], 1, [this.opponentCelebrityId, "socrates-bartender"]);
     this.assignHuman("human-0", "我", "slot-0");
     this.slots[0].nickname = "我";
-    this.slots[1].nickname = config.opponentName ?? "对手名人";
+    this.slots[1].nickname = oppName;
     this.slots[2].nickname = "苏格拉底";
     this.state.aiTendency = rollStanceTendency(this.rand);
   }
@@ -181,6 +208,13 @@ export class BarEngine extends BaseOrchestrator<BarState, BarAction, BarConfig> 
       payload: { turn: s.round, side: "player", effectiveness: playerCounter.effectiveness, delta: playerDelta },
     });
 
+    // R5：克制且 delta>=8 → epic_rebuttal。
+    const hl = detectHighlight("bar", {
+      type: "turn_resolved",
+      payload: { effectiveness: playerCounter.effectiveness, delta: playerDelta, round: s.round, timestamp: Date.now() },
+    });
+    if (hl) this.captureHighlight(hl);
+
     // 2) AI 对称反驳：AI 自选角度，面对玩家角度做克制
     const aiAngle = rollArgumentAngle(this.rand);
     const aiCounter = resolveAngleCounter(aiAngle, tendencyFromAngle(playerAngle));
@@ -199,6 +233,11 @@ export class BarEngine extends BaseOrchestrator<BarState, BarAction, BarConfig> 
     s.aiTendency = rollStanceTendency(this.rand);
     this.addScore(this.humanSlot, Math.max(0, Math.round(playerDelta)), `第${s.round - 1}回合交锋`);
 
+    // R5：把玩家方强度同步为 slot 分（供结算演出按比例判定），并压轨迹。
+    const strengthNow = Math.round(s.strength[s.playerSide]);
+    this.slots[0].score = strengthNow;
+    this.scoreHistory.push(strengthNow);
+
     if (s.round > BAR_TOTAL_ROUNDS) s.finished = true;
     return playerTurn;
   }
@@ -211,7 +250,73 @@ export class BarEngine extends BaseOrchestrator<BarState, BarAction, BarConfig> 
   /** 终局裁决。 */
   judge(): GameResult {
     this.state.finished = true;
+    this.captureEndHighlights();
     return this.finish();
+  }
+
+  /** R5：终局高光 —— 三回合全克制 perfect_debate / 终局强势 closing_strong。 */
+  private captureEndHighlights(): void {
+    if (this.perfectDebateCaptured) return;
+    const playerTurns = this.state.transcript.filter((t) => t.side === "player");
+    const allCounter = playerTurns.length > 0 && playerTurns.every((t) => t.effectiveness === "counter");
+    if (allCounter) {
+      this.perfectDebateCaptured = true;
+      this.captureHighlight({
+        id: this.nextHighlightId(), scene: "bar", type: "perfect_round",
+        timestamp: Date.now(), description: "三回合全部克制对手", data: { rounds: playerTurns.length },
+      });
+    }
+    const finalStrength = Math.round(this.state.strength[this.state.playerSide]);
+    if (finalStrength >= 60) {
+      this.captureHighlight({
+        id: this.nextHighlightId(), scene: "bar", type: "extreme_performance",
+        timestamp: Date.now(), description: `终局强度 ${finalStrength}，收官强势`, data: { finalStrength },
+      });
+    }
+  }
+
+  /** 玩家视角胜负：玩家方强度 >=55 即胜。 */
+  protected override resolveResult(): "win" | "draw" | "loss" {
+    const s = this.state;
+    const playerStrength = s.strength[s.playerSide];
+    const aiStrength = s.strength[s.aiSide];
+    if (Math.abs(playerStrength - aiStrength) < 3) return "draw";
+    return playerStrength >= PLAYER_WIN_THRESHOLD ? "win" : "loss";
+  }
+
+  /**
+   * R5 结算元数据（纯计算，无 IO）。路由层在 finish 后调用。
+   */
+  collectR5Meta(): {
+    outcome: "win" | "draw" | "loss";
+    score: number;
+    maxScore: number;
+    highlights: Highlight[];
+    comeback: boolean;
+    settlementType: SettlementType;
+    opponents: BarOpponent[];
+    primaryOpponent: { id: string; name: string; type: "celebrity" };
+  } {
+    const result = this.settle();
+    const score = result.scores[this.humanSlot] ?? 0;
+    const maxScore = 100;
+    const outcome = this.resolveResult();
+    const settlement = this.buildSettlement(result);
+    const comeback = detectComeback(this.scoreHistory, score, maxScore);
+    const oppName = this.slots[1]?.nickname ?? "对手名人";
+    const opponents: BarOpponent[] = [
+      { celebrityId: this.opponentCelebrityId, name: oppName, reason: "酒吧辩论对手" },
+    ];
+    return {
+      outcome,
+      score,
+      maxScore,
+      highlights: this.getHighlights(),
+      comeback,
+      settlementType: settlement.type,
+      opponents,
+      primaryOpponent: { id: this.opponentCelebrityId, name: oppName, type: "celebrity" },
+    };
   }
 
   get currentTendency(): StanceTendency {
