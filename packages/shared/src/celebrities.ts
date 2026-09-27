@@ -16,6 +16,9 @@ export interface Celebrity {
   portrait: string;     // 真人肖像
   model?: string;       // 3D 半身像
   voice?: string;       // StepFun 官方预置音色（气质贴合，不克隆真实声音）
+  /** R5: 离线知识库——3-5 条可用于离线对话的事实（名言/关键经历/观点）。
+   *  由 celebrity-facts.ts 在模块加载时统一注入（见文件末尾），additive 可选字段。 */
+  offlineFacts?: string[];
 }
 
 export const CELEBRITY_FIELDS: CelebrityField[] = ["科技", "商业", "科学", "文学", "艺术", "哲学", "政治"];
@@ -939,3 +942,12 @@ export const CELEBRITIES: Celebrity[] = [
 
 export const getCelebrity = (id: string): Celebrity | undefined =>
   CELEBRITIES.find((c) => c.id === id);
+
+// ===== R5: 注入离线知识库 offlineFacts（additive，不改写原对象其它字段） =====
+import { CELEBRITY_OFFLINE_FACTS } from "./celebrity-facts.js";
+
+for (const c of CELEBRITIES) {
+  if (!c.offlineFacts || c.offlineFacts.length === 0) {
+    c.offlineFacts = CELEBRITY_OFFLINE_FACTS[c.id] ?? [];
+  }
+}

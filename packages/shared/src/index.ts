@@ -1090,3 +1090,7 @@ export * from "./scene-studio.js";
 
 // ===== Round4 R4-09: 场景 UGC（模板市场/保存分享/CC0 道具/可拾取） =====
 export * from "./scene-ugc.js";
+
+// ===== R5: 名人关系 / 记忆 / 收集 / 邀约 / 广场偶遇（additive） =====
+export * from "./celebrity-relation.js";
+export * from "./celebrity-facts.js";

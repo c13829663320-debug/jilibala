@@ -11,6 +11,10 @@ import { playTts, stopTts } from './tts'
 import { useVoiceEnabled } from './voice-settings'
 import { useSpeechRecognition } from './use-speech-recognition'
 import { buildGallerySequence, type GalleryEntry } from './character-gallery'
+// ===== R5: 名人关系/图鉴 =====
+import { useCelebrityRelation } from './celebrity/useCelebrityRelation'
+import CelebrityRelationPanel from './celebrity/CelebrityRelationPanel'
+const CelebrityCodex = lazy(() => import('./celebrity/CelebrityCodex'))
 import {
   assetUrl, celebrityListToUi, celebrityToUi, customToUi,
   fetchMyCharacters, fetchPublicCharacters,
@@ -271,6 +275,10 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
   const [voiceEnabled] = useVoiceEnabled()
   const greetedOnceRef = useRef(false)
 
+  // ===== R5: 名人关系 / 图鉴入口 =====
+  const [showCodex, setShowCodex] = useState(false)
+  const { recordInteraction } = useCelebrityRelation()
+
   // ASR 实例：语音模式与电话模式共用。
   // - 语音模式：final 文本填入输入框，用户编辑后点发送
   // - 电话模式：按住说话，松手 final 后直接发送（半双工）
@@ -329,6 +337,8 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
     setEditing(false)
     setConfirmDelete(false)
     setChats((prev) => prev[character.id] ? prev : { ...prev, [character.id]: [{ from: 'character', text: character.greeting }] })
+    // R5: 首次点开预置名人 → 自动结识（stranger→acquainted），好感随互动累积。
+    if (!character.isCustom) recordInteraction(character.id, { scene: 'hall', deep: true })
   }
 
   const currentMessages = selected ? (chats[selected.id] ?? []) : []
@@ -645,6 +655,14 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
             ))}
           </div>
         )}
+        <button
+          type="button"
+          className="character-hall__viewtoggle"
+          onClick={() => setShowCodex(true)}
+          title="查看名人图鉴与收集进度"
+        >
+          <BookOpen size={14} aria-hidden="true" /> 图鉴
+        </button>
         <button
           type="button"
           className="character-hall__viewtoggle"
@@ -1004,8 +1022,23 @@ export default function CharacterHall({ onEnterCourt, onCreateCharacter, onEnter
             <button type="button" className="character-dialog__court" onClick={() => onEnterCourt(selected)}>
               <Gavel size={15} aria-hidden="true" /> 带 {selected.name} 进入趣味法庭 <ChevronRight size={15} aria-hidden="true" />
             </button>
+
+            {/* R5: 关系 / 好感 / 我们的回忆 */}
+            <CelebrityRelationPanel celebrityId={selected.id} isCustom={selected.isCustom} />
           </section>
         </div>
+      )}
+
+      {/* R5: 名人图鉴全屏浮层 */}
+      {showCodex && (
+        <CelebrityCodex
+          onBack={() => setShowCodex(false)}
+          onPick={(id) => {
+            setShowCodex(false)
+            const c = CELEBRITIES.find((x) => x.id === id)
+            if (c) openChat(celebrityToUi(c))
+          }}
+        />
       )}
 
       {notice && <div className="character-hall__toast">{notice}</div>}
