@@ -35,7 +35,7 @@
 
 - **计分**：每场景用 `addScore(slotId, points, reason)` 累积，结算时 `computeTier(score, maxScore, labels)` 映射四档（novice<30% / adept 30-60% / expert 60-85% / master >85%），文案按场景换壳。
 - **段位**：`computeRankPoints` 计算胜/平/负积分变化，对手分差修正。
-- **每日挑战**：`getDailyChallenge(scene, date)` 用确定性种子选挑战，狼人杀/酒吧已加 `GET /api/*/daily` 端点和前端横幅；法庭/脱口秀/健身房/图书馆在引擎层接入。
+- **每日挑战**：`getDailyChallenge(scene, date)` 用确定性种子选挑战，六场景均有 `GET /api/engine/*-daily` 端点和前端横幅（法庭/脱口秀/狼人杀/酒吧在 engine-routes，健身房/图书馆在组件内调用）。
 - **复玩**：段位累积 + 每日挑战轮换 + 名人解锁（保留原有成就系统）。
 
 ### 1.4 新手引导
@@ -52,6 +52,21 @@
 
 `docs/gdd-court.md` / `gdd-talkshow.md` / `gdd-werewolf.md` / `gdd-bar.md` / `gdd-gym.md` / `gdd-library.md` + `docs/gameplay-foundation.md`（基础层架构）。
 
+### 1.6 Web 端引擎接线（玩家真实入口）
+
+四场景通过 HTTP 客户端 + 玩法面板组件接入新引擎，健身房为前端直接运行引擎：
+
+| 场景 | engine-client | 玩法面板 | 接入位置 | 回退方式 |
+|---|---|---|---|---|
+| 法庭 | `apps/web/src/court/engine-client.ts` | `court/NewCourtGame.tsx` | CourtroomShell 默认 | 「经典模式」按钮 |
+| 脱口秀 | `apps/web/src/talkshow/engine-client.ts` | `talkshow/NewTalkshowGame.tsx` | TalkshowShell 默认 | 「经典模式」按钮 |
+| 狼人杀 | `apps/web/src/werewolf/engine-client.ts` | `werewolf/NewWerewolfGame.tsx` | WerewolfShell 默认 | `?old-ww=1` |
+| 酒吧 | `apps/web/src/bar/engine-client.ts` | `bar/NewBarGame.tsx` | BarShell 默认 | `?old-bar=1` |
+| 健身房 | 前端直接运行 `gym/engine.ts` | `gym/CircuitChallenge.tsx` | GymView | — |
+| 图书馆 | 共用 `library-quiz.ts` 纯函数 | `library/QuizArena.tsx` | LibraryView | — |
+
+REST 路由统一在 `apps/api/src/engine-routes.ts`：`/api/engine/{court,talkshow,werewolf,bar}/*`，含 new/act/snapshot/daily 端点。狼人杀引擎重构为 open/settle 对（openNight/settleNight、openVote/settleVote）以支持 Web 交互式逐阶段推进。
+
 ---
 
 ## 2. 如何验证
@@ -60,7 +75,7 @@
 
 ```bash
 npm install
-npm test    # shared 55 + api 434 + web 218 = 707 全通过
+npm test    # shared 55 + api 439 + web 240 = 734 全通过
 npm run build
 ```
 
@@ -74,25 +89,34 @@ npm run build
 - 健身房：`gym-engine.test.ts` — 三关计分/combo/lives=0 提前结束
 - 图书馆：`library-engine.test.ts` — 题目 fallback/AI 抢答/计分/胜负
 
-### 2.3 真机验证（Chromium + SwiftShader）
+### 2.3 真机验证（Chromium + SwiftShader，真实 UI 操作）
 
-证据目录 `artifacts/`：
+所有六场景均通过真实 UI 操作（CDP DOM click / puppeteer）从入口走到结算，`v2-*` 为 Web 接线后的真实对局截图：
 
-| 场景 | 证据 | 覆盖 |
+| 场景 | v2 证据 | 覆盖 |
 |---|---|---|
-| 法庭 | `court-evidence/full-game.json` + 截图 | 62:38 胜诉，事件流完整 |
-| 脱口秀 | `talkshow-evidence/full-game.json` | callback 命中 resonance 17→30 |
-| 狼人杀 | `werewolf-evidence/02-room-lobby.png` `03-night.png` `04-day-speech.png` | AI 补位 8 席/夜晚刀人/白天动作牌+幽灵观战 |
-| 酒吧 | `bar-evidence/01-prepare.png` + curl 开局返回 | 准备页+每日挑战横幅/后端开局 50:50 |
-| 健身房 | `gym-evidence/01-05.png` | selector→反应→节奏→力量→结算（青铜 1315 分） |
-| 图书馆 | `library-evidence/01-05.png` | 选题→出题→AI 抢答→结算（宗师 600 分 6/8） |
+| 法庭 | `court-evidence/v2-01-start.png` `v2-02-card-played.png` `v2-03-results.png` | 开局天平50:50+4手牌→出牌后天平58:42+命中resolved→结算段位+高光时刻 |
+| 脱口秀 | `talkshow-evidence/v2-01-topic.png` `v2-02-joke-scored.png` `v2-03-results.png` | 话题票选→三维度评分22/25/18+音浪+callback→炸场段位+金句卡 |
+| 狼人杀 | `werewolf-evidence/v2-01-setup.png` `v2-02-night.png` `v2-03-day-actions.png` `v2-04-results.png` | 身份牌(预言家)+夜晚查验→白天→动作牌→投票放逐+查验记录 |
+| 酒吧 | `bar-evidence/v2-01-prepare.png` `v2-02-angle-choice.png` `v2-03-counter-feedback.png` `v2-04-results.png` | 准备页选边→对局内角度卡→**"克制!"飘字+强度条47/53**→辩手段位+25 |
+| 健身房 | `gym-evidence/01-05.png` | selector→反应→节奏→力量→结算（青铜1315分） |
+| 图书馆 | `library-evidence/01-05.png` | 选题→出题→AI抢答→结算（宗师600分6/8） |
+
+旧版 API 事件流证据（`full-game.json` 等）保留作为补充。
 
 ---
 
 ## 3. 主窗口如何接入
 
-1. **合并**：将 `feat/gameplay-integration` 合并到主分支（或先 review Draft PR）。
-2. **前端接线**：部分场景的旧前端组件（CourtFlow / TalkshowView / BarView）仍走旧 SSE/REST 流；新引擎事件已与 shared 类型对齐，可通过 `/api/engine/*` 桥接路由或直接在组件中实例化引擎接入。健身房 CircuitChallenge 和图书馆 QuizArena 已直接接入引擎。
+1. **合并**：将 `feat/gameplay-integration` 合并到主分支（或先 review Draft PR #3）。
+2. **前端接线（已完成）**：六场景全部从真实入口（Plaza→场景建筑→Shell/View）接入新引擎：
+   - 法庭：`CourtroomShell` 默认渲染 `NewCourtGame`（天平+出牌+结算），「经典模式」回退旧 CourtFlow
+   - 脱口秀：`TalkshowShell` 默认渲染 `NewTalkshowGame`（话题+三维度评分+callback），「经典模式」回退
+   - 狼人杀：`WerewolfShell` 默认渲染 `NewWerewolfGame`（身份+夜晚+白天动作牌+投票），`?old-ww=1` 回退
+   - 酒吧：`BarShell` 默认渲染 `NewBarGame`（选边+角度克制+裁决），`?old-bar=1` 回退
+   - 健身房：`CircuitChallenge` 直接运行前端引擎（已接入）
+   - 图书馆：`QuizArena` 接入引擎（已接入）
+   - 所有新玩法通过 `apps/web/src/*/engine-client.ts` 调用 `/api/engine/*` REST 路由（健身房为前端直接运行）
 3. **LLM 配置**：引擎的 AI 决策钩子在生产环境接真实 LLM 端点，当前走确定性兜底（云端无 LLM key 时不中断）。
 4. **真人多人**：狼人杀引擎的槽位设计支持真人替换 AI 席，复用已有 WS 房间基础设施（`ws.ts` / `room-routes.ts` / `MultiplayerLobby`），真人行动通过 `act()` 进入引擎，超时自动 AI 兜底。
 
@@ -100,16 +124,18 @@ npm run build
 
 ## 4. 测试与构建结果
 
-- `npm test`：**707 passed**（shared 55 + api 434 + web 218），无回归
+- `npm test`：**734 passed**（shared 55 + api 439 + web 240），无回归
 - `npm run build`：通过（shared tsc / api tsc / web vite build）
 - 基线已有测试全部保留
+- 新增：engine-client 单测（court/talkshow/bar）、NewCourtGame/NewTalkshowGame 组件测试、engine-routes API 测试
 
 ---
 
 ## 5. 遗留问题
 
-1. **前端接线 P1**：法庭 CourtFlow、脱口秀 TalkshowView、酒吧 BarView 的旧组件尚未完全切换到新引擎事件流，当前通过桥接路由独立走查；不破坏现有流程。
+1. ~~前端接线 P1~~ **已关闭**：法庭/脱口秀/狼人杀/酒吧四场景 Web 侧已接入新引擎，从真实入口可完成 开局→选择→反馈→结算 全链路；旧流程通过「经典模式」按钮或 `?old-*=1` 参数保留回退。
 2. **offline-brain 测试**：`offline-brain.test.ts` 依赖未提交的生成数据（≥20 个脑 JSON），基线即存在，CI 需先跑脑生成脚本；与本任务无关。
-3. **酒吧对局内截图**：headless 坐标点击未触发前端 handler（后端 curl 正常），规则由 15 个单测覆盖。
+3. ~~酒吧对局内截图~~ **已关闭**：通过 `data-testid` + CDP `document.querySelector().click()` 触发 handler（替代坐标点击），酒吧对局内 v2-02（角度选择）和 v2-03（克制反馈"克制!"飘字+强度条47/53）已留证。
 4. **LLM 口播**：云端无 LLM key 时走确定性兜底文案，生产环境接真实端点后自动生效。
-5. **e2e 钩子**：狼人杀分支在 `main.tsx` 加了 `?__e2e=1` 跳过开屏的无害钩子，可保留或移除。
+5. **e2e 钩子**：`main.tsx` 加了 `?__e2e=1` 跳过开屏的无害钩子，可保留或移除。
+6. **狼人杀真机一局时长**：真机验证覆盖了开局→夜晚→白天→投票的核心链路，完整 3-4 昼夜对局由引擎单测（fake timer）覆盖。
