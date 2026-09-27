@@ -11,7 +11,8 @@ import { registerSW } from 'virtual:pwa-register'
 registerSW({ immediate: true })
 
 // 直达分享链接时不需要开屏，直接看判决书
-const SKIP_SPLASH = typeof window !== 'undefined' && /^\/share\//.test(window.location.pathname)
+const SKIP_SPLASH = typeof window !== 'undefined' && (/^\/share\//.test(window.location.pathname)
+  || new URLSearchParams(window.location.search).has('__e2e'))
 
 // 【临时调试】?verdict=<caseId> -> 用真实 VerdictScreen 渲染已落库判决。
 const VERDICT_ID = typeof window !== 'undefined'

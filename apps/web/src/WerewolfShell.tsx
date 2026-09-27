@@ -105,6 +105,10 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
   const [dayActions, setDayActions] = useState<WerewolfDayActionRecord[]>([])
   const [personalReport, setPersonalReport] = useState<WerewolfPersonalReport | null>(null)
   const [nowTs, setNowTs] = useState(Date.now())
+  const [daily, setDaily] = useState<{ title: string; description: string; reward: number } | null>(null)
+  useEffect(() => {
+    fetch('/api/werewolf/daily').then((r) => r.json()).then((d) => setDaily(d.challenge)).catch(() => {})
+  }, [])
 
   // 全局档案上报：终局快照 + 私人复盘 + 表现分三者齐备后上报一次。
   const reportedRef = useRef(false)
@@ -524,6 +528,12 @@ export default function WerewolfShell({ onBack, onPlaza }: { onBack: () => void;
         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 440, ...panel, zIndex: 20 }}>
           <h2 style={{ margin: '0 0 4px', fontSize: 20, color: WOLF_RED }}>🐺 等待玩家加入</h2>
           <p style={{ margin: '0 0 12px', fontSize: 12, color: 'rgba(237,237,240,0.48)' }}>9 人局 · 3 狼 + 预言家 + 女巫 + 猎人 + 3 村民</p>
+          {daily && (
+            <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: BRAND_YELLOW }}>🎯 今日挑战 · {daily.title}</div>
+              <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.7)', marginTop: 2 }}>{daily.description}（奖励 {daily.reward}）</div>
+            </div>
+          )}
           <div style={{ marginBottom: 12 }}>
             {players.map((p) => (
               <div key={p.seat} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#0F0F0F', borderRadius: 8, marginBottom: 4 }}>
