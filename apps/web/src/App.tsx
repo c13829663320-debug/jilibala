@@ -16,6 +16,7 @@ import LoadingFallback from './LoadingFallback'
 import InterestPicker from './onboarding/InterestPicker'
 import QuickStartCard from './onboarding/QuickStartCard'
 import FirstTimeGuide from './onboarding/FirstTimeGuide'
+import FirstWowReward from './onboarding/FirstWowReward'
 import SplashScreen from './SplashScreen'
 import './onboarding/onboarding.css'
 import PwaUpdatePrompt from './pwa-update'
@@ -532,6 +533,7 @@ function App() {
             <AppInner />
           </ErrorBoundary>
           <PwaUpdatePrompt />
+          <FirstWowReward />
         </IdentityProvider>
       </SplashGate>
     </GlobalErrorBoundary>
