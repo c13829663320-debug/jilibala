@@ -89,7 +89,7 @@ export default function PlayerController({ world, colliders, onSync }: PlayerCon
     const rX = Math.cos(cam.yaw)
     const rZ = -Math.sin(cam.yaw)
     let dx = fwd * fX + str * rX
-    let dz = fwd * fZ + str * rZ
+    let dz = fwd * fZ
     const mag = Math.hypot(dx, dz)
     if (mag > 1e-4) {
       dx /= mag
@@ -128,6 +128,15 @@ export default function PlayerController({ world, colliders, onSync }: PlayerCon
         p.velocityY = 0
         p.onGround = true
       }
+    }
+
+    // ---- 4b. 防坠落：掉出世界底面 → 传送回出生点 (0,0,12) ----
+    if (p.y < -5) {
+      p.x = 0
+      p.z = 12
+      p.y = 0
+      p.velocityY = 0
+      p.onGround = true
     }
 
     // ---- 5. 摆化身 mesh ----
