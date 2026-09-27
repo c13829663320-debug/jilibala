@@ -5,27 +5,48 @@
 // ============================================================================
 import type { FastifyInstance } from "fastify";
 import type { CourtCardType, WerewolfRole } from "@balabala/shared";
+import { resultCardToText } from "@balabala/shared";
 import { CourtOrchestrator } from "./court-engine.js";
 import { TalkshowOrchestrator } from "./talkshow-engine.js";
 import { WerewolfEngine, type WwAction, type WwPrivateSnapshot } from "./werewolf-engine.js";
 import { BarEngine } from "./bar-engine.js";
 import type { ArgumentAngle } from "./bar-orchestrator.js";
+import { applyR5Settlement, type R5Bundle, type R5Meta } from "./r5-settlement.js";
 
-interface CourtSession {
+interface R5Session {
+  r5?: R5Bundle;
+  r5Settled?: boolean;
+  userId?: string;
+}
+interface CourtSession extends R5Session {
   engine: CourtOrchestrator;
   events: Array<{ type: string; payload: unknown }>;
 }
-interface TalkshowSession {
+interface TalkshowSession extends R5Session {
   engine: TalkshowOrchestrator;
   events: Array<{ type: string; payload: unknown }>;
 }
-interface WwSession {
+interface WwSession extends R5Session {
   engine: WerewolfEngine;
   events: Array<{ type: string; payload: unknown }>;
 }
-interface BarSession {
+interface BarSession extends R5Session {
   engine: BarEngine;
   events: Array<{ type: string; payload: unknown }>;
+}
+
+/** 一局结束后，首次进入 results 阶段时做一次 R5 落库（关系/连胜/战果卡）。 */
+function settleR5Once(
+  sess: R5Session & { engine: { phase: string; settle(): import("@balabala/shared").GameResult; collectR5Meta(): R5Meta } },
+  userId: string,
+  scene: "talkshow" | "werewolf" | "bar",
+): R5Bundle | undefined {
+  if (sess.engine.phase === "results" && !sess.r5Settled) {
+    sess.r5Settled = true;
+    const meta = sess.engine.collectR5Meta();
+    sess.r5 = applyR5Settlement(userId, scene, sess.engine.settle(), meta);
+  }
+  return sess.r5;
 }
 
 const courtSessions = new Map<string, CourtSession>();
@@ -92,13 +113,14 @@ export function registerEngineRoutes(app: FastifyInstance): void {
   });
 
   // ===== 脱口秀 =====
-  app.post("/api/engine/talkshow/new", async (_req, reply) => {
+  app.post("/api/engine/talkshow/new", async (req, reply) => {
+    const body = (req.body ?? {}) as { userId?: string };
     const id = `ts-${talkshowSessions.size + 1}-${Date.now()}`;
     const engine = new TalkshowOrchestrator();
     const events: Array<{ type: string; payload: unknown }> = [];
     engine.on("*", (e) => events.push({ type: e.type, payload: e.payload }));
     engine.start({ jokeTimeLimitMs: 120_000 });
-    talkshowSessions.set(id, { engine, events });
+    talkshowSessions.set(id, { engine, events, userId: body.userId ?? "" });
     return reply.send({ id, snapshot: engine.getSnapshot(), events });
   });
 
@@ -117,7 +139,15 @@ export function registerEngineRoutes(app: FastifyInstance): void {
     const joke = await sess.engine.performJoke(body.text ?? "", {
       callbackTo: typeof body.callbackTo === "number" ? body.callbackTo : undefined,
     });
-    return reply.send({ joke, snapshot: sess.engine.getSnapshot(), events: sess.events });
+    // R5：讲完最后一段 → 落库关系/连胜/战果卡。
+    const r5 = settleR5Once(sess, sess.userId ?? "", "talkshow");
+    return reply.send({
+      joke,
+      snapshot: sess.engine.getSnapshot(),
+      events: sess.events,
+      r5,
+      shareText: r5 ? resultCardToText(r5.resultCard) : undefined,
+    });
   });
 
   app.get("/api/engine/talkshow-daily", async (_req, reply) => {
@@ -152,8 +182,11 @@ export function registerEngineRoutes(app: FastifyInstance): void {
   }
 
   /** 组装给前端的视角快照（私密字段仅真人可见）。 */
-  function wwViewSnapshot(engine: WerewolfEngine) {
+  function wwViewSnapshot(sess: WwSession) {
+    const engine = sess.engine;
     const priv: WwPrivateSnapshot = engine.getPrivateSnapshot(engine.humanSeat);
+    // R5：终局后首次落库。
+    const r5 = settleR5Once(sess, sess.userId ?? "", "werewolf");
     return {
       phase: engine.phase,
       sub: priv.sub,
@@ -172,6 +205,8 @@ export function registerEngineRoutes(app: FastifyInstance): void {
       spectator: priv.spectator,
       pendingAction: wwPendingAction(engine),
       result: engine.phase === "results" ? engine.settle() : null,
+      r5,
+      shareText: r5 ? resultCardToText(r5.resultCard) : undefined,
     };
   }
 
@@ -192,7 +227,7 @@ export function registerEngineRoutes(app: FastifyInstance): void {
   }
 
   app.post("/api/engine/werewolf/new", async (req, reply) => {
-    const body = (req.body ?? {}) as { forceHumanRole?: WerewolfRole; humanThinkMs?: number };
+    const body = (req.body ?? {}) as { forceHumanRole?: WerewolfRole; humanThinkMs?: number; userId?: string };
     const id = `ww-${wwSessions.size + 1}-${Date.now()}`;
     const engine = new WerewolfEngine({ ai: wwAi });
     const events: Array<{ type: string; payload: unknown }> = [];
@@ -201,7 +236,8 @@ export function registerEngineRoutes(app: FastifyInstance): void {
       forceHumanRole: body.forceHumanRole,
       humanThinkMs: body.humanThinkMs ?? 90_000,
     });
-    wwSessions.set(id, { engine, events });
+    const sess: WwSession = { engine, events, userId: body.userId ?? "" };
+    wwSessions.set(id, sess);
 
     // 打开夜晚，并根据真人身份把 sub 调到对应夜间子阶段（让 act() 接受输入）。
     engine.openNight();
@@ -220,7 +256,7 @@ export function registerEngineRoutes(app: FastifyInstance): void {
       engine.settleNight();
       ended = wwAfterNight(engine);
     }
-    return reply.send({ id, snapshot: wwViewSnapshot(engine), events, ended });
+    return reply.send({ id, snapshot: wwViewSnapshot(sess), events, ended });
   });
 
   app.post<{ Params: { id: string } }>("/api/engine/werewolf/:id/act", async (req, reply) => {
@@ -270,7 +306,7 @@ export function registerEngineRoutes(app: FastifyInstance): void {
       ended = wwAfterVote(engine);
     }
 
-    return reply.send({ snapshot: wwViewSnapshot(engine), events: sess.events, ended });
+    return reply.send({ snapshot: wwViewSnapshot(sess), events: sess.events, ended });
   });
 
   app.get<{ Params: { id: string }; Querystring: { seat?: string } }>(
@@ -299,9 +335,12 @@ export function registerEngineRoutes(app: FastifyInstance): void {
   ];
 
   /** 组装酒吧视角快照。 */
-  function barViewSnapshot(engine: BarEngine) {
+  function barViewSnapshot(sess: BarSession) {
+    const engine = sess.engine;
     const s = engine.state;
     const humanWon = s.strength[s.playerSide] >= 55;
+    // R5：终局后首次落库。
+    const r5 = settleR5Once(sess, sess.userId ?? "", "bar");
     return {
       phase: engine.phase,
       topic: s.topic,
@@ -319,19 +358,22 @@ export function registerEngineRoutes(app: FastifyInstance): void {
       finished: s.finished,
       result: engine.phase === "results" ? engine.settle() : null,
       humanWon,
+      r5,
+      shareText: r5 ? resultCardToText(r5.resultCard) : undefined,
     };
   }
 
   app.post("/api/engine/bar/new", async (req, reply) => {
-    const body = (req.body ?? {}) as { topic?: string; playerSide?: "pro" | "con" };
+    const body = (req.body ?? {}) as { topic?: string; playerSide?: "pro" | "con"; userId?: string };
     const id = `bar-${barSessions.size + 1}-${Date.now()}`;
     const engine = new BarEngine();
     const events: Array<{ type: string; payload: unknown }> = [];
     engine.on("*", (e) => events.push({ type: e.type, payload: e.payload }));
     const topic = body.topic?.trim() || BAR_TOPICS[Math.floor(Math.random() * BAR_TOPICS.length)];
     engine.setup({ topic, playerSide: body.playerSide === "con" ? "con" : "pro" });
-    barSessions.set(id, { engine, events });
-    return reply.send({ id, snapshot: barViewSnapshot(engine), events });
+    const sess: BarSession = { engine, events, userId: body.userId ?? "" };
+    barSessions.set(id, sess);
+    return reply.send({ id, snapshot: barViewSnapshot(sess), events });
   });
 
   app.post<{ Params: { id: string } }>("/api/engine/bar/:id/act", async (req, reply) => {
@@ -359,13 +401,13 @@ export function registerEngineRoutes(app: FastifyInstance): void {
     if (engine.state.finished && engine.phase !== "results") {
       engine.judge();
     }
-    return reply.send({ snapshot: barViewSnapshot(engine), events: sess.events });
+    return reply.send({ snapshot: barViewSnapshot(sess), events: sess.events });
   });
 
   app.get<{ Params: { id: string } }>("/api/engine/bar/:id", async (req, reply) => {
     const sess = barSessions.get(req.params.id);
     if (!sess) return reply.code(404).send({ error: "session not found" });
-    return reply.send({ snapshot: barViewSnapshot(sess.engine), events: sess.events });
+    return reply.send({ snapshot: barViewSnapshot(sess), events: sess.events });
   });
 
   app.get("/api/engine/bar-daily", async (_req, reply) => {
