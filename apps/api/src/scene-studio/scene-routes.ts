@@ -35,6 +35,13 @@ import {
   resolveLibraryAsset,
 } from "./scene-asset-builder.js";
 import { getCustomCharacter } from "../db.js";
+// R4-09: UGC 场景保存/分享（JSON 文件存储）。GET/DELETE /:id 先委托此存储。
+import {
+  inspectSharedScene,
+  getSharedScene,
+  deleteSharedScene,
+  SceneStoreError,
+} from "../scene-store.js";
 
 /** 列表摘要：剔除 blueprint_json 全文，只返回元信息。 */
 type SceneSummary = Omit<SceneRecord, "blueprint_json"> & { hasBlueprint: boolean };
@@ -177,8 +184,16 @@ export function registerSceneStudioRoutes(
   });
 
   // ----- GET /api/scenes/:id — 完整场景（含解析后的 blueprint 对象） -----
+  // R4-09: 先查 UGC 分享存储（JSON 文件），命中则按权限返回 SavedScene；否则走 SQLite 生成场景。
   app.get("/api/scenes/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
+    const query = req.query as { viewer?: string };
+    if (inspectSharedScene(id)) {
+      const result = getSharedScene(id, query.viewer);
+      if (!result.found) return reply.code(404).send({ message: "场景不存在" });
+      if (!result.allowed) return reply.code(403).send({ message: "这是私有场景，仅创建者可查看" });
+      return result.scene;
+    }
     const scene = getScene(id);
     if (!scene) return reply.code(404).send({ message: "场景不存在" });
     return { ...scene, blueprint: parseBlueprint(scene) };
@@ -294,8 +309,19 @@ export function registerSceneStudioRoutes(
   });
 
   // ----- DELETE /api/scenes/:id — 删除场景及资产 -----
+  // R4-09: UGC 分享场景（JSON 文件）走 create 者校验删除；否则走 SQLite。
   app.delete("/api/scenes/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (inspectSharedScene(id)) {
+      const query = req.query as { userId?: string };
+      try {
+        deleteSharedScene(id, query.userId ?? "");
+        return { ok: true };
+      } catch (e) {
+        if (e instanceof SceneStoreError) return reply.code(e.statusCode).send({ message: e.message, code: e.code });
+        throw e;
+      }
+    }
     const scene = getScene(id);
     if (!scene) return reply.code(404).send({ message: "场景不存在" });
     deleteAssetsByScene(id);

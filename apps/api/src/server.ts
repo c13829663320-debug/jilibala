@@ -21,6 +21,9 @@ import { registerCustomCharacterRoutes } from './custom-character-routes.js';
 import { registerCourtRoutes } from './court-routes.js';
 import { registerRoomRoutes } from './room-routes.js';
 import { registerSceneStudioRoutes } from './scene-studio/scene-routes.js';
+// ===== R4-09: 场景 UGC — 模板市场 / 场景保存分享 / CC0 道具 =====
+import { registerSceneTemplateRoutes } from './scene-templates.js';
+import { registerSceneStoreRoutes } from './scene-store.js';
 import { registerFriendRoutes } from './friends.js';
 import { registerChatRoutes } from './chat.js';
 // ===== R4-08: 排行榜 / 主题房间公告 / 内容治理 =====
@@ -1118,6 +1121,10 @@ startThemeRoomScheduler();
 
 // ===== 自定义场景工作室 =====
 registerSceneStudioRoutes(app, { chat: chatWithProviders });
+
+// ===== R4-09: 场景模板市场 + UGC 场景保存/分享（JSON 文件） =====
+registerSceneTemplateRoutes(app);
+registerSceneStoreRoutes(app);
 
 await app.listen({port:Number(process.env.PORT??8787),host:'0.0.0.0'});
 

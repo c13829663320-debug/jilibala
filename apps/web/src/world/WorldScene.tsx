@@ -12,6 +12,7 @@ import * as THREE from 'three'
 import type { BuildingConfig, RemotePlayer, WorldManifest, WorldRuntime } from './types'
 import { BUILDINGS, FOUNTAIN, WORLD_HALF } from './config'
 import { RemoteAvatar } from '../avatar/RemoteAvatar'
+import PickupableProps from './PickupableProps'
 
 // ---------------------------------------------------------------------------
 // 确定性伪随机（让植被布局每次加载一致，不随渲染抖动）
@@ -287,6 +288,9 @@ export default function WorldScene({ world, manifest, playersRef, remoteUserIds,
 
       {/* 自然植被（树/石/灯） */}
       <Nature />
+
+      {/* R4-09: 可拾取 CC0 道具（靠近高亮，E 键拾取/放下） */}
+      <PickupableProps world={world} localPosRef={localPosRef} />
 
       {/* 边界山（一圈大锥，视觉上封闭世界） */}
       <BoundaryMountains />
