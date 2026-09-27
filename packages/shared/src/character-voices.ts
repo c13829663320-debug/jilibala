@@ -12,6 +12,28 @@ import { getCelebrity } from "./celebrities.js";
 export const DEFAULT_VOICE = "jingdiannvsheng";
 
 /**
+ * R4-10: 音色气质类别标签。
+ * 仅用于「气质贴合」分组，不克隆任何在世名人真声；TTS 实际音色仍是 VOICE_WHITELIST
+ * 里的 StepFun 官方预置音色。
+ */
+export type VoiceCategory =
+  | "deep_male"      // 沉稳男声（帝王/统帅/冷峻思想家）
+  | "bright_female"  // 清亮女声
+  | "old_male"       // 老年儒雅男声
+  | "old_female"     // 老年女声
+  | "young_male"     // 青年男声
+  | "young_female"   // 青年女声
+  | "neutral";      // 中性兜底
+
+/** 某个名人的 TTS 完整配置（API 侧从 character-voice-map.json 加载）。 */
+export interface CharacterVoiceConfig {
+  voice: string;
+  category: VoiceCategory;
+  speed: number;
+  pitch: number;
+}
+
+/**
  * 法庭固定角色 → 音色映射。
  * key 与 CourtTurn.speaker / 合议庭 speakerId 对齐：
  *  judge=法官 / plaintiff=原告 / defendant=被告 / defender=辩护人 / witness=证人。

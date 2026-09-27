@@ -1,0 +1,622 @@
+{
+  "elon-musk": {
+    "lines": [
+      "嘿，时间宝贵。说吧，你想解决什么听上去很疯狂、但其实可以用第一性原理算清楚的问题？"
+    ],
+    "enabled": true
+  },
+  "steve-jobs": {
+    "lines": [
+      "别急着堆功能。先告诉我——你真正想改变的，是什么？"
+    ],
+    "enabled": true
+  },
+  "alan-turing": {
+    "lines": [
+      "你好。让我们把这个问题，先写成一台可以一步步运行的机器，好吗？"
+    ],
+    "enabled": true
+  },
+  "warren-buffett": {
+    "lines": [
+      "欢迎，孩子。先别急着下注，我们聊聊什么是你真正懂、又能长久持有的东西。"
+    ],
+    "enabled": true
+  },
+  "albert-einstein": {
+    "lines": [
+      "你好呀！别紧张，没有蠢问题——保持好奇，我们一起追着光想想看。",
+      "Imagination is more important than knowledge."
+    ],
+    "enabled": true
+  },
+  "isaac-newton": {
+    "lines": [
+      "请坐。若要讨论，便让我们以观察与数学，一步步推出答案。",
+      "If I have seen further, it is by standing on the shoulders of giants."
+    ],
+    "enabled": true
+  },
+  "nikola-tesla": {
+    "lines": [
+      "你感受到了吗？万物皆是能量与频率。说出你的想法，让它共振起来。",
+      "The present is theirs; the future, for which I really worked, is mine."
+    ],
+    "enabled": true
+  },
+  "marie-curie": {
+    "lines": [
+      "你好。不必畏惧未知，把需要理解的东西找出来——我们从实验开始。",
+      "Nothing in life is to be feared; it is only to be understood."
+    ],
+    "enabled": true
+  },
+  "li-bai": {
+    "lines": [
+      "哈哈，贵客！且放下心事，与某共饮一杯，看这清风明月，有何烦忧？"
+    ],
+    "enabled": true
+  },
+  "su-shi": {
+    "lines": [
+      "来来来，莫谈愁。人生如逆旅，你我皆是行人，先吃盏茶再说。"
+    ],
+    "enabled": true
+  },
+  "lu-xun": {
+    "lines": [
+      "说罢。但我向来不惮以最深的冷静，剖开这问题给你看。"
+    ],
+    "enabled": true
+  },
+  "zhuge-liang": {
+    "lines": [
+      "先生请坐。既来问策，且容我观其大势，为你三分利弊，徐徐图之。"
+    ],
+    "enabled": true
+  },
+  "shakespeare": {
+    "lines": [
+      "欢迎登上这名为世界的舞台。你的困惑，且让我们把它写成一段独白。",
+      "To be, or not to be, that is the question."
+    ],
+    "enabled": true
+  },
+  "leonardo": {
+    "lines": [
+      "好奇是最好的向导。来，让我们像观察一只飞鸟那样，看清这件事的纹理。",
+      "Simplicity is the ultimate sophistication."
+    ],
+    "enabled": true
+  },
+  "van-gogh": {
+    "lines": [
+      "你好啊，朋友。即使夜里漆黑，我们也可以一起画出那片旋转的星空。",
+      "I dream my painting, and then I paint my dream."
+    ],
+    "enabled": true
+  },
+  "confucius": {
+    "lines": [
+      "有朋自远方来，不亦乐乎？请言其志，吾与汝共论之。"
+    ],
+    "enabled": true
+  },
+  "socrates": {
+    "lines": [
+      "你好。我并不比你更聪明——所以，让我先问你几个问题，可以吗？",
+      "The unexamined life is not worth living."
+    ],
+    "enabled": true
+  },
+  "laozi": {
+    "lines": [
+      "知者不言，言者不知。既来之，且随我观水，道法自然。"
+    ],
+    "enabled": true
+  },
+  "nietzsche": {
+    "lines": [
+      "来吧！别做羊群里的影子。告诉我，你想成为怎样的自己？",
+      "That which does not kill us makes us stronger."
+    ],
+    "enabled": true
+  },
+  "maoxuan-scholar": {
+    "lines": [
+      "你好。先别急着下结论——没有调查就没有发言权，我们把问题掰开了分析。"
+    ],
+    "enabled": true
+  },
+  "archimedes": {
+    "lines": [
+      "找到了！别急着走——且让我先在沙地上画出这道题，你便明白其中的轻重。"
+    ],
+    "enabled": true
+  },
+  "copernicus": {
+    "lines": [
+      "请坐。我毕生只做了一件事：让地球绕着太阳，而不是相反。你想从哪里谈起？"
+    ],
+    "enabled": true
+  },
+  "euclid": {
+    "lines": [
+      "你好。在几何里没有捷径，只有公设与证明。先告诉我，我们从哪条公理出发？"
+    ],
+    "enabled": true
+  },
+  "galileo": {
+    "lines": [
+      "哼，书本上说的不算数。来，我们把这架望远镜对准天空，让事实自己开口。"
+    ],
+    "enabled": true
+  },
+  "charles-darwin": {
+    "lines": [
+      "你好。别急着下结论——我花了二十年才敢说出一个猜想。且先把你看到的事实，一样样摆出来。",
+      "It is not the strongest that survives, but the most adaptable."
+    ],
+    "enabled": true
+  },
+  "qian-xuesen": {
+    "lines": [
+      "你好。科学没有国界，但科学家有祖国。说说你想为这个国家解决什么问题？"
+    ],
+    "enabled": true
+  },
+  "deng-jiaxian": {
+    "lines": [
+      "你好。我们那代人，名字不上报纸，却上得了戈壁。来，说说你愿意为什么事沉下心干一辈子？"
+    ],
+    "enabled": true
+  },
+  "yuan-longping": {
+    "lines": [
+      "哈哈，孩子！我这一辈子就干了一件事——让大家吃饱饭。走，先去田里看看稻子长得怎样？"
+    ],
+    "enabled": true
+  },
+  "alexander-bell": {
+    "lines": [
+      "「沃森先生，快来，我需要你！」——这是我拨出的第一句话。现在，轮到你想连通谁了？"
+    ],
+    "enabled": true
+  },
+  "thomas-edison": {
+    "lines": [
+      "失败？我才没有失败，我只是发现了一千种行不通的办法。来吧，说说你想发明点什么？"
+    ],
+    "enabled": true
+  },
+  "wright-brothers": {
+    "lines": [
+      "别人都在想怎么造更大的发动机，我们却在想怎么在空中转弯。说说看——你那件事里，真正的难点是哪一个？"
+    ],
+    "enabled": true
+  },
+  "adam-smith": {
+    "lines": [
+      "我们并不指望屠夫的仁慈，而是指望他顾及自己的利益。来，聊聊这笔买卖背后那只「看不见的手」。"
+    ],
+    "enabled": true
+  },
+  "henry-ford": {
+    "lines": [
+      "你可以要任何颜色的车——只要它是黑色的。别跟我谈花架子，先说说怎么把成本砍一半？"
+    ],
+    "enabled": true
+  },
+  "john-maynard-keynes": {
+    "lines": [
+      "从长期看，我们都死了。别拿遥远的「长期」安慰眼前挨饿的人——说说眼下，该先把哪笔钱花出去？"
+    ],
+    "enabled": true
+  },
+  "zhang-jian": {
+    "lines": [
+      "我中了状元，却脱下官袍去办厂。别人说我疯了——可国家要救，光靠科举救得回来吗？你说呢？"
+    ],
+    "enabled": true
+  },
+  "bai-juyi": {
+    "lines": [
+      "哈哈哈，我的诗，念给老婆婆听，她说懂了，我才定稿。来，你也说句大白话，我替你写成诗。"
+    ],
+    "enabled": true
+  },
+  "du-fu": {
+    "lines": [
+      "万里悲秋常作客，百年多病独登台。客从远方来，且先坐——你那一片心事，可也关乎苍生？"
+    ],
+    "enabled": true
+  },
+  "dante": {
+    "lines": [
+      "走，跟我穿过这片幽暗的森林。人生中途迷失了方向，不是很好吗？——正好，我们一起去找那条正路。",
+      "Lasciate ogni speranza, voi ch'entrate."
+    ],
+    "enabled": true
+  },
+  "guan-hanqing": {
+    "lines": [
+      "我是个蒸不烂的铜豌豆！来，你有什么委屈，尽管道来——我替你写成戏，叫那青天大老爷也听听。"
+    ],
+    "enabled": true
+  },
+  "hu-shi": {
+    "lines": [
+      "你好。我们那代人，就是想把文言的架子拆掉，让普通人也能提笔说话。来，把你的问题，用大白话讲给我听。"
+    ],
+    "enabled": true
+  },
+  "li-qingzhao": {
+    "lines": [
+      "知否，知否？应是绿肥红瘦。你既来了，且说说——这心头的事，是闲愁，还是真愁？"
+    ],
+    "enabled": true
+  },
+  "liu-zongyuan": {
+    "lines": [
+      "唉，被贬到这荒僻之地，倒让我撞见了从前不曾见过的山水。来，且随我看一眼这小石潭——水清，却也寒得很。"
+    ],
+    "enabled": true
+  },
+  "marco-polo": {
+    "lines": [
+      "他们说我在撒谎！可我见到的契丹，比我说的还要神奇。来，告诉我你最远到过哪里？"
+    ],
+    "enabled": true
+  },
+  "qu-yuan": {
+    "lines": [
+      "路漫漫其修远兮，吾将上下而求索。举世皆浊，众人皆醉——你，可还守得住心中那份清白？"
+    ],
+    "enabled": true
+  },
+  "si-maqian": {
+    "lines": [
+      "人固有一死，或重于泰山，或轻于鸿毛。我忍辱活下来，就为写完那部书。你呢——你愿意为什么而活？"
+    ],
+    "enabled": true
+  },
+  "tao-yuanming": {
+    "lines": [
+      "归去来兮，田园将芜胡不归？既然这官儿做得不自在，何不摘下乌纱，跟我一起采菊去？"
+    ],
+    "enabled": true
+  },
+  "wang-bo": {
+    "lines": [
+      "落霞与孤鹜齐飞，秋水共长天一色！少年人有此江山，何不把你的抱负，也写一篇痛快文章？"
+    ],
+    "enabled": true
+  },
+  "xin-qiji": {
+    "lines": [
+      "醉里挑灯看剑，梦回吹角连营。我这一生，剑也使过，词也写过——就是没能收复中原。你说，这遗憾该怎么了？"
+    ],
+    "enabled": true
+  },
+  "yan-fu": {
+    "lines": [
+      "世道必进，后胜于今。可这进步，不是等来的，是争来的。说说看——在这「物竞天择」的世上，你打算怎么活下去、活得好？"
+    ],
+    "enabled": true
+  },
+  "liang-qichao": {
+    "lines": [
+      "少年智则国智，少年强则国强！你这样的年纪，正是改造中国的料子。来，说说你想做怎样的少年中国？"
+    ],
+    "enabled": true
+  },
+  "donatello": {
+    "lines": [
+      "你看这尊大卫——他不是一块铜，他是个会呼吸的少年。来，告诉我，你觉得一个雕像最该抓住的，是哪里？"
+    ],
+    "enabled": true
+  },
+  "michelangelo": {
+    "lines": [
+      "我不是在雕刻，我只是把石头里那个被困住的人，解放出来罢了。来，看看你心里那个被捆住的，又是什么？"
+    ],
+    "enabled": true
+  },
+  "raphael": {
+    "lines": [
+      "你好。美，不过是恰到好处的和谐。来，把你的烦恼放远些看——或许它也能在画面里找到自己的位置。"
+    ],
+    "enabled": true
+  },
+  "wang-xizhi": {
+    "lines": [
+      "快雪时晴，佳想安善。写字如做人，笔笔要有来处、有风骨。来，且把你这心事，也一笔一笔写给我看。"
+    ],
+    "enabled": true
+  },
+  "aristotle": {
+    "lines": [
+      "吾爱吾师，但我更爱真理。来，先别急着表态——我们给你这个问题，下个准确的定义再说。",
+      "We are what we repeatedly do. Excellence, then, is not an act, but a habit."
+    ],
+    "enabled": true
+  },
+  "han-feizi": {
+    "lines": [
+      "儒者用文乱法，侠者以武犯禁。别跟我讲温情——你说要治国，先告诉我：赏罚二柄，你握得住吗？"
+    ],
+    "enabled": true
+  },
+  "hegel": {
+    "lines": [
+      "凡是现实的，都是合乎理性的。别急着否定眼前的矛盾——它，正是通往更高真理的那一环。请讲。"
+    ],
+    "enabled": true
+  },
+  "immanuel-kant": {
+    "lines": [
+      "两件东西让我敬畏——头顶的星空，和心中的道德律。来，先别急着判断，我们先弄清楚：你究竟能知道什么？",
+      "Starry heavens above and the moral law within."
+    ],
+    "enabled": true
+  },
+  "karl-marx": {
+    "lines": [
+      "哲学家们只是用不同的方式解释世界，而问题在于改变世界。说说看——你眼前这件事，背后是怎样一双看不见的手？",
+      "The philosophers have only interpreted the world; the point is to change it."
+    ],
+    "enabled": true
+  },
+  "machiavelli": {
+    "lines": [
+      "别误会——我不是教你作恶，我只是告诉你：人们实际上怎样活，与应当怎样活，差得太远了。来，谈真的。"
+    ],
+    "enabled": true
+  },
+  "mo-zi": {
+    "lines": [
+      "天下之人皆相爱，强不执弱，众不劫寡。你既来了，且说——你愿为这天下之大利，吃怎样的苦？"
+    ],
+    "enabled": true
+  },
+  "plato": {
+    "lines": [
+      "你以为看见的是真实吗？那不过是洞穴石壁上的影子罢了。来，转过身——敢不敢看看洞口的光？",
+      "Wise men speak because they have something to say; Fools because they have to say something."
+    ],
+    "enabled": true
+  },
+  "sigmund-freud": {
+    "lines": [
+      "梦，从来不是偶然。你嘴上说的，未必是心里真正想要的。来，躺下来——随便想到什么，就说什么。",
+      "Being entirely honest with oneself is a good exercise."
+    ],
+    "enabled": true
+  },
+  "wang-yangming": {
+    "lines": [
+      "破山中贼易，破心中贼难。你且静下来问问自己——这良知，可还在？说罢，我们在事上磨。"
+    ],
+    "enabled": true
+  },
+  "zhuang-zi": {
+    "lines": [
+      "我昨夜梦为蝴蝶，栩栩然——不知周之梦为蝴蝶，还是蝴蝶之梦为周？你呢，你确定此刻的你，是醒着的吗？"
+    ],
+    "enabled": true
+  },
+  "zhu-xi": {
+    "lines": [
+      "大学之道，在格物致知。你说你想明白道理——那好，先从眼前这一件事物，格将起来。一步一步，莫急。"
+    ],
+    "enabled": true
+  },
+  "abraham-lincoln": {
+    "lines": [
+      "你好。我一生失败过很多次，最后才走到这里。别怕走错路——告诉我，你想为谁、争一件什么事？",
+      "Whatever you are, be a good one."
+    ],
+    "enabled": true
+  },
+  "alexander-great": {
+    "lines": [
+      " Gordian 之结，解不开，我便斩断它。年轻人，别被死规矩捆住——说吧，你想去征服哪片无人到过的疆土？"
+    ],
+    "enabled": true
+  },
+  "cai-yuanpei": {
+    "lines": [
+      "大学者，囊括大典、网罗众家之学府也。你来我这里，我不问你师从何家——只问你，有没有自己真信的道理？"
+    ],
+    "enabled": true
+  },
+  "cao-cao": {
+    "lines": [
+      "月明星稀，乌鹊南飞。绕树三匝，何枝可依？你既有才，便说来听听——我这里，可容得下你这根枝。"
+    ],
+    "enabled": true
+  },
+  "charlemagne": {
+    "lines": [
+      "我识字太晚，常后悔。年轻人，趁年轻多读书、多持剑——两手都硬，才护得住你想要的东西。说吧。"
+    ],
+    "enabled": true
+  },
+  "chen-duxiu": {
+    "lines": [
+      "要拥护那德先生，便不得不反对孔教礼法。你想做个新青年吗？先把你脑子里那些老规矩，一条一条掏出来给我看。"
+    ],
+    "enabled": true
+  },
+  "franklin-roosevelt": {
+    "lines": [
+      "我们唯一需要恐惧的，就是恐惧本身。坐吧——别慌，越是天塌下来，越要先把话说清楚、把步骤想明白。"
+    ],
+    "enabled": true
+  },
+  "genghis-khan": {
+    "lines": [
+      "草原上，败了不可耻，逃了才可耻。你叫我来——是想听听我是怎样从一条亡命之狗，长成全蒙古的汗？"
+    ],
+    "enabled": true
+  },
+  "george-washington": {
+    "lines": [
+      "权力这东西，最难的不是拿起来，是放下去。你来问我——那先说说，你觉得一个领袖，最该守住的底线是什么？"
+    ],
+    "enabled": true
+  },
+  "guan-yu": {
+    "lines": [
+      "吾生平重义二字。你既来见，且先说清楚——此人与你，是恩？是义？还是不过一场利害？"
+    ],
+    "enabled": true
+  },
+  "han-wudi": {
+    "lines": [
+      "朕在位五十四年，打了一辈子的仗，也下过一道罪己诏。你想说什么？是想为朕谋划远略，还是劝朕收敛些？"
+    ],
+    "enabled": true
+  },
+  "joan-of-arc": {
+    "lines": [
+      "我只是个农家的女儿，但上天要我做的事，我便去做。你呢——你听见自己心里那个声音了吗？它叫你去做什么？"
+    ],
+    "enabled": true
+  },
+  "julius-caesar": {
+    "lines": [
+      "Alea iacta est——骰子已经掷下。过了卢比孔河，便没有回头路。你来，是要教我犹豫，还是与我一道前进？",
+      "The die is cast."
+    ],
+    "enabled": true
+  },
+  "kangxi": {
+    "lines": [
+      "朕八岁登基，十四岁才亲手除了鳌拜。这天下事，急不得，也等不得。你且说——眼前这局，是该忍，还是该动？"
+    ],
+    "enabled": true
+  },
+  "kang-youwei": {
+    "lines": [
+      "穷则变，变则通，通则久。这老祖宗的法子，今日已救不了中国。你说——我们这一刀，该从哪里改起？"
+    ],
+    "enabled": true
+  },
+  "li-dazhao": {
+    "lines": [
+      "以青春之我，创建青春之家庭、青春之国家。你这般年纪，正是最可宝贵的。来，告诉我，你打算把这一腔热血，洒向何处？"
+    ],
+    "enabled": true
+  },
+  "li-hongzhang": {
+    "lines": [
+      "我不过是个替这破屋子裱糊的匠人。漏子太多，糊得过来，糊不了国运。你来，是想教我做事，还是想教我认命？"
+    ],
+    "enabled": true
+  },
+  "liu-bang": {
+    "lines": [
+      "我这一辈子，打仗不如项羽，谋划不如张良，可我就是赢了他。凭什么？就凭我肯用人、肯听劝。你说呢？"
+    ],
+    "enabled": true
+  },
+  "napoleon": {
+    "lines": [
+      "不可能三个字，只在庸人的字典里才有。来，告诉我你最怕什么——那恰恰是你最该去做的事。",
+      "Impossible is a word to be found only in the dictionary of fools."
+    ],
+    "enabled": true
+  },
+  "qianlong": {
+    "lines": [
+      "朕自称十全老人，一辈子写了几万首诗——虽没几首传得下去。你来，是想与朕论诗，还是想看看这盛世底下，藏着什么？"
+    ],
+    "enabled": true
+  },
+  "qin-shihuang": {
+    "lines": [
+      "朕为始皇帝，后世以计数，二世三世至于万世。你既来——是要颂朕之功，还是要数朕之过？但说无妨。"
+    ],
+    "enabled": true
+  },
+  "song-zu": {
+    "lines": [
+      "人生如白驹过隙，不如多积金钱、买些田宅，君臣两无猜。来——你说，这杯酒，该不该喝？"
+    ],
+    "enabled": true
+  },
+  "sun-zhongshan": {
+    "lines": [
+      "革命尚未成功，同志仍须努力。我一生起义十次，败了十次，第十一次才成。你来——是想加入，还是先问问这条路有多苦？"
+    ],
+    "enabled": true
+  },
+  "tang-taizong": {
+    "lines": [
+      "以铜为镜，可以正衣冠；以古为镜，可以知兴替；以人为镜，可以明得失。魏征殁，朕亡一镜矣。你，可愿做朕的一面镜子？"
+    ],
+    "enabled": true
+  },
+  "wang-zhaojun": {
+    "lines": [
+      "我一个弱女子，远嫁千里之外，换得边境多少年没有烽烟。你说——这值不值得？琵琶一曲，我且弹与你听。"
+    ],
+    "enabled": true
+  },
+  "winston-churchill": {
+    "lines": [
+      "我能奉献的，只有热血、辛劳、眼泪和汗水。你问我目标是什么？——胜利，不惜一切代价的胜利。说罢，你怕了吗？",
+      "We shall fight on the beaches. I have nothing to offer but blood, toil, tears and sweat."
+    ],
+    "enabled": true
+  },
+  "wu-zetian": {
+    "lines": [
+      "我这一生，从才人做到皇帝，背后骂名比颂词多。也罢，立块无字碑——功过是非，留给后人写去。你来，是要写什么？"
+    ],
+    "enabled": true
+  },
+  "xiang-yu": {
+    "lines": [
+      "力拔山兮气盖世，时不利兮骓不逝。骓不逝兮可奈何，虞兮虞兮奈若何！——你说，我是该渡江求生，还是该留这骨气？"
+    ],
+    "enabled": true
+  },
+  "yue-fei": {
+    "lines": [
+      "靖康耻，犹未雪；臣子恨，何时灭！你既来——且说说，这国仇家恨，你我该如何才能报得了？"
+    ],
+    "enabled": true
+  },
+  "zeng-guofan": {
+    "lines": [
+      "我这人天资平平，全靠一个「恒」字，结硬寨、打呆仗。你问成功之道——其实就是那句：大处着眼，小处着手，天天不断。"
+    ],
+    "enabled": true
+  },
+  "zhang-zhidong": {
+    "lines": [
+      "中学为体，西学为用。我们不是要全盘西化，是要取彼之长、补我之短。你来——说说你想取什么长，又守什么本？"
+    ],
+    "enabled": true
+  },
+  "zheng-chenggong": {
+    "lines": [
+      "我这一仗，不是为一家一姓，是为把台湾这块故土，从红毛鬼手里夺回来。你说——这河山，能拱手让人吗？"
+    ],
+    "enabled": true
+  },
+  "zhu-yuanzhang": {
+    "lines": [
+      "我是淮西穷苦出身，当过和尚讨过饭，一步一步打到这龙椅上。你问治国——朕只知道一件事：百姓饿肚子，这天下就坐不稳。"
+    ],
+    "enabled": true
+  },
+  "zuo-zongtang": {
+    "lines": [
+      "我这把老骨头，是抬着棺材出关的。西征收复新疆，是因为那一百六十万平方公里，丢不得。你来——是想阻我，还是助我？"
+    ],
+    "enabled": true
+  }
+}

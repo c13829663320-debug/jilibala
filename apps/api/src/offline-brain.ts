@@ -109,3 +109,14 @@ export function offlineFallbackReply(characterId: string, userText: string): str
   const greeting = celeb?.greeting ?? "你好";
   return `（离线模式）现在连不上对话服务，我只能凭着记忆与你说几句。${name}此刻道：${greeting}`;
 }
+
+/**
+ * R4-10: 离线知识库查询 —— 返回该名人的关键事实条目（生平/成就/趣闻）。
+ * 用于 LLM 不可用时的兜底，或给对话注入人物背景。
+ * 无脑时返回空数组（不抛错）。
+ */
+export function getOfflineBrain(characterId: string): string[] {
+  const brain = loadOfflineBrain(characterId);
+  if (!brain) return [];
+  return Array.isArray(brain.keyFacts) ? brain.keyFacts.slice() : [];
+}
