@@ -10,6 +10,8 @@ import type {
   SceneGenerateEvent,
   ScenePlayPayload,
   SceneRecord,
+  SaveSceneRequest,
+  SavedScene,
   TerrainTheme,
   UpdateSceneRequest,
 } from '@balabala/shared'
@@ -284,4 +286,41 @@ export async function polishSceneDescription(description: string): Promise<strin
   const data = await readJson<{ result?: string; message?: string }>(res)
   if (!data.result) throw new Error(data.message || 'AI 优化失败')
   return data.result
+}
+
+// ---------------------------------------------------------------------------
+// R4-09: UGC 场景保存 / 分享链接（JSON 文件存储）
+// ---------------------------------------------------------------------------
+
+/** POST /api/scenes —— 保存场景，返回 sceneId + 分享链接。 */
+export async function saveSharedScene(
+  req: SaveSceneRequest & { sceneId?: string },
+): Promise<{ sceneId: string; shareLink: string; isPublic: boolean }> {
+  const res = await fetch('/api/scenes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  return readJson(res)
+}
+
+/** GET /api/scenes/:id —— 读取已分享场景（公开任何人可读，私有仅创建者）。 */
+export async function loadSharedScene(sceneId: string, viewerUserId?: string): Promise<SavedScene> {
+  const qs = viewerUserId ? `?viewer=${encodeURIComponent(viewerUserId)}` : ''
+  const res = await fetch(`/api/scenes/${encodeURIComponent(sceneId)}${qs}`)
+  return readJson<SavedScene>(res)
+}
+
+/** PATCH /api/scenes/:id —— 修改公开/私有。 */
+export async function setSharedSceneVisibility(
+  sceneId: string,
+  userId: string,
+  isPublic: boolean,
+): Promise<{ sceneId: string; isPublic: boolean; shareLink: string }> {
+  const res = await fetch(`/api/scenes/${encodeURIComponent(sceneId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, isPublic }),
+  })
+  return readJson(res)
 }

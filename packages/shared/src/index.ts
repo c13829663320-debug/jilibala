@@ -1087,3 +1087,6 @@ export * from "./library-quiz.js";
 
 // ===== 自定义场景工作室 =====
 export * from "./scene-studio.js";
+
+// ===== Round4 R4-09: 场景 UGC（模板市场/保存分享/CC0 道具/可拾取） =====
+export * from "./scene-ugc.js";

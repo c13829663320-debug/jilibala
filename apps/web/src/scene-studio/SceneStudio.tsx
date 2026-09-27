@@ -10,14 +10,19 @@ import {
 import type {
   Celebrity,
   GameplayTemplate,
+  PlacedProp,
+  PropDefinition,
   SceneBlueprint,
   SceneGenerateEvent,
   SceneNpc,
   SceneRecord,
   SceneStructure,
+  SceneTemplate,
   TerrainTheme,
 } from '@balabala/shared'
 import SceneRunner from './SceneRunner'
+import SceneTemplatePicker from './SceneTemplatePicker'
+import PropPanel from './PropPanel'
 import {
   addNpc as addNpcApi,
   chatWithNpc,
@@ -27,6 +32,7 @@ import {
   getScene,
   polishSceneDescription,
   publishScene,
+  saveSharedScene,
   synthesizeSpeech,
   updateScene,
   type ChatMessage,
@@ -125,6 +131,14 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
   const [celebrities, setCelebrities] = useState<Celebrity[]>([])
   const [celebSearch, setCelebSearch] = useState('')
   const [chatDialog, setChatDialog] = useState<ChatDialogState | null>(null)
+
+  // ---- R4-09: 模板市场 / CC0 道具放置 / 分享链接 ----
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+  const [placedProps, setPlacedProps] = useState<PlacedProp[]>([])
+  const [placingPropId, setPlacingPropId] = useState<string | null>(null)
+  const [selectedPropId, setSelectedPropId] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [lastShareLink, setLastShareLink] = useState('')
 
   const abortRef = useRef<AbortController | null>(null)
   const saveTimerRef = useRef<number | null>(null)
@@ -431,6 +445,73 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
     }
   }
 
+  // ---- R4-09: 模板创建 / 道具放置 / 分享 ----
+  // 选中模板 → 预填描述与主题，进入正常生成流程（模板参数作为场景数据）。
+  const handlePickTemplate = (tpl: SceneTemplate) => {
+    setDescription(`一个${tpl.name}风格的场景：${tpl.description}`)
+    setTemplatePickerOpen(false)
+    showNotice(`已套用模板：${tpl.name}，可继续调整后生成`)
+  }
+
+  // 从道具面板点选 → 进入放置模式；再点场景地面放置（真机确认）。
+  // 云端无 GPU，这里先在场景中心附近落一个实例，保证数据流可测。
+  const handlePickProp = (prop: PropDefinition) => {
+    if (!blueprint) { showNotice('请先生成/打开一个场景再放置道具'); return }
+    setPlacingPropId(prop.id)
+    const half = blueprint.terrain.size / 2
+    const instance: PlacedProp = {
+      instanceId: `prop-${Date.now()}-${Math.floor(Math.random() * 1e4)}`,
+      propId: prop.id,
+      position: [(Math.random() - 0.5) * half * 0.6, 0, (Math.random() - 0.5) * half * 0.6],
+      rotation: [0, Math.random() * Math.PI * 2, 0],
+    }
+    setPlacedProps((prev) => [...prev, instance])
+    showNotice(`已放置 ${prop.name}（拖动/旋转需真机确认）`)
+  }
+
+  const handleRemoveProp = (instanceId: string) => {
+    setPlacedProps((prev) => prev.filter((p) => p.instanceId !== instanceId))
+    if (selectedPropId === instanceId) setSelectedPropId(null)
+  }
+
+  const handleRotateProp = (instanceId: string) => {
+    setPlacedProps((prev) =>
+      prev.map((p) =>
+        p.instanceId === instanceId ? { ...p, rotation: [0, (p.rotation[1] + Math.PI / 4) % (Math.PI * 2), 0] } : p,
+      ),
+    )
+  }
+
+  // 分享：把当前蓝图 + 已放置道具打包成 sceneData，POST 保存并复制链接。
+  const handleShare = async () => {
+    if (!blueprint) { showNotice('请先生成场景再分享'); return }
+    setSharing(true)
+    try {
+      const sceneData = {
+        blueprint,
+        placedProps,
+        template: null,
+      }
+      const result = await saveSharedScene({
+        userId: user?.userId ?? 'anonymous',
+        name: record?.name || description.slice(0, 20) || '未命名场景',
+        sceneData,
+        isPublic: true,
+      })
+      setLastShareLink(result.shareLink)
+      try {
+        await navigator.clipboard.writeText(`${window.location.origin}${result.shareLink}`)
+        showNotice('分享链接已复制到剪贴板')
+      } catch {
+        showNotice(`分享链接：${result.shareLink}`)
+      }
+    } catch (e) {
+      showNotice(e instanceof Error ? e.message : '分享失败')
+    } finally {
+      setSharing(false)
+    }
+  }
+
   const filteredCelebrities = useMemo(() => {
     const q = celebSearch.trim().toLowerCase()
     if (!q) return celebrities
@@ -531,6 +612,9 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
           {generateError && <div className="ss__error-banner">{generateError}</div>}
 
           <div className="ss__actions">
+            <button type="button" className="ss__btn" onClick={() => setTemplatePickerOpen(true)}>
+              ✨ 从模板创建
+            </button>
             <button type="button" className="ss__btn ss__btn-primary" onClick={() => void handleStartGenerate()}>
               开始生成 →
             </button>
@@ -632,6 +716,20 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
               </div>
             </div>
 
+            {/* R4-09: CC0 道具面板 */}
+            <div className="ss__panel">
+              <label className="ss__label">道具（{placedProps.length}）</label>
+              <PropPanel
+                placed={placedProps}
+                selectedInstanceId={selectedPropId}
+                onSelect={setSelectedPropId}
+                onPick={(p) => handlePickProp(p)}
+                onRemove={handleRemoveProp}
+                onRotate={handleRotateProp}
+                placingPropId={placingPropId}
+              />
+            </div>
+
             <div className="ss__panel">
               <label className="ss__label">玩法目标</label>
               <div className="ss__gamplay-meta">模板：<b>{blueprint.gameplay.template}</b></div>
@@ -658,6 +756,10 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
             <button type="button" className="ss__btn ss__btn-ghost" onClick={onBack}>返回</button>
             {record?.id && <button type="button" className="ss__btn ss__btn-ghost ss__danger" onClick={() => void handleDelete()}>删除</button>}
             <span className="ss__spacer" />
+            {lastShareLink && <span className="ss__share-link">{lastShareLink}</span>}
+            <button type="button" className="ss__btn" onClick={() => void handleShare()} disabled={sharing}>
+              🔗 {sharing ? '分享中…' : '分享链接'}
+            </button>
             <button type="button" className="ss__btn" onClick={() => void handleSave()} disabled={saving}>
               <Save size={14} /> {saving ? '保存中…' : '保存'}
             </button>
@@ -730,6 +832,13 @@ export default function SceneStudio({ onBack, sceneId, onPublished }: SceneStudi
       )}
 
       {notice && <div className="ss__toast">{notice}</div>}
+
+      {/* R4-09: 从模板创建 */}
+      <SceneTemplatePicker
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
+        onSelect={handlePickTemplate}
+      />
     </div>
   )
 }
