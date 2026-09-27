@@ -10,8 +10,13 @@ import {
   BaseOrchestrator,
   computeTier,
   getDailyChallenge,
+  detectHighlight,
+  detectComeback,
+  CELEBRITIES,
   type GameResult,
+  type Highlight,
   type PlayerSlot,
+  type SettlementType,
   type TutorialStep,
   type WerewolfDayAction,
   type WerewolfDayActionRecord,
@@ -29,6 +34,36 @@ export const ROLE_DISTRIBUTION: WerewolfRole[] = [
 export const MAX_DAYS = 4;
 /** 白天自由发言窗口（默认 90s；测试缝可注入更短）。 */
 export const DEFAULT_SPEECH_WINDOW_MS = 90_000;
+
+/** R5：8 个 AI 席（seat1..8）填充的名人 id，关系系统按此落库。 */
+export const WEREWOLF_AI_CELEBRITIES: string[] = [
+  "albert-einstein",
+  "marie-curie",
+  "nikola-tesla",
+  "isaac-newton",
+  "charles-darwin",
+  "thomas-edison",
+  "adam-smith",
+  "confucius",
+];
+
+/** seat → 名人 id（seat0 是真人）。 */
+export function werewolfCelebrityIdAt(seat: number): string {
+  return WEREWOLF_AI_CELEBRITIES[(seat - 1) % WEREWOLF_AI_CELEBRITIES.length];
+}
+
+/** seat → 名人名（找不到回退到 id）。 */
+export function werewolfCelebrityNameAt(seat: number): string {
+  const id = werewolfCelebrityIdAt(seat);
+  return CELEBRITIES.find((c) => c.id === id)?.name ?? id;
+}
+
+/** R5：对手名人引用。 */
+export interface WwOpponent {
+  celebrityId: string;
+  name: string;
+  reason: string;
+}
 
 // ===== 子阶段（主 phase 落在 BaseOrchestrator 的 playing/round/results）=====
 export type WwSubPhase =
@@ -189,11 +224,19 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
   readonly humanSeat = 0;
   private ai: WwAiHooks;
   private rand: () => number;
+  /** R5：玩家推理分轨迹（翻盘检测用）。 */
+  private scoreHistory: number[] = [];
+  /** R5：真人投出的座位（关系变化对象）。 */
+  private humanLynchedSeats: number[] = [];
+  /** R5：刀过真人的狼座位集合。 */
+  private humanKillerSeats: number[] = [];
 
   constructor(opts: { ai?: Partial<WwAiHooks>; rand?: () => number } = {}) {
     super({ maxRounds: MAX_DAYS, initialState: emptyState(), tutorialSteps: TUTORIAL });
     this.rand = opts.rand ?? Math.random;
     this.ai = { ...DEFAULT_AI, ...(opts.ai ?? {}) };
+    // 推理分上限（投对狼 +10/天 + 存活 +20），供结算演出按比例判定。
+    this.settlementMaxScore = 60;
   }
 
   // ---- 开局：建槽位 + 发身份 ----------------------------------------------
@@ -397,6 +440,34 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
     if (this.state.killTarget != null && !this.state.witchHealApplied) deaths.push(this.state.killTarget);
     if (this.state.witchPoisonTarget != null) deaths.push(this.state.witchPoisonTarget);
     this.state.lastNightDeaths = deaths;
+
+    // R5：夜间刀人/救人高光 + 追踪刀过真人的狼。
+    const meNight = this.state.players[this.humanSeat];
+    if (meNight && meNight.alive) {
+      if (meNight.role === "werewolf" && this.state.killTarget != null && !this.state.witchHealApplied) {
+        const humanWolfVote = this.state.wolfVotes[this.humanSeat];
+        if (humanWolfVote === this.state.killTarget) {
+          this.captureHighlight({
+            id: this.nextHighlightId(), scene: "werewolf", type: "key_evidence",
+            timestamp: Date.now(), round: this.state.day,
+            description: `夜晚刀中座位 ${this.state.killTarget + 1}`,
+            data: { killTarget: this.state.killTarget },
+          });
+        }
+      }
+      if (meNight.role === "witch" && this.state.witchHealApplied) {
+        this.captureHighlight({
+          id: this.nextHighlightId(), scene: "werewolf", type: "key_evidence",
+          timestamp: Date.now(), round: this.state.day,
+          description: "女巫解药救下关键一晚", data: { savedSeat: this.state.killTarget },
+        });
+      }
+    }
+    if (this.state.killTarget === this.humanSeat && !this.state.witchHealApplied) {
+      for (const [wolfSeatStr, target] of Object.entries(this.state.wolfVotes)) {
+        if (target === this.humanSeat) this.humanKillerSeats.push(Number(wolfSeatStr));
+      }
+    }
   }
 
   /** 兼容旧测试/同步用法：打开夜晚并立即结算（真人不预提交，AI 代打）。 */
@@ -536,6 +607,19 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
       }
     }
 
+    // R5：真人亲手投出某人（关系变化对象）。
+    if (lynched != null && humanVoteTarget === lynched) {
+      this.humanLynchedSeats.push(lynched);
+    }
+    // R5：投对狼 → prophet_vote 高光。
+    if (lynched != null && humanVoteTarget === lynched && lynchedWasWolf) {
+      const hl = detectHighlight("werewolf", {
+        type: "vote_result",
+        payload: { lynchedWerewolf: true, round: this.state.day, timestamp: Date.now() },
+      });
+      if (hl) this.captureHighlight(hl);
+    }
+
     if (lynched != null) {
       this.kill([lynched], "lynch");
       // 被正确识别：真人是狼且被放逐 → -5
@@ -543,6 +627,9 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
         this.addScore(`slot-${this.humanSeat}`, -5, "被好人正确识别放逐");
       }
     }
+
+    // R5：记录本昼夜后的推理分轨迹（翻盘检测用）。
+    this.scoreHistory.push(this.getScore(`slot-${this.humanSeat}`));
   }
 
   /** 兼容旧测试/同步用法：打开投票并立即结算。 */
@@ -572,8 +659,98 @@ export class WerewolfEngine extends BaseOrchestrator<WwState, WwAction, WwConfig
   endGame(): GameResult {
     const human = this.state.players[this.humanSeat];
     if (human?.alive) this.addScore(`slot-${this.humanSeat}`, 20, "存活到终局");
+    // R5：存活到终局 → survivor；狼人全胜 → perfect_wolf。
+    if (human?.alive) {
+      this.captureHighlight({
+        id: this.nextHighlightId(), scene: "werewolf", type: "extreme_performance",
+        timestamp: Date.now(), description: "存活到终局，全身而退", data: { survived: true },
+      });
+    }
+    if (this.state.winner === "wolf" && human?.role === "werewolf") {
+      this.captureHighlight({
+        id: this.nextHighlightId(), scene: "werewolf", type: "perfect_round",
+        timestamp: Date.now(), description: "狼人阵营全胜", data: { perfectWolf: true },
+      });
+    }
     this.state.sub = "ended";
     return this.finish();
+  }
+
+  /** 真人视角胜负（阵营制：狼胜=真人是狼；好人胜=真人是好人）。 */
+  humanWon(): boolean {
+    const winner = this.state.winner;
+    const me = this.state.players[this.humanSeat];
+    return winner != null && winner === "wolf" ? me?.role === "werewolf" : me?.role !== "werewolf";
+  }
+
+  /** 阵营制胜负映射：覆盖默认的 winner===humanSlotId 判定。 */
+  protected override resolveResult(): "win" | "draw" | "loss" {
+    if (this.state.winner == null) return "draw";
+    return this.humanWon() ? "win" : "loss";
+  }
+
+  /**
+   * R5 结算元数据（纯计算，无 IO）。路由层在 finish 后调用。
+   */
+  collectR5Meta(): {
+    outcome: "win" | "draw" | "loss";
+    score: number;
+    maxScore: number;
+    highlights: Highlight[];
+    comeback: boolean;
+    settlementType: SettlementType;
+    opponents: WwOpponent[];
+    primaryOpponent: { id: string; name: string; type: "celebrity" };
+  } {
+    const result = this.settle();
+    const score = result.scores[`slot-${this.humanSeat}`] ?? 0;
+    const maxScore = this.settlementMaxScore;
+    const outcome = this.resolveResult();
+    const settlement = this.buildSettlement(result);
+    const comeback = detectComeback(this.scoreHistory, score, maxScore);
+
+    // 对手名人：真人投出的人 + 刀过真人的狼。
+    const opponents: WwOpponent[] = [];
+    const seen = new Set<number>();
+    for (const seat of this.humanLynchedSeats) {
+      if (seen.has(seat)) continue;
+      seen.add(seat);
+      opponents.push({
+        celebrityId: werewolfCelebrityIdAt(seat),
+        name: werewolfCelebrityNameAt(seat),
+        reason: `被你公投出局（座位 ${seat + 1}）`,
+      });
+    }
+    for (const seat of this.humanKillerSeats) {
+      if (seen.has(seat)) continue;
+      seen.add(seat);
+      opponents.push({
+        celebrityId: werewolfCelebrityIdAt(seat),
+        name: werewolfCelebrityNameAt(seat),
+        reason: `夜晚刀掉了你（座位 ${seat + 1}）`,
+      });
+    }
+    // 兜底：没直接交互过，挂一个存活狼（或 seat1）作为主要对手。
+    if (opponents.length === 0) {
+      const wolf = this.aliveWolves()[0];
+      const seat = wolf ? wolf.seat : 1;
+      opponents.push({
+        celebrityId: werewolfCelebrityIdAt(seat),
+        name: werewolfCelebrityNameAt(seat),
+        reason: "本局对手",
+      });
+    }
+    const primary = opponents[0];
+    return {
+      outcome,
+      score,
+      maxScore,
+      highlights: this.getHighlights(),
+      comeback,
+      settlementType: settlement.type,
+      opponents,
+      primaryOpponent: { id: primary.celebrityId, name: primary.name, type: "celebrity" },
+    };
   }
 
   /**

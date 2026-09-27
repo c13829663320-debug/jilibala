@@ -7,6 +7,7 @@ import DayActionBar from './DayActionBar'
 import SpectatorMode from './SpectatorMode'
 import WerewolfRecap from './WerewolfRecap'
 import { wwClient, type WwSnapshot } from './engine-client'
+import R5SettlementPanel, { type R5Bundle } from '../lib/r5'
 
 const WerewolfView = lazy(() => import('../WerewolfView'))
 
@@ -240,9 +241,12 @@ export default function NewWerewolfGame({ onBack }: { onBack?: () => void }) {
               <div style={{ fontSize: 12, color: 'rgba(237,237,240,0.7)', marginTop: 4 }}>
                 段位：{snap.result.tier && typeof snap.result.tier === 'object' ? snap.result.tier.label : snap.result.tier} · 积分 {snap.result.rankPoints > 0 ? `+${snap.result.rankPoints}` : snap.result.rankPoints}
               </div>
-              <button onClick={() => window.location.reload()} data-testid="ww-again" style={{ ...primaryBtn, width: '100%', marginTop: 10 }}>
-                再来一局
-              </button>
+              {/* R5：高光回放 / 关系变化 / 连胜 / 战果卡 / 再来一局钩子 */}
+              {snap.r5 && (
+                <div style={{ marginTop: 12 }}>
+                  <R5SettlementPanel bundle={snap.r5 as R5Bundle} shareText={snap.shareText} onAgain={() => window.location.reload()} />
+                </div>
+              )}
             </div>
           )}
         </div>
