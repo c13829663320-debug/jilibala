@@ -1,0 +1,504 @@
+{
+  "characters": {
+    "archimedes": {
+      "file": "archimedes.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "copernicus": {
+      "file": "copernicus.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "euclid": {
+      "file": "euclid.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "galileo": {
+      "file": "galileo.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "charles-darwin": {
+      "file": "charles-darwin.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "qian-xuesen": {
+      "file": "qian-xuesen.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "deng-jiaxian": {
+      "file": "deng-jiaxian.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "yuan-longping": {
+      "file": "yuan-longping.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "alexander-bell": {
+      "file": "alexander-bell.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "thomas-edison": {
+      "file": "thomas-edison.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "wright-brothers": {
+      "file": "wright-brothers.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "adam-smith": {
+      "file": "adam-smith.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "henry-ford": {
+      "file": "henry-ford.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "john-maynard-keynes": {
+      "file": "john-maynard-keynes.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zhang-jian": {
+      "file": "zhang-jian.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "bai-juyi": {
+      "file": "bai-juyi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "du-fu": {
+      "file": "du-fu.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "dante": {
+      "file": "dante.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "guan-hanqing": {
+      "file": "guan-hanqing.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "hu-shi": {
+      "file": "hu-shi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "li-qingzhao": {
+      "file": "li-qingzhao.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "liu-zongyuan": {
+      "file": "liu-zongyuan.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "marco-polo": {
+      "file": "marco-polo.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "qu-yuan": {
+      "file": "qu-yuan.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "si-maqian": {
+      "file": "si-maqian.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "tao-yuanming": {
+      "file": "tao-yuanming.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "wang-bo": {
+      "file": "wang-bo.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "xin-qiji": {
+      "file": "xin-qiji.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "yan-fu": {
+      "file": "yan-fu.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "liang-qichao": {
+      "file": "liang-qichao.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "donatello": {
+      "file": "donatello.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "michelangelo": {
+      "file": "michelangelo.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "raphael": {
+      "file": "raphael.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "wang-xizhi": {
+      "file": "wang-xizhi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "aristotle": {
+      "file": "aristotle.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "han-feizi": {
+      "file": "han-feizi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "hegel": {
+      "file": "hegel.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "immanuel-kant": {
+      "file": "immanuel-kant.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "karl-marx": {
+      "file": "karl-marx.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "machiavelli": {
+      "file": "machiavelli.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "mo-zi": {
+      "file": "mo-zi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "plato": {
+      "file": "plato.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "sigmund-freud": {
+      "file": "sigmund-freud.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "wang-yangming": {
+      "file": "wang-yangming.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zhuang-zi": {
+      "file": "zhuang-zi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zhu-xi": {
+      "file": "zhu-xi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "abraham-lincoln": {
+      "file": "abraham-lincoln.json",
+      "entries": 10,
+      "facts": 6
+    },
+    "alexander-great": {
+      "file": "alexander-great.json",
+      "entries": 10,
+      "facts": 6
+    },
+    "cai-yuanpei": {
+      "file": "cai-yuanpei.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "cao-cao": {
+      "file": "cao-cao.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "charlemagne": {
+      "file": "charlemagne.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "chen-duxiu": {
+      "file": "chen-duxiu.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "franklin-roosevelt": {
+      "file": "franklin-roosevelt.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "genghis-khan": {
+      "file": "genghis-khan.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "george-washington": {
+      "file": "george-washington.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "guan-yu": {
+      "file": "guan-yu.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "han-wudi": {
+      "file": "han-wudi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "joan-of-arc": {
+      "file": "joan-of-arc.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "julius-caesar": {
+      "file": "julius-caesar.json",
+      "entries": 10,
+      "facts": 6
+    },
+    "kangxi": {
+      "file": "kangxi.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "kang-youwei": {
+      "file": "kang-youwei.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "li-dazhao": {
+      "file": "li-dazhao.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "li-hongzhang": {
+      "file": "li-hongzhang.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "liu-bang": {
+      "file": "liu-bang.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "napoleon": {
+      "file": "napoleon.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "qianlong": {
+      "file": "qianlong.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "qin-shihuang": {
+      "file": "qin-shihuang.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "song-zu": {
+      "file": "song-zu.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "sun-zhongshan": {
+      "file": "sun-zhongshan.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "tang-taizong": {
+      "file": "tang-taizong.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "wang-zhaojun": {
+      "file": "wang-zhaojun.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "winston-churchill": {
+      "file": "winston-churchill.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "wu-zetian": {
+      "file": "wu-zetian.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "xiang-yu": {
+      "file": "xiang-yu.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "yue-fei": {
+      "file": "yue-fei.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zeng-guofan": {
+      "file": "zeng-guofan.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zhang-zhidong": {
+      "file": "zhang-zhidong.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zheng-chenggong": {
+      "file": "zheng-chenggong.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zhu-yuanzhang": {
+      "file": "zhu-yuanzhang.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "zuo-zongtang": {
+      "file": "zuo-zongtang.json",
+      "entries": 10,
+      "facts": 5
+    },
+    "alan-turing": {
+      "file": "alan-turing.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "albert-einstein": {
+      "file": "albert-einstein.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "confucius": {
+      "file": "confucius.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "elon-musk": {
+      "file": "elon-musk.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "isaac-newton": {
+      "file": "isaac-newton.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "laozi": {
+      "file": "laozi.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "leonardo": {
+      "file": "leonardo.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "li-bai": {
+      "file": "li-bai.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "lu-xun": {
+      "file": "lu-xun.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "maoxuan-scholar": {
+      "file": "maoxuan-scholar.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "marie-curie": {
+      "file": "marie-curie.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "nietzsche": {
+      "file": "nietzsche.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "nikola-tesla": {
+      "file": "nikola-tesla.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "shakespeare": {
+      "file": "shakespeare.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "socrates": {
+      "file": "socrates.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "steve-jobs": {
+      "file": "steve-jobs.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "su-shi": {
+      "file": "su-shi.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "van-gogh": {
+      "file": "van-gogh.json",
+      "entries": 11,
+      "facts": 4
+    },
+    "warren-buffett": {
+      "file": "warren-buffett.json",
+      "entries": 12,
+      "facts": 4
+    },
+    "zhuge-liang": {
+      "file": "zhuge-liang.json",
+      "entries": 12,
+      "facts": 4
+    }
+  }
+}

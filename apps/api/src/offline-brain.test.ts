@@ -4,16 +4,17 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { CELEBRITIES, getCelebrity } from "@balabala/shared";
 import {
+  getOfflineBrain,
   loadOfflineBrain,
   matchOfflineReply,
   offlineFallbackReply,
   tokenize,
 } from "./offline-brain.js";
 
-// 离线脑是「双 LLM 全挂」时的可选兜底知识包，并非每位名人都必须手工编写。
-// 这里只校验磁盘上实际存在的 JSON：文件能加载、结构合法、id 与文件名/名人一致。
+// 离线脑是「双 LLM 全挂」时的可选兜底知识包。
+// R4-10 补全后 100 位名人全部具备离线脑；index.json 是索引文件，不参与脑结构校验。
 const brainsDir = path.join(process.cwd(), "data", "offline-brains");
-const brainFiles = readdirSync(brainsDir).filter((f) => f.endsWith(".json"));
+const brainFiles = readdirSync(brainsDir).filter((f) => f.endsWith(".json") && f !== "index.json");
 
 describe("loadOfflineBrain · 加载", () => {
   it("磁盘上的离线脑 JSON 全部存在且结构合法", () => {
@@ -40,10 +41,21 @@ describe("loadOfflineBrain · 加载", () => {
     }
   });
 
-  it("没有离线脑 JSON 的名人：loadOfflineBrain 返回 null 而非抛错", () => {
-    const noBrain = CELEBRITIES.find((c) => !brainFiles.includes(`${c.id}.json`));
-    expect(noBrain, "应当存在未编写离线脑的名人").toBeTruthy();
-    expect(loadOfflineBrain(noBrain!.id)).toBeNull();
+  it("R4-10 全覆盖：每位已注册名人都有离线脑，且含关键事实条目", () => {
+    for (const c of CELEBRITIES) {
+      expect(brainFiles, `离线脑缺失：${c.id}`).toContain(`${c.id}.json`);
+      const brain = loadOfflineBrain(c.id);
+      expect(brain, `离线脑加载失败：${c.id}`).not.toBeNull();
+      expect(Array.isArray(brain!.keyFacts)).toBe(true);
+      expect(brain!.keyFacts.length).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it("R4-10 getOfflineBrain：返回该名人关键事实；未知 id 返回空数组", () => {
+    const facts = getOfflineBrain("confucius");
+    expect(Array.isArray(facts)).toBe(true);
+    expect(facts.length).toBeGreaterThanOrEqual(4);
+    expect(getOfflineBrain("does-not-exist")).toEqual([]);
   });
 
   it("未知 id 返回 null 而不是抛错", () => {

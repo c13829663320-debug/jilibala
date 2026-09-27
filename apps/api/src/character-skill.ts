@@ -3,7 +3,8 @@
 // - 名人：优先读 apps/web/public/skills/<id>.md，缺失则从 celebrities.persona 生成默认。
 // - 自定义人物：优先读 DB 里的 skill_md，空则从 persona 生成默认。
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve as pathResolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve as pathResolve } from "node:path";
 import {
   buildSystemPrompt,
   defaultSkillForCelebrity,
@@ -13,6 +14,62 @@ import {
   type CharacterSkill,
 } from "@balabala/shared";
 import { getCustomCharacter } from "./db.js";
+
+/** R4-10: 名人专属开场白（首次出场 TTS 合成用）。 */
+export interface CharacterGreeting {
+  /** 开场白文案（1~3 句；外国人物可能含原文名句行）。 */
+  lines: string[];
+  /** 是否启用（默认 true，运营可关闭）。 */
+  enabled: boolean;
+}
+
+const greetingsFile = pathResolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..", "data", "character-greetings.json",
+);
+
+let greetingCache: Record<string, CharacterGreeting> | null = null;
+
+function loadGreetingMap(): Record<string, CharacterGreeting> {
+  if (greetingCache) return greetingCache;
+  if (!existsSync(greetingsFile)) {
+    greetingCache = {};
+    return greetingCache;
+  }
+  try {
+    const raw = JSON.parse(readFileSync(greetingsFile, "utf8")) as Record<string, Partial<CharacterGreeting>>;
+    const out: Record<string, CharacterGreeting> = {};
+    for (const [id, g] of Object.entries(raw)) {
+      const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!safeId) continue;
+      out[safeId] = {
+        lines: Array.isArray(g.lines) ? g.lines.filter((l): l is string => typeof l === "string" && l.length > 0) : [],
+        enabled: g.enabled !== false,
+      };
+    }
+    greetingCache = out;
+    return out;
+  } catch {
+    greetingCache = {};
+    return greetingCache;
+  }
+}
+
+/**
+ * R4-10: 获取某名人首次出场的专属开场白。
+ * 优先取 data/character-greetings.json；缺失时回退 celebrities.greeting。
+ * 自定义人物 / 未知 id 返回 null。
+ */
+export function getCharacterGreeting(id: string): CharacterGreeting | null {
+  if (!id || id.startsWith("custom-")) return null;
+  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "");
+  const cfg = loadGreetingMap()[safeId];
+  if (cfg && cfg.lines.length > 0) return cfg;
+  // 回退到 celebrities.ts 内置 greeting
+  const celeb = getCelebrity(safeId);
+  if (celeb?.greeting) return { lines: [celeb.greeting], enabled: true };
+  return null;
+}
 
 /**
  * 解析名人 skill 文件目录。

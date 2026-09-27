@@ -1,0 +1,602 @@
+{
+  "elon-musk": {
+    "voice": "yuanqinansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "steve-jobs": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "alan-turing": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "warren-buffett": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "albert-einstein": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "isaac-newton": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "nikola-tesla": {
+    "voice": "wenrougongzi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "marie-curie": {
+    "voice": "zhixingjiejie",
+    "category": "bright_female",
+    "speed": 1,
+    "pitch": 1.05
+  },
+  "li-bai": {
+    "voice": "yuanqinansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "su-shi": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "lu-xun": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "zhuge-liang": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "shakespeare": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "leonardo": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "van-gogh": {
+    "voice": "wenrougongzi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "confucius": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "socrates": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "laozi": {
+    "voice": "wenrougongzi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "nietzsche": {
+    "voice": "zhengpaiqingnian",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "maoxuan-scholar": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "archimedes": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "copernicus": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "euclid": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "galileo": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "charles-darwin": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "qian-xuesen": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "deng-jiaxian": {
+    "voice": "zhengpaiqingnian",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "yuan-longping": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "alexander-bell": {
+    "voice": "yuanqinansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "thomas-edison": {
+    "voice": "yuanqinansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "wright-brothers": {
+    "voice": "qingniandaxuesheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "adam-smith": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "henry-ford": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "john-maynard-keynes": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "zhang-jian": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "bai-juyi": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "du-fu": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "dante": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "guan-hanqing": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "hu-shi": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "li-qingzhao": {
+    "voice": "zhixingjiejie",
+    "category": "bright_female",
+    "speed": 1,
+    "pitch": 1.05
+  },
+  "liu-zongyuan": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "marco-polo": {
+    "voice": "yuanqinansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "qu-yuan": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "si-maqian": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "tao-yuanming": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "wang-bo": {
+    "voice": "zhengpaiqingnian",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "xin-qiji": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "yan-fu": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "liang-qichao": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "donatello": {
+    "voice": "wenrougongzi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "michelangelo": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "raphael": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "wang-xizhi": {
+    "voice": "wenrougongzi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "aristotle": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "han-feizi": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "hegel": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "immanuel-kant": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "karl-marx": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "machiavelli": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "mo-zi": {
+    "voice": "zhengpaiqingnian",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "plato": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "sigmund-freud": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "wang-yangming": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "zhuang-zi": {
+    "voice": "wenrougongzi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "zhu-xi": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "abraham-lincoln": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "alexander-great": {
+    "voice": "zhengpaiqingnian",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "cai-yuanpei": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "cao-cao": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "charlemagne": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "chen-duxiu": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "franklin-roosevelt": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "genghis-khan": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "george-washington": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "guan-yu": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "han-wudi": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "joan-of-arc": {
+    "voice": "tianmeinvsheng",
+    "category": "young_female",
+    "speed": 1.05,
+    "pitch": 1.1
+  },
+  "julius-caesar": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "kangxi": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "kang-youwei": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "li-dazhao": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "li-hongzhang": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "liu-bang": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "napoleon": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "qianlong": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "qin-shihuang": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "song-zu": {
+    "voice": "wenrounansheng",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "sun-zhongshan": {
+    "voice": "boyinnansheng",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "tang-taizong": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "wang-zhaojun": {
+    "voice": "tianmeinvsheng",
+    "category": "young_female",
+    "speed": 1.05,
+    "pitch": 1.1
+  },
+  "winston-churchill": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "wu-zetian": {
+    "voice": "zhixingjiejie",
+    "category": "bright_female",
+    "speed": 1,
+    "pitch": 1.05
+  },
+  "xiang-yu": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "yue-fei": {
+    "voice": "zhengpaiqingnian",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "zeng-guofan": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "zhang-zhidong": {
+    "voice": "ruyananshi",
+    "category": "old_male",
+    "speed": 0.9,
+    "pitch": 1
+  },
+  "zheng-chenggong": {
+    "voice": "zhengpaiqingnian",
+    "category": "young_male",
+    "speed": 1.05,
+    "pitch": 1
+  },
+  "zhu-yuanzhang": {
+    "voice": "shenchennanyin",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  },
+  "zuo-zongtang": {
+    "voice": "cixingnansheng",
+    "category": "deep_male",
+    "speed": 0.95,
+    "pitch": 0.95
+  }
+}
