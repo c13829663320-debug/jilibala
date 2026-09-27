@@ -9,8 +9,9 @@ import { ArrowLeft, Gavel, Scale, Sparkles, Trophy, Zap } from 'lucide-react'
 import {
   createCourtGame, getCourtDailyChallenge, passCourtTurn, playCourtCard,
   type CourtCardKind, type CourtEvidence, type CourtSnapshot, type DailyChallengeInfo,
-  type EngineEvent,
+  type EngineEvent, type GameResultLike,
 } from './engine-client'
+import { resultCardToText } from '@balabala/shared'
 import { submitGameResult } from '../profile'
 
 const CARD_META: Record<CourtCardKind, { title: string; desc: string; cost: number; icon: string }> = {
@@ -26,13 +27,6 @@ interface JudgeLine {
   tone: 'judge' | 'hit' | 'miss' | 'rebuttal'
 }
 
-interface GameResultLike {
-  winner: string | null
-  scores: Record<string, number>
-  tier: { level: string; label: string; score: number; percentile: number }
-  highlights: string[]
-}
-
 const TUTORIAL = [
   { title: '欢迎来到趣味法庭', desc: '你是决定胜负的律师。顶部天平 0-100 互补，3 轮结束时你方 ≥55 即胜诉。' },
   { title: '看懂天平与弹药', desc: '每回合 2 点弹药。攻击/证据/嘲讽各花 1 点，要求记录不花弹药。' },
@@ -46,9 +40,11 @@ export type NewCourtGameProps = {
   onExit: () => void
   /** 切换回旧的 CourtFlow 经典模式。 */
   onSwitchClassic?: () => void
+  /** R5：切换到名人法庭招牌模式。 */
+  onSwitchSignature?: () => void
 }
 
-export default function NewCourtGame({ onExit, onSwitchClassic }: NewCourtGameProps) {
+export default function NewCourtGame({ onExit, onSwitchClassic, onSwitchSignature }: NewCourtGameProps) {
   const [id, setId] = useState<string | null>(null)
   const [snap, setSnap] = useState<CourtSnapshot | null>(null)
   const [daily, setDaily] = useState<DailyChallengeInfo | null>(null)
@@ -56,6 +52,10 @@ export default function NewCourtGame({ onExit, onSwitchClassic }: NewCourtGamePr
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<GameResultLike | null>(null)
+  const [relationshipChange, setRelationshipChange] = useState<{ delta: number; toType: string; reason: string } | null>(null)
+  const [resultCard, setResultCard] = useState<Record<string, unknown> | null>(null)
+  const [streak, setStreak] = useState<{ current: number; best: number } | null>(null)
+  const [copyStatus, setCopyStatus] = useState('')
   const [pendingCard, setPendingCard] = useState<CourtCardKind | null>(null)
   const [draft, setDraft] = useState('')
   const [pickedEvidence, setPickedEvidence] = useState<CourtEvidence | null>(null)
@@ -92,13 +92,18 @@ export default function NewCourtGame({ onExit, onSwitchClassic }: NewCourtGamePr
     })
   }, [])
 
-  const applyResponse = useCallback((resp: { snapshot: CourtSnapshot; events: EngineEvent[] }, prevSeen: number) => {
+  const applyResponse = useCallback((resp: { snapshot: CourtSnapshot; events: EngineEvent[] } & { result?: GameResultLike; relationshipChange?: { delta: number; toType: string; reason: string } | null; resultCard?: Record<string, unknown> | null; streak?: { current: number; best: number } }, prevSeen: number) => {
     setSnap(resp.snapshot)
     seenEventsRef.current = resp.events.length
     pushLines(resp.events, prevSeen)
-    // game_result 事件 → 结算面板
+    // R5：路由层返回的结算钩子数据优先。
+    if (resp.result) setResult(resp.result)
+    if (resp.relationshipChange) setRelationshipChange(resp.relationshipChange)
+    if (resp.resultCard) setResultCard(resp.resultCard)
+    if (resp.streak) setStreak(resp.streak)
+    // game_result 事件 → 结算面板（兜底）
     const resultEv = resp.events.find((e) => e.type === 'game_result')
-    if (resultEv?.payload && !result) {
+    if (resultEv?.payload && !result && !resp.result) {
       setResult((resultEv.payload as { result: GameResultLike }).result)
     }
   }, [pushLines, result])
@@ -219,6 +224,9 @@ export default function NewCourtGame({ onExit, onSwitchClassic }: NewCourtGamePr
         <span style={{ fontSize: 16, fontWeight: 800, color: '#ffd06a' }}>⚖ 趣味法庭 · 牌面对决</span>
         <span style={{ fontSize: 11, color: 'rgba(255,240,214,0.55)' }}>3 轮 · 天平定胜负</span>
         <div style={{ flex: 1 }} />
+        {onSwitchSignature && (
+          <button onClick={onSwitchSignature} style={ghostBtn} data-testid="court-signature-btn">🎭 招牌模式</button>
+        )}
         {onSwitchClassic && (
           <button onClick={onSwitchClassic} style={ghostBtn} data-testid="court-classic-btn">经典模式</button>
         )}
@@ -404,13 +412,38 @@ export default function NewCourtGame({ onExit, onSwitchClassic }: NewCourtGamePr
           <div style={{ fontSize: 12, color: 'rgba(255,240,214,0.6)', marginTop: 4 }}>
             你方天平 {result.scores['slot-0'] ?? 0} : {result.scores['slot-1'] ?? 0}
           </div>
+          {/* R5：关系变化 + 连胜 */}
+          {relationshipChange && (
+            <div data-testid="court-relationship" style={{ fontSize: 12.5, color: '#9ecbff', marginTop: 8 }}>
+              与对方名人关系：{relationshipChange.delta >= 0 ? '+' : ''}{relationshipChange.delta}（{relationshipChange.toType}）· {relationshipChange.reason}
+            </div>
+          )}
+          {streak && (
+            <div data-testid="court-streak" style={{ fontSize: 12.5, color: '#ffd06a', marginTop: 4 }}>
+              🔥 当前 {streak.current > 0 ? `${streak.current} 连胜` : streak.current < 0 ? `${Math.abs(streak.current)} 连败` : '无连胜'} · 最佳 {streak.best}
+            </div>
+          )}
           <div style={{ textAlign: 'left', marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={{ fontSize: 12, color: 'rgba(255,240,214,0.55)' }}>高光时刻：</div>
             {result.highlights.map((h, i) => (
-              <div key={i} style={{ fontSize: 12.5, color: '#f4e8d0' }}>· {h}</div>
+              <div key={i} data-testid="court-highlight" style={{ fontSize: 12.5, color: '#f4e8d0' }}>· {h}</div>
             ))}
           </div>
-          <button onClick={restart} style={{ ...primaryBtn, width: '100%', marginTop: 14 }} data-testid="court-again">再来一局</button>
+          {/* R5：战果卡 */}
+          {resultCard && (
+            <div data-testid="court-result-card" style={{ marginTop: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,208,106,0.25)', borderRadius: 8, padding: 8, display: 'flex', gap: 8 }}>
+              <button data-testid="court-copy-card" onClick={() => {
+                const text = resultCardToText(resultCard as never as Parameters<typeof resultCardToText>[0])
+                navigator.clipboard?.writeText(text).then(() => { setCopyStatus('已复制文案'); window.setTimeout(() => setCopyStatus(''), 1800) }).catch(() => { setCopyStatus('复制失败') })
+              }} style={ghostBtn}>{copyStatus || '复制战果文案'}</button>
+              <button data-testid="court-share-card" onClick={() => {
+                const text = resultCardToText(resultCard as never as Parameters<typeof resultCardToText>[0])
+                if (navigator.share) navigator.share({ text }).catch(() => {})
+                else navigator.clipboard?.writeText(text).catch(() => {})
+              }} style={ghostBtn}>分享</button>
+            </div>
+          )}
+          <button onClick={restart} style={{ ...primaryBtn, width: '100%', marginTop: 14 }} data-testid="court-again">再来一局（指名同一对手）</button>
         </div>
       )}
 

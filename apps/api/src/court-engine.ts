@@ -13,9 +13,13 @@ import {
   computeRankPoints,
   clampScore,
   getDailyChallenge,
+  detectHighlight,
+  detectComeback,
+  computeAffinityDelta,
   type GameResult,
   type TierLevel,
   type TutorialStep,
+  type Highlight,
 } from "@balabala/shared";
 import type { CourtCardType, CourtPlayerMove } from "@balabala/shared";
 import {
@@ -75,6 +79,26 @@ export interface CourtEngineState {
   rebuttalDebt: number;
   /** 本局是否使用过 mock 牌（每日挑战「正人君子」判定）。 */
   usedMock: boolean;
+  /** R5：每轮结束后玩家天平分（翻盘检测用，含起点）。 */
+  scoreHistory: number[];
+}
+
+/** 本局结算附带的 R5 钩子数据（关系 / 高光 / 翻盘）。 */
+export interface CourtResultMetadata {
+  outcome: "win" | "draw" | "loss";
+  comeback: boolean;
+  /** 对手名人（关系系统用）。 */
+  opponentCelebrity: { id: string; name: string };
+  /** 本局好感度变化（已算好，路由层落盘）。 */
+  relationshipDelta: number;
+  relationshipReason: string;
+  /** 结构化高光（已 captureHighlight）。 */
+  highlights: Highlight[];
+}
+
+/** 带 R5 钩子元数据的法庭结算结果。 */
+export interface CourtGameResult extends GameResult {
+  metadata: CourtResultMetadata;
 }
 
 export interface CourtConfig {
@@ -90,6 +114,8 @@ export interface CourtConfig {
   initialBalance?: BalanceState;
   /** 当日挑战（由 getDailyChallenge('court', date) 注入）。 */
   dailyChallengeId?: string;
+  /** R5：对手名人（关系/战果卡用）。 */
+  opponentCelebrity?: { id: string; name: string };
 }
 
 export type CourtAction =
@@ -159,6 +185,7 @@ export class CourtOrchestrator extends BaseOrchestrator<
       rebuttalAppliedThisRound: false,
       rebuttalDebt: 0,
       usedMock: false,
+      scoreHistory: [50],
     };
   }
 
@@ -284,6 +311,13 @@ export class CourtOrchestrator extends BaseOrchestrator<
     };
     this.state.playerMoves.push(move);
 
+    // R5：喂高光检测器，命中关键证据就 captureHighlight。
+    const hl = detectHighlight("court", {
+      type: "court_card_resolved",
+      payload: { hit: resolution.hit, delta: resolution.delta, round: this.state.round, timestamp: Date.now() },
+    });
+    if (hl) this.captureHighlight({ ...hl, id: this.nextHighlightId() });
+
     this.emit({
       type: "court_card_resolved",
       timestamp: Date.now(),
@@ -331,6 +365,8 @@ export class CourtOrchestrator extends BaseOrchestrator<
     // 对手反驳 = 玩家方天平下降
     this.state.balance = applyBalance(this.state.balance, this.state.playerSide, -delta);
     this.state.lastDelta = -delta;
+    // R5：记录本论结束后玩家天平分（翻盘检测）。
+    this.state.scoreHistory.push(this.state.balance[this.state.playerSide]);
 
     this.emit({
       type: "court_balance_update",
@@ -355,8 +391,8 @@ export class CourtOrchestrator extends BaseOrchestrator<
     }
   }
 
-  /** 终局结算：胜方由天平决定。 */
-  override settle(): GameResult {
+  /** 终局结算：胜方由天平决定。附带 R5 钩子元数据。 */
+  override settle(): CourtGameResult {
     const playerBalance = this.state.balance[this.state.playerSide];
     const rawWinner = decideWinnerFromBalance(this.state.balance);
     // 真人方胜 / 对方胜 / 平局
@@ -384,6 +420,24 @@ export class CourtOrchestrator extends BaseOrchestrator<
       highlights.push("本局没有命中争议点——下次出牌前先读一眼上方未决焦点。");
     }
 
+    // R5：翻盘检测 + 好感度变化（路由层落盘）。
+    const comeback = detectComeback(this.state.scoreHistory, playerBalance, 100);
+    const captured = this.getHighlights();
+    const opponentCelebrity = this.config?.opponentCelebrity ?? { id: "court-opponent", name: "对方律师" };
+    const relationshipDelta = computeAffinityDelta({
+      scene: "court",
+      result,
+      score: playerBalance,
+      maxScore: 100,
+      highlights: captured,
+      comeback,
+      opponentAffinity: 0,
+    });
+    const relationshipReason =
+      result === "win" ? (comeback ? "翻盘胜诉" : "庭审胜诉")
+      : result === "draw" ? "势均力敌"
+      : "庭审惜败";
+
     return {
       winner,
       scores: {
@@ -394,6 +448,14 @@ export class CourtOrchestrator extends BaseOrchestrator<
       rankPoints,
       highlights,
       durationMs: this.elapsedMs,
+      metadata: {
+        outcome: result,
+        comeback,
+        opponentCelebrity,
+        relationshipDelta,
+        relationshipReason,
+        highlights: captured,
+      },
     };
   }
 
