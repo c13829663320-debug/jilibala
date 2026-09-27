@@ -545,6 +545,8 @@ export type WSMessage =
   // —— Round4 R4-03：安全模块举报（客户端→服务端，服务端记录到 reports.log 后回执） ——
   | { type: 'report_user'; targetUserId: string; reason: string; category: ReportCategory }
   | { type: 'report_ack'; accepted: boolean; reportedAt?: string }
+  // —— R5 发布域：禁言状态下发（服务端→本人）。命中敏感词累计触发或管理员处置后推送。 ——
+  | { type: 'mute_status'; muted: boolean; mutedUntil?: number; reason?: string }
   | { type: 'pong' }
   | { type: 'pong' }
   // —— Round4 R4-02: 房间权限系统 ——
@@ -1113,3 +1115,6 @@ export * from "./social-party.js";
 
 // ===== Round5 R5-UGC: 一句话造场景 / 发布分享闭环 / 照片头像化身 =====
 export * from "./ugc-pipeline.js";
+
+// ===== R5 发布域：内容审核纯函数（敏感词/名人形象合规） =====
+export * from "./moderation.js";

@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1.6
+# ============================================================
+# R5 发布域：Dockerfile.api —— Fastify API + WebSocket 服务
+# 多阶段构建：node:22-alpine；本仓库为 npm workspaces（package-lock.json），
+# 若团队统一用 pnpm，可把 npm ci 换成 pnpm install --prod --frozen-lockfile。
+# 容器内监听 3001，由 nginx 反代 /api 与 /api/ws 到本服务。
+# ============================================================
+
+# ---------- Stage 1: deps + build ----------
+FROM node:22-alpine AS build
+ENV NODE_ENV=production
+WORKDIR /app
+RUN apk add --no-cache tzdata ca-certificates
+# 先拷清单，最大化层缓存
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+RUN npm ci --no-audit --no-fund
+# 拷源码并编译 shared（生产用编译产物）+ api（tsc）
+COPY packages/shared ./packages/shared
+RUN npx tsc packages/shared/src/index.ts \
+      --outDir packages/shared/dist \
+      --module NodeNext --moduleResolution NodeNext \
+      --target ES2022 --skipLibCheck --declaration false
+RUN printf '{\"name\":\"@balabala/shared\",\"version\":\"0.1.0\",\"type\":\"module\",\"main\":\"dist/index.js\",\"types\":\"dist/index.d.ts\"}\n' \
+      > packages/shared/package.json
+COPY apps/api ./apps/api
+RUN npm run build --workspace apps/api
+# 裁剪生产依赖
+RUN npm prune --omit=dev --no-audit --no-fund
+
+# ---------- Stage 2: runtime ----------
+FROM node:22-alpine AS runtime
+ENV NODE_ENV=production \
+    PORT=3001 \
+    HOST=0.0.0.0
+WORKDIR /app
+RUN apk add --no-cache tzdata ca-certificates wget && \
+    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/api/data ./apps/api/data
+COPY --from=build /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=build /app/packages/shared/dist ./packages/shared/dist
+WORKDIR /app/apps/api
+# 数据卷挂载点（.data/ JSON 持久化、reports.log、mutes/、reports/）
+RUN mkdir -p /data && chown -R node:node /data
+VOLUME ["/data"]
+USER node
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:3001/health" | grep -q '"ok":true' || exit 1
+CMD ["node", "dist/server.js"]

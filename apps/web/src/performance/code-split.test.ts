@@ -1,8 +1,9 @@
 // ===== R5: 代码分包契约测试 =====
 //
-// 目标：保证 App.tsx 中各场景 Shell 都通过 React.lazy(() => import(...)) 动态导入，
-// 首屏（entry/room）不把法庭/狼人杀/酒吧/健身房/图书馆/脱口秀/广场等 3D 场景代码
-// 打进主 chunk。这是静态源码契约校验，不真正加载 three.js（node 环境无 WebGL）。
+// R5-IA 重构后：五个通用场景 Shell（脱口秀/狼人杀/酒吧/图书馆/健身房）的
+// React.lazy(() => import(...)) 收敛到 ia/SceneRouter.tsx；App.tsx 只直接 lazy
+// 顶层重视图（广场/人物馆/自定义/多人大厅/场景工作室）。分包目标不变：
+// 首屏（entry）不把任何 3D 重场景代码打进主 chunk。静态源码校验，不加载 three.js。
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -11,15 +12,11 @@ import { dirname, resolve } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appSource = readFileSync(resolve(here, '../App.tsx'), 'utf8')
+const sceneRouterSource = readFileSync(resolve(here, '../ia/SceneRouter.tsx'), 'utf8')
 
-/** 必须按需动态导入的场景 Shell（首屏不得静态 import）。 */
-const LAZY_SCENES = [
+/** App.tsx 直接 lazy 的顶层重视图（首屏不得静态 import）。 */
+const APP_LAZY_SCENES = [
   'Plaza3D',
-  'TalkshowShell',
-  'WerewolfShell',
-  'BarShell',
-  'LibraryShell',
-  'GymShell',
   'CharacterHall',
   'CustomCharacterStudio',
   'MultiplayerLobby',
@@ -28,24 +25,45 @@ const LAZY_SCENES = [
   'ScenePlay',
 ] as const
 
-describe('App.tsx 场景代码分包', () => {
-  it('每个重场景都用 lazy(() => import(...)) 动态导入', () => {
-    for (const scene of LAZY_SCENES) {
-      // 形如：const X = lazy(() => import('./X')) 或 lazy(() => import('./scene-studio/X'))
-      const re = new RegExp(`lazy\\(\\s*\\(\\)\\s*=>\\s*import\\(\\s*['"][^'"]*/${scene}['"]\\s*\\)\\s*\\)`)
-      expect(appSource, `${scene} 应通过 lazy(() => import(...)) 动态导入`).toMatch(re)
+/** 五个通用场景 Shell：由 SceneRouter 统一 lazy（import 路径带 ../ 前缀）。 */
+const ROUTER_LAZY_SCENES = [
+  'TalkshowShell',
+  'WerewolfShell',
+  'BarShell',
+  'LibraryShell',
+  'GymShell',
+] as const
+
+/** lazy(() => import('<prefix>/<Scene>'))；prefix 可为空（./Scene）或多级目录。 */
+function lazyImportRegex(scene: string, requireSlash: boolean) {
+  const slash = requireSlash ? '/' : '/?'
+  return new RegExp(
+    `lazy\\(\\s*\\(\\)\\s*=>\\s*import\\(\\s*['"][^'"]*?${slash}${scene}['"]\\s*\\)\\s*\\)`
+  )
+}
+
+describe('场景代码分包', () => {
+  it('App.tsx 顶层重视图用 lazy(() => import(...)) 动态导入', () => {
+    for (const scene of APP_LAZY_SCENES) {
+      expect(appSource, `${scene} 应在 App.tsx 通过 lazy 动态导入`).toMatch(
+        lazyImportRegex(scene, false)
+      )
     }
   })
 
-  it('重场景不得被顶层静态 import（会打进首屏 chunk）', () => {
-    // 静态 import 形如：import X from './X'（不带 lazy）。逐行排除 lazy 行。
-    const lines = appSource.split('\n')
-    for (const scene of LAZY_SCENES) {
-      for (const line of lines) {
-        if (line.includes(`'./`) && line.includes(`/${scene}'`)) {
-          expect(line, `${scene} 不应被静态 import（应走 lazy）`).toContain('lazy(')
-        }
-      }
+  it('五个通用场景 Shell 由 SceneRouter 统一 lazy 动态导入', () => {
+    for (const scene of ROUTER_LAZY_SCENES) {
+      expect(sceneRouterSource, `${scene} 应在 SceneRouter 通过 lazy 动态导入`).toMatch(
+        lazyImportRegex(scene, true)
+      )
+    }
+  })
+
+  it('五个通用场景 Shell 不再在 App.tsx 直接 import（已收敛到 SceneRouter）', () => {
+    for (const scene of ROUTER_LAZY_SCENES) {
+      expect(appSource, `${scene} 已收敛到 SceneRouter，App.tsx 不应直接 import`).not.toMatch(
+        new RegExp(`import\\(\\s*['"][^'"]*?/${scene}['"]\\s*\\)`)
+      )
     }
   })
 })

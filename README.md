@@ -24,7 +24,45 @@
 
 **[🚀 快速开始（本地启动）](#本地启动)**
 
+> 🟡 **R5 发布版** —— 和古今中外名人在 3D 世界对话、辩论、同台；AI 原生 3D 社交 + UGC 平台，现已具备上线前安全审核闭环、Docker 公网部署与 3 分钟演示脚本。
+
 </div>
+
+---
+
+## 🧭 R5 一句话卖点
+
+**走进一座 AI 原生 3D 广场，和 100 位古今中外名人对话辩论同台，一句话造出你的 3D 世界并分享——PWA 即点即玩，无需下载。**
+
+### 架构速览（文字版）
+```
+浏览器(PWA/Three.js) ──HTTPS/WSS──▶ nginx ──┬─▶ web(静态 dist)
+                                            ├─▶ api(Fastify+WS, :3001) ──▶ .data JSON
+                                            └─▶ coturn(WebRTC TURN)
+packages/shared = 唯一类型源（ModerationAction/Report/Scene-UGC/名人）
+```
+
+### R5 新特性（各域一句话）
+- **安全**：敏感词过滤（中/英四类词表）+ 命中 3 次自动禁言 5 分钟 + 举报处置闭环（后台列表/警告/禁言/解封）+ UGC 发布 pending_review 审核。
+- **部署**：`docker/` 一键 Compose（api/web/nginx/coturn），HTTPS/WSS 模板 + TURN，见 `docs/DEPLOYMENT.md`。
+- **UGC**：一句话造场景自动过审，命中即待复核不公开。
+- **社交**：房间码组队 + WebRTC 空间语音 + 文字喊话回落，禁言状态实时下发倒计时。
+- **性能**：AI 网关统一调用，WebRTC 打洞失败走 TURN 中继。
+- **名人**：100 位 persona/greeting/离线知识库，形象合规校验（防冒充/诽谤）。
+- **IA**：三主页路由，3 步直达名人对话。
+- **门面**：本 README + `about.html` + R5 发布说明。
+
+### 快速启动
+```bash
+npm install
+npm run dev          # 同时起 api(:8787) + web(:5173)
+# 测试
+npm --workspace apps/api run test && npm --workspace apps/web run test
+```
+
+### 演示
+- 3 分钟演示脚本：`docs/DEMO_SCRIPT.md` ｜ 演示前检查：`docs/DEMO_CHECKLIST.md`
+- 演示链接占位：`https://<待部署域名>/`（部署见 `docs/DEPLOYMENT.md`）
 
 ---
 
