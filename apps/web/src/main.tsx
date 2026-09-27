@@ -1,15 +1,13 @@
-import { StrictMode, useState, useEffect, lazy, Suspense } from 'react'
+import { StrictMode, useEffect, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './design-tokens.css'
 import './styles.css'
-import SplashScreen from './SplashScreen'
 
 // PWA Service Worker 注册由 src/pwa-update.tsx 中的 useRegisterSW 统一负责，
 // 这里不再重复调用 registerSW（避免重复注册）。
-
-// 直达分享链接时不需要开屏，直接看判决书
-const SKIP_SPLASH = typeof window !== 'undefined' && /^\/share\//.test(window.location.pathname)
+// R5：开屏由 App.tsx 的 SplashGate 统一管理（仅新用户播放，回归用户不打断），
+// 此处不再渲染独立开屏。
 
 // 【临时调试】?verdict=<caseId> -> 用真实 VerdictScreen 渲染已落库判决。
 const VERDICT_ID = typeof window !== 'undefined'
@@ -67,7 +65,6 @@ function useGlobalErrorToast() {
 }
 
 function Root() {
-  const [showSplash, setShowSplash] = useState(!SKIP_SPLASH)
   useGlobalErrorToast()
   if (VERDICT_ID) {
     return (
@@ -81,7 +78,6 @@ function Root() {
   return (
     <StrictMode>
       <App />
-      {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
     </StrictMode>
   )
 }
