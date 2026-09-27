@@ -1090,3 +1090,6 @@ export * from "./scene-studio.js";
 
 // ===== Round4 R4-09: 场景 UGC（模板市场/保存分享/CC0 道具/可拾取） =====
 export * from "./scene-ugc.js";
+
+// ===== Round5 R5-UGC: 一句话造场景 / 发布分享闭环 / 照片头像化身 =====
+export * from "./ugc-pipeline.js";
