@@ -1469,12 +1469,12 @@ const PROFILES_DIR =
   process.env.PROFILES_DIR || resolve(process.cwd(), ".data", "profiles");
 mkdirSync(PROFILES_DIR, { recursive: true });
 
-/** 规范化一份玩法战绩快照（容错：缺字段补 0）。 */
-function normalizeStats(s: unknown): Record<'court' | 'werewolf' | 'bar', MatchStats> | undefined {
+/** 规范化一份玩法战绩快照（容错：缺字段补 0）。R5：六场景全覆盖。 */
+function normalizeStats(s: unknown): Partial<Record<string, MatchStats>> | undefined {
   if (!s || typeof s !== "object") return undefined;
   const src = s as Record<string, unknown>;
-  const out: Partial<Record<'court' | 'werewolf' | 'bar', MatchStats>> = {};
-  for (const key of ['court', 'werewolf', 'bar'] as const) {
+  const out: Partial<Record<string, MatchStats>> = {};
+  for (const key of ["court", "talkshow", "werewolf", "bar", "gym", "library"] as const) {
     const v = src[key];
     if (!v || typeof v !== "object") continue;
     const o = v as Record<string, unknown>;
@@ -1485,7 +1485,7 @@ function normalizeStats(s: unknown): Record<'court' | 'werewolf' | 'bar', MatchS
       currentStreak: Math.max(0, Math.floor(Number(o.currentStreak) || 0)),
     };
   }
-  return out as Record<'court' | 'werewolf' | 'bar', MatchStats>;
+  return out;
 }
 
 function defaultServerProfile(userId: string): ServerProfile {

@@ -241,6 +241,35 @@ export function registerRelationshipRoutes(app: FastifyInstance): void {
     return { relationship: rel };
   });
 
+  // POST /api/relationships/:celebrityId —— 结算时上报一局好感度变化
+  // 前端引擎（健身房）已用 computeAffinityDelta 算好 delta，这里只负责落盘。
+  app.post<{ Params: { celebrityId: string } }>("/api/relationships/:celebrityId", async (req, reply) => {
+    const { celebrityId } = req.params as { celebrityId: string };
+    const body = (req.body ?? {}) as {
+      userId?: string;
+      delta?: number;
+      reason?: string;
+      result?: "win" | "draw" | "loss";
+    };
+    const userId = body.userId ?? "";
+    if (!userId) return reply.code(400).send({ error: "缺少 userId", code: "bad_user" });
+    const delta = Math.round(Number(body.delta) || 0);
+    const reason = (body.reason ?? "").trim() || "对局结算";
+    try {
+      const change = applyRelationshipChange(userId, celebrityId, {
+        delta,
+        reason,
+        result: body.result,
+      });
+      return { change };
+    } catch (e) {
+      if (e instanceof RelationshipError) {
+        return reply.code(e.statusCode).send({ error: e.message, code: e.code });
+      }
+      throw e;
+    }
+  });
+
   // POST /api/relationships/:celebrityId/reset —— 重置（测试用）
   app.post("/api/relationships/:celebrityId/reset", async (req, reply) => {
     const { celebrityId } = req.params as { celebrityId: string };

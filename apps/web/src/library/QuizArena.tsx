@@ -43,6 +43,8 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
   const [remainingMs, setRemainingMs] = useState(10_000);
   const [buzzToast, setBuzzToast] = useState<string | null>(null);
   const [error, setError] = useState("");
+  // R5: 服务端结算钩子（高光/关系/连胜/战果卡）。
+  const [settle, setSettle] = useState<LibrarySettleResponse | null>(null);
 
   // 每日挑战（共享种子池）+ 首局新手引导（可跳过）。
   const dailyChallenge = getDailyChallenge("library", new Date());
@@ -65,6 +67,11 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
   const answeredRef = useRef(false);
   const intervalRef = useRef<number | null>(null);
   const timeoutsRef = useRef<number[]>([]);
+  // R5: 结算轨迹——每题亮出时间 / 玩家得分历史 / 名人失误次数 / 最快抢答。
+  const qStartRef = useRef(0);
+  const scoreHistoryRef = useRef<number[]>([0]);
+  const wrongBuzzRef = useRef<Record<string, number>>({});
+  const quickestRef = useRef<number | undefined>(undefined);
 
   const clearTimers = () => {
     if (intervalRef.current) window.clearInterval(intervalRef.current);
@@ -76,7 +83,9 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
   useEffect(() => clearTimers, []);
 
   const applyBuzz = (celebId: string, correct: boolean, delta: number) => {
+    oppScoreRef.current[celebId] = (oppScoreRef.current[celebId] ?? 0) + delta;
     setPlayers((prev) => prev.map((p) => (p.id === celebId ? { ...p, score: p.score + delta } : p)));
+    if (!correct) wrongBuzzRef.current[celebId] = (wrongBuzzRef.current[celebId] ?? 0) + 1;
     const name = opponentsRef.current.find((o) => o.id === celebId)?.name ?? celebId;
     setBuzzToast(`${name} 抢答${correct ? "成功" : "失误"} ${delta > 0 ? "+" : ""}${delta}`);
     const t = window.setTimeout(() => setBuzzToast(null), 1500);
@@ -86,7 +95,36 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
   const finish = () => {
     clearTimers();
     setPhase("results");
+    // R5: 上报服务端结算——落盘 3 位名人关系 + library 连胜，取回钩子数据。
+    void fetch("/api/engine/library/settle", {
+      method: "POST",
+      headers: httpHeaders,
+      body: JSON.stringify({
+        userId: "local-user",
+        domain: domainRef.current,
+        myScore: myScoreRef.current,
+        maxCombo: maxComboRef.current,
+        correctCount: correctCountRef.current,
+        questionCount: questionsRef.current.length,
+        quickestAnswerMs: quickestRef.current,
+        scoreHistory: scoreHistoryRef.current,
+        opponents: opponentsRef.current.map((o) => ({
+          id: o.id,
+          name: o.name,
+          field: o.field,
+          score: oppScoreRef.current[o.id] ?? 0,
+          wrongBuzzes: wrongBuzzRef.current[o.id] ?? 0,
+        })),
+      }),
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<LibrarySettleResponse>) : null))
+      .then((data) => { if (data) setSettle(data); })
+      .catch(() => { /* 离线静默 */ });
   };
+
+  const oppScoreRef = useRef<Record<string, number>>({});
+  const maxComboRef = useRef(0);
+  const correctCountRef = useRef(0);
 
   const beginQuestion = (index: number) => {
     clearTimers();
@@ -95,6 +133,7 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
     setRemainingMs(10_000);
     setQIndex(index);
     qIndexRef.current = index;
+    qStartRef.current = performance.now();
 
     // 为本题规划 1-2 位 AI 抢答。
     if (domainRef.current) {
@@ -128,11 +167,16 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
     setSelected(choice);
     if (correct) {
       const delta = playerScoreDelta(comboRef.current);
+      const answeredMs = Math.round(performance.now() - qStartRef.current);
       comboRef.current += 1;
       setCombo(comboRef.current);
+      maxComboRef.current = Math.max(maxComboRef.current, comboRef.current);
       setMaxCombo((m) => Math.max(m, comboRef.current));
+      correctCountRef.current += 1;
       setCorrectCount((c) => c + 1);
       myScoreRef.current += delta;
+      scoreHistoryRef.current.push(myScoreRef.current);
+      if (quickestRef.current === undefined || answeredMs < quickestRef.current) quickestRef.current = answeredMs;
     } else {
       livesRef.current -= 1;
       comboRef.current = 0;
@@ -170,6 +214,9 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
       setDomainLabel(data.domainLabel);
 
       livesRef.current = 3; comboRef.current = 0; myScoreRef.current = 0; qIndexRef.current = 0;
+      scoreHistoryRef.current = [0]; wrongBuzzRef.current = {}; quickestRef.current = undefined;
+      oppScoreRef.current = {}; maxComboRef.current = 0; correctCountRef.current = 0;
+      setSettle(null);
       setLives(3); setCombo(0); setMaxCombo(0); setCorrectCount(0);
       setPlayers([
         { id: "you", name: "你", score: 0, isCeleb: false },
@@ -279,6 +326,7 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
             totalQuestions={questionsRef.current.length}
             maxCombo={maxCombo}
             domainLabel={domainLabel}
+            settle={settle}
             onReplay={() => setPhase("select")}
             onDeepChat={onDeepChat}
           />
@@ -328,6 +376,21 @@ export default function QuizArena({ onDeepChat }: { onDeepChat: () => void }) {
     </div>
   );
 }
+// R5: /api/engine/library/settle 返回的钩子数据形状。
+export interface LibrarySettleResponse {
+  result: {
+    winner: string | null;
+    tier: { label: string };
+    capturedHighlights: Array<{ type: string; description: string }>;
+    relationshipChanges: Array<{ celebrityId: string; delta: number; toType: string; reason: string }>;
+    resultCardText: string;
+    comeback: boolean;
+    settlementType: string;
+  };
+  relationshipChanges: Array<{ celebrityId: string; delta: number; toType: string; reason: string }>;
+  streak: { current: number; best: number };
+}
+
 function CountdownRing({ ms }: { ms: number }) {
   const R = 26;
   const C = 2 * Math.PI * R;

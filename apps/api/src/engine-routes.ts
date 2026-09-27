@@ -4,12 +4,16 @@
 // 旧的 court-routes / talkshow-routes 保持不动（不回归）。
 // ============================================================================
 import type { FastifyInstance } from "fastify";
-import type { CourtCardType, WerewolfRole } from "@balabala/shared";
+import type { CourtCardType, WerewolfRole, QuizDomain } from "@balabala/shared";
+import { updateStreak } from "@balabala/shared";
 import { CourtOrchestrator } from "./court-engine.js";
 import { TalkshowOrchestrator } from "./talkshow-engine.js";
 import { WerewolfEngine, type WwAction, type WwPrivateSnapshot } from "./werewolf-engine.js";
 import { BarEngine } from "./bar-engine.js";
 import type { ArgumentAngle } from "./bar-orchestrator.js";
+import { LibraryOrchestrator, type EngineOpponent, type LibraryGameResult } from "./library-engine.js";
+import { applyRelationshipChange, getRelationship } from "./relationship.js";
+import { loadServerProfile, saveServerProfile } from "./db.js";
 
 interface CourtSession {
   engine: CourtOrchestrator;
@@ -370,5 +374,82 @@ export function registerEngineRoutes(app: FastifyInstance): void {
 
   app.get("/api/engine/bar-daily", async (_req, reply) => {
     return reply.send(BarEngine.dailyChallenge(new Date()));
+  });
+
+  // ===== 图书馆 · 知识擂台结算（R5 钩子四件套 + 关系/连胜持久化）=====
+  // 前端已在客户端跑完 8 题，这里接收最终比分轨迹，复用 LibraryOrchestrator.settle()
+  // 产出高光/关系变化/战果卡，并落盘 3 位名人关系 + 服务端档案 library 连胜。
+  app.post("/api/engine/library/settle", async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      userId?: string;
+      domain?: QuizDomain;
+      myScore?: number;
+      maxCombo?: number;
+      correctCount?: number;
+      questionCount?: number;
+      quickestAnswerMs?: number;
+      scoreHistory?: number[];
+      opponents?: Array<{ id: string; name: string; field?: string; score: number; wrongBuzzes?: number }>;
+    };
+    const userId = body.userId || "anonymous";
+    const opponents = body.opponents ?? [];
+    const questionCount = Math.max(1, Math.floor(body.questionCount ?? 8));
+    const myScore = Math.round(body.myScore ?? 0);
+    const opps: EngineOpponent[] = opponents.map((o) => ({
+      id: o.id,
+      name: o.name || o.id,
+      field: o.field,
+    }));
+
+    // 读各名人当前好感度（宿敌/跨档判定用）。
+    const affinities: Record<string, number> = {};
+    for (const o of opponents) affinities[o.id] = getRelationship(userId, o.id)?.affinity ?? 0;
+
+    const orch = new LibraryOrchestrator();
+    orch.setupContestant(opps.map((o) => o.id), userId, "我");
+    const dummy = { prompt: "", options: ["", "", "", ""], correctIndex: 0, explanation: "" };
+    orch.startGame({
+      domain: body.domain ?? "science",
+      questions: Array.from({ length: questionCount }, () => ({ ...dummy })),
+      opponents: opps,
+      opponentAffinities: affinities,
+      currentStats: loadServerProfile(userId).stats?.library,
+    });
+    orch.addScore("slot-0", myScore, "settle");
+    opponents.forEach((o, i) => orch.addScore(`slot-${i + 1}`, Math.round(o.score ?? 0), "settle"));
+    orch.restoreSettleContext({
+      scoreHistory: Array.isArray(body.scoreHistory) && body.scoreHistory.length > 0 ? body.scoreHistory : [0, myScore],
+      wrongBuzzes: Object.fromEntries(
+        opponents.filter((o) => (o.wrongBuzzes ?? 0) > 0).map((o) => [o.id, o.wrongBuzzes ?? 0]),
+      ),
+      quickestAnswerMs: body.quickestAnswerMs,
+      maxCombo: Math.round(body.maxCombo ?? 0),
+      correctCount: Math.round(body.correctCount ?? 0),
+      questionCount,
+    });
+    orch.cancelTimer();
+    const result = orch.settle() as LibraryGameResult;
+    const win = result.winner === "slot-0";
+
+    // 落盘 3 位名人关系变化。
+    const persisted = result.relationshipChanges.map((c) =>
+      applyRelationshipChange(userId, c.celebrityId, {
+        delta: c.delta,
+        reason: c.reason,
+        result: win ? "win" : "loss",
+      }),
+    );
+
+    // 更新服务端档案 library 连胜。
+    const profile = loadServerProfile(userId);
+    const newStats = updateStreak(profile.stats?.library, win ? "win" : "loss");
+    profile.stats = { ...(profile.stats ?? {}), library: newStats };
+    saveServerProfile(profile);
+
+    return reply.send({
+      result,
+      relationshipChanges: persisted,
+      streak: newStats,
+    });
   });
 }
