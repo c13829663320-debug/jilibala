@@ -120,7 +120,7 @@ function BarFurniture() {
       stoolRef.current.instanceMatrix.needsUpdate = true
     }
     if (chairRef.current) {
-      CHAIR_POS.forEach(([x, z], i) {
+      CHAIR_POS.forEach(([x, z], i) => {
         v.set(x, 0.225, z); sc.setScalar(1)
         m.compose(v, q, sc)
         chairRef.current!.setMatrixAt(i, m)
