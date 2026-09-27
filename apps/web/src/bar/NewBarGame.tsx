@@ -8,6 +8,7 @@ import CounterPopup, { type PopupData } from './CounterPopup'
 import type { ArgumentAngle, AngleEffectiveness } from './types'
 import { ANGLE_META } from './types'
 import { barClient, type BarSnapshot } from './engine-client'
+import R5SettlementPanel, { type R5Bundle } from '../lib/r5'
 
 const BarView = lazy(() => import('../BarView'))
 
@@ -36,6 +37,8 @@ export default function NewBarGame({ onBack }: { onBack?: () => void }) {
   const [busy, setBusy] = useState(false)
   const [popup, setPopup] = useState<PopupData | null>(null)
   const [daily, setDaily] = useState<{ title: string; description: string; reward: number } | null>(null)
+  const [r5, setR5] = useState<R5Bundle | null>(null)
+  const [shareText, setShareText] = useState('')
   const [showTutorial, setShowTutorial] = useState(() => !window.location.search.includes('__e2e=1'))
 
   useEffect(() => {
@@ -67,6 +70,8 @@ export default function NewBarGame({ onBack }: { onBack?: () => void }) {
     try {
       const { snapshot } = await barClient.act(gameId, { kind: 'pick_angle', angle: selectedAngle, text: text.trim() })
       setSnap(snapshot)
+      setR5(snapshot.r5 ?? null)
+      setShareText(snapshot.shareText ?? '')
       // 克制飘字
       if (snapshot.angleEffectiveness) {
         setPopup({ effectiveness: snapshot.angleEffectiveness, key: Date.now() })
@@ -239,10 +244,8 @@ export default function NewBarGame({ onBack }: { onBack?: () => void }) {
                     </div>
                   </>
                 )}
-                {stage === 'verdict' && (
-                  <button onClick={reset} data-testid="bar-again" style={{ ...primaryBtn, width: '100%' }}>
-                    <RotateCcw size={14} /> 换个辩题再来一局
-                  </button>
+                {stage === 'verdict' && r5 && (
+                  <R5SettlementPanel bundle={r5} shareText={shareText} onAgain={reset} />
                 )}
               </div>
             </>

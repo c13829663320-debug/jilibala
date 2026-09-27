@@ -36,6 +36,9 @@ export interface BarSnapshot {
     highlights: string[]
   } | null
   humanWon: boolean
+  /** R5：结算演出包。 */
+  r5?: import('../lib/r5').R5Bundle | null
+  shareText?: string
 }
 
 export interface BarDaily {
