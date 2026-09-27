@@ -8,11 +8,13 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type {
-  SavedScene,
-  SavedSceneMeta,
-  SaveSceneRequest,
-  UpdateSceneVisibilityRequest,
+import {
+  moderateText as moderateSceneText,
+  type SavedScene,
+  type SavedSceneMeta,
+  type SaveSceneRequest,
+  type SceneModerationStatus,
+  type UpdateSceneVisibilityRequest,
 } from "@balabala/shared";
 
 const DATA_DIR = process.env.BALABALA_TEST_DATA_DIR
@@ -117,6 +119,13 @@ export function saveScene(body: SaveSceneRequest & { sceneId?: string }): SavedS
     index.scenes.unshift({ ...stripData(scene) });
   }
 
+  // R5: UGC 内容审核（包装接入，不改核心存储逻辑）——命中敏感词则置 pending_review 且不公开。
+  const modStatus = assessSceneModeration(name, body.sceneData);
+  scene.moderationStatus = modStatus;
+  if (modStatus === "pending_review") {
+    scene.isPublic = false;
+  }
+
   // 写单场景文件 + 更新索引
   ensureDir();
   writeFileSync(sceneFile(scene.sceneId), JSON.stringify(scene, null, 2), "utf-8");
@@ -124,6 +133,22 @@ export function saveScene(body: SaveSceneRequest & { sceneId?: string }): SavedS
   if (metaIdx >= 0) index.scenes[metaIdx] = stripData(scene);
   persistIndex();
   return scene;
+}
+
+/**
+ * R5: UGC 发布内容审核。
+ * 审核场景名称 + sceneData 内所有文本（标题/描述/自定义规则等）。
+ * 命中敏感词 → pending_review（不直接公开，待人工复核）；否则 approved。
+ */
+export function assessSceneModeration(name: string, sceneData: unknown): SceneModerationStatus {
+  let blob = name ?? "";
+  try {
+    // sceneData 为不透明 JSON，序列化后统一过敏感词（捕获嵌入的标题/描述/规则文本）
+    blob += "\n" + JSON.stringify(sceneData ?? "");
+  } catch {
+    /* 序列化失败只审 name */
+  }
+  return moderateSceneText(blob).hit ? "pending_review" : "approved";
 }
 
 function stripData(s: SavedScene): SavedSceneMeta {
@@ -226,6 +251,7 @@ export function registerSceneStoreRoutes(app: FastifyInstance): void {
         sceneId: scene.sceneId,
         shareLink: scene.shareLink,
         isPublic: scene.isPublic,
+        moderationStatus: scene.moderationStatus ?? "approved",
       });
     } catch (e) {
       if (e instanceof SceneStoreError) return reply.code(e.statusCode).send({ error: e.message, code: e.code });

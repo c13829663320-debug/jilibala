@@ -18,6 +18,8 @@ import QuickStartCard from './onboarding/QuickStartCard'
 import FirstTimeGuide from './onboarding/FirstTimeGuide'
 import './onboarding/onboarding.css'
 import PwaUpdatePrompt from './pwa-update'
+import { ModerationToast } from './safety/ModerationToast'
+import { MuteIndicator } from './safety/MuteIndicator'
 import {
   FIRST_TIME_STEPS,
   INTEREST_SCENE_MAP,
@@ -439,6 +441,9 @@ function App() {
           <AppInner />
         </ErrorBoundary>
         <PwaUpdatePrompt />
+        {/* R5: 全局审核提示（敏感词替换 toast + 禁言倒计时浮标） */}
+        <ModerationToast />
+        <MuteIndicator />
       </IdentityProvider>
     </GlobalErrorBoundary>
   )

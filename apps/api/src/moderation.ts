@@ -11,9 +11,12 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import type { ModerationAction, ReportCategory } from "@balabala/shared";
 
@@ -25,12 +28,23 @@ export const MUTE_DURATION_MS = 10 * 60 * 1000; // 临时禁言 10 分钟
 export const REPORT_THRESHOLD = 3; // 24h 内被举报 3 次触发禁言
 export const REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+// ===== R5 发布域：敏感词命中累计自动禁言 =====
+/** 敏感词命中累计多少次触发自动禁言 */
+export const PROFANITY_MUTE_THRESHOLD = 3;
+/** 命中累计触发的自动禁言时长：5 分钟 */
+export const PROFANITY_MUTE_DURATION_MS = 5 * 60 * 1000;
+/** 命中计数的滑动时间窗：30 分钟内累计 */
+export const PROFANITY_WINDOW_MS = 30 * 60 * 1000;
+
 let dataDir = DEFAULT_DATA_DIR;
 let runtimeDir = DEFAULT_RUNTIME_DIR;
 let badWords: string[] = [];
 
 /** 内存态禁言表：userId -> 禁言截止时间戳 ms。 */
 const mutes = new Map<string, number>();
+
+/** R5: 敏感词命中时间戳表：userId -> 最近命中时间戳数组（滑动窗口计数）。 */
+const profanityHits = new Map<string, number[]>();
 
 /** 服务端屏蔽表：blockerId -> Set<blockedUserId>。持久化到 blocks.json。 */
 let blocks = new Map<string, Set<string>>();
@@ -79,12 +93,50 @@ function persistBlocks(): void {
   }
 }
 
+/** R5: 禁言持久化目录：.data/mutes/<userId>.json */
+function mutesDir(): string {
+  return resolve(runtimeDir, "mutes");
+}
+
+function muteFile(userId: string): string {
+  return resolve(mutesDir(), `${userId}.json`);
+}
+
+/** 启动/切换目录时：从 .data/mutes/ 恢复未过期的禁言；过期记录顺手清理。 */
+function loadPersistedMutes(): void {
+  mutes.clear();
+  profanityHits.clear();
+  const dir = mutesDir();
+  if (!existsSync(dir)) return;
+  let files: string[] = [];
+  try {
+    files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+  } catch {
+    return;
+  }
+  const now = Date.now();
+  for (const f of files) {
+    const userId = f.replace(/\.json$/, "");
+    try {
+      const parsed = JSON.parse(readFileSync(resolve(dir, f), "utf8")) as { until?: number };
+      const until = typeof parsed.until === "number" ? parsed.until : 0;
+      if (until > now) {
+        mutes.set(userId, until);
+      } else {
+        rmSync(resolve(dir, f), { force: true });
+      }
+    } catch {
+      /* 坏文件跳过 */
+    }
+  }
+}
+
 /** 测试用：切换数据/运行目录并重置内存态。 */
 export function configureModerationForTest(opts: { dataDir: string; runtimeDir: string }): void {
   dataDir = opts.dataDir;
   runtimeDir = opts.runtimeDir;
   badWords = loadBadWords();
-  mutes.clear();
+  loadPersistedMutes();
   blocks = loadBlocks();
 }
 
@@ -93,7 +145,7 @@ export function resetModerationForTest(): void {
   dataDir = DEFAULT_DATA_DIR;
   runtimeDir = DEFAULT_RUNTIME_DIR;
   badWords = loadBadWords();
-  mutes.clear();
+  loadPersistedMutes();
   blocks = loadBlocks();
 }
 
@@ -148,10 +200,23 @@ export function isMuted(userId: string): boolean {
   return true;
 }
 
-/** 手动/自动禁言。返回新的禁言截止时间。 */
+/** R5: 返回当前禁言截止时间戳 ms（未禁言/已过期返回 undefined）。 */
+export function getMutedUntil(userId: string): number | undefined {
+  if (!userId) return undefined;
+  const until = mutes.get(userId);
+  if (!until) return undefined;
+  if (Date.now() >= until) {
+    mutes.delete(userId);
+    return undefined;
+  }
+  return until;
+}
+
+/** 手动/自动禁言。返回新的禁言截止时间。R5: 持久化到 .data/mutes/。 */
 export function muteUser(userId: string, durationMs: number = MUTE_DURATION_MS, reason = "auto"): number {
   const until = Date.now() + Math.max(1, Math.floor(durationMs));
   mutes.set(userId, until);
+  persistMute(userId, until, reason);
   appendModerationLog({
     at: new Date().toISOString(),
     action: "mute",
@@ -162,9 +227,24 @@ export function muteUser(userId: string, durationMs: number = MUTE_DURATION_MS, 
   return until;
 }
 
-/** 提前解禁。 */
+/** 提前解禁。R5: 删除 .data/mutes/<userId>.json。 */
 export function unmuteUser(userId: string): void {
   mutes.delete(userId);
+  rmSync(muteFile(userId), { force: true });
+}
+
+/** R5: 写单条禁言记录到 .data/mutes/<userId>.json。 */
+function persistMute(userId: string, until: number, reason: string): void {
+  try {
+    mkdirSync(mutesDir(), { recursive: true });
+    writeFileSync(
+      muteFile(userId),
+      JSON.stringify({ userId, until, reason, createdAt: new Date().toISOString() }),
+      "utf8",
+    );
+  } catch (e) {
+    console.warn("[moderation] 写入 mutes 失败:", e);
+  }
 }
 
 // ===== 举报统计与自动禁言 =====
@@ -269,7 +349,148 @@ export function getBlockList(blockerId: string): string[] {
   return [...(blocks.get(blockerId) ?? [])];
 }
 
+// ===== R5: 敏感词命中累计自动禁言 =====
+
+export interface ProfanityHitResult {
+  /** 当前滑动窗口内累计命中次数 */
+  hitCount: number;
+  /** 本次是否触发了自动禁言 */
+  autoMuted: boolean;
+  /** 若触发禁言，禁言截止时间戳 ms */
+  mutedUntil?: number;
+}
+
+/**
+ * 登记一次敏感词命中（聊天/喊话文本被 filterProfanity 命中后调用）。
+ * 滑动窗口（默认 30 分钟）内累计达到 PROFANITY_MUTE_THRESHOLD(3) 次且当前未禁言，
+ * 自动禁言 PROFANITY_MUTE_DURATION_MS(5 分钟)。
+ */
+export function recordProfanityHit(userId: string): ProfanityHitResult {
+  if (!userId) return { hitCount: 0, autoMuted: false };
+  const now = Date.now();
+  const windowStart = now - PROFANITY_WINDOW_MS;
+  const list = (profanityHits.get(userId) ?? []).filter((t) => t >= windowStart);
+  list.push(now);
+  profanityHits.set(userId, list);
+
+  if (list.length >= PROFANITY_MUTE_THRESHOLD && !isMuted(userId)) {
+    const mutedUntil = muteUser(userId, PROFANITY_MUTE_DURATION_MS, `profanity_threshold:${list.length}`);
+    // 触发后清空计数，避免到期后立即再次累积
+    profanityHits.set(userId, []);
+    return { hitCount: list.length, autoMuted: true, mutedUntil };
+  }
+  return { hitCount: list.length, autoMuted: false };
+}
+
+/** 当前用户在滑动窗口内的命中次数（测试/调试用）。 */
+export function getProfanityHitCount(userId: string): number {
+  const now = Date.now();
+  return (profanityHits.get(userId) ?? []).filter((t) => t >= now - PROFANITY_WINDOW_MS).length;
+}
+
+// ===== R5: 结构化举报（.data/reports/ JSON + admin 处置） =====
+
+export type ReportStatus = "open" | "resolved";
+export type ReportResolutionAction = "warn" | "mute" | "unmute";
+
+/** 一条结构化举报（.data/reports/<id>.json）。 */
+export interface AdminReport {
+  id: string;
+  reportedAt: string;
+  reporterUserId: string;
+  reporterNickname: string;
+  targetUserId: string;
+  reason: string;
+  category: ReportCategory;
+  room: string;
+  status: ReportStatus;
+  resolution?: {
+    action: ReportResolutionAction;
+    note?: string;
+    resolvedAt: string;
+  };
+}
+
+function reportsDir(): string {
+  return resolve(runtimeDir, "reports");
+}
+
+function reportFile(id: string): string {
+  return resolve(reportsDir(), `${id}.json`);
+}
+
+/**
+ * 登记一条结构化举报（ws 层写 reports.log 后调用）。
+ * 生成 id、状态置 open、写入 .data/reports/<id>.json。
+ */
+export function recordStructuredReport(entry: Omit<AdminReport, "id" | "status">): AdminReport {
+  const report: AdminReport = { ...entry, id: randomUUID(), status: "open" };
+  try {
+    mkdirSync(reportsDir(), { recursive: true });
+    writeFileSync(reportFile(report.id), JSON.stringify(report, null, 2), "utf8");
+  } catch (e) {
+    console.warn("[moderation] 写入 reports/ 失败:", e);
+  }
+  return report;
+}
+
+/** 列出举报（默认仅 open，按时间倒序）。 */
+export function listReports(opts: { status?: ReportStatus; limit?: number } = {}): AdminReport[] {
+  const dir = reportsDir();
+  if (!existsSync(dir)) return [];
+  let files: string[] = [];
+  try {
+    files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  const out: AdminReport[] = [];
+  for (const f of files) {
+    try {
+      out.push(JSON.parse(readFileSync(resolve(dir, f), "utf8")) as AdminReport);
+    } catch {
+      /* 坏文件跳过 */
+    }
+  }
+  const filtered = opts.status ? out.filter((r) => r.status === opts.status) : out;
+  filtered.sort((a, b) => b.reportedAt.localeCompare(a.reportedAt));
+  return filtered.slice(0, opts.limit ?? 200);
+}
+
+/**
+ * 处置一条举报：warn=警告并结案；mute=对 target 禁言 10 分钟并结案；unmute=解除 target 禁言并结案。
+ * 找不到记录返回 null。
+ */
+export function resolveReport(
+  id: string,
+  action: ReportResolutionAction,
+  note?: string,
+): AdminReport | null {
+  const file = reportFile(id);
+  if (!existsSync(file)) return null;
+  let report: AdminReport;
+  try {
+    report = JSON.parse(readFileSync(file, "utf8")) as AdminReport;
+  } catch {
+    return null;
+  }
+  if (action === "mute") {
+    muteUser(report.targetUserId, MUTE_DURATION_MS, `admin_resolve:${id}`);
+  } else if (action === "unmute") {
+    unmuteUser(report.targetUserId);
+  }
+  report.status = "resolved";
+  report.resolution = { action, resolvedAt: new Date().toISOString(), ...(note ? { note } : {}) };
+  try {
+    writeFileSync(file, JSON.stringify(report, null, 2), "utf8");
+  } catch (e) {
+    console.warn("[moderation] 更新 report 失败:", e);
+  }
+  return report;
+}
+
 // ===== 供 ws 层测试用 =====
 export function _resetModerationInMemoryForTest(): void {
   mutes.clear();
+  profanityHits.clear();
 }

@@ -68,6 +68,9 @@ export interface UpdateSceneVisibilityRequest {
   isPublic: boolean;
 }
 
+/** R5: UGC 内容审核状态（additive，老场景缺省视为已通过）。 */
+export type SceneModerationStatus = "approved" | "pending_review";
+
 /** 一条已保存场景（含完整数据） */
 export interface SavedScene {
   sceneId: string;
@@ -79,6 +82,8 @@ export interface SavedScene {
   shareLink: string;
   createdAt: string;
   updatedAt: string;
+  /** R5: 内容审核状态。命中敏感词时置 pending_review 且不公开。 */
+  moderationStatus?: SceneModerationStatus;
 }
 
 /** 列表项：剔除较大的 sceneData */

@@ -29,7 +29,7 @@ import { registerChatRoutes } from './chat.js';
 // ===== R4-08: 排行榜 / 主题房间公告 / 内容治理 =====
 import { getLeaderboard } from './leaderboard.js';
 import { getActiveAnnouncements, startScheduler as startThemeRoomScheduler } from './theme-rooms.js';
-import { readReports, addBlock, removeBlock, getBlockList } from './moderation.js';
+import { readReports, addBlock, removeBlock, getBlockList, listReports, resolveReport, type ReportResolutionAction } from './moderation.js';
 import { setBroadcastCallbacks, setChatProvider } from './werewolf-orchestrator.js';
 import { loadCharacterSkill, buildSystemPrompt } from './character-skill.js';
 import { offlineFallbackReply } from './offline-brain.js';
@@ -1095,6 +1095,28 @@ app.get('/api/reports', async (req) => {
   const q = (req.query ?? {}) as { limit?: string };
   const limit = Math.min(Math.max(parseInt(q.limit ?? '100', 10) || 100, 1), 500);
   return { reports: readReports(limit) };
+});
+
+// ===== R5 发布域：举报处置闭环 — 结构化举报管理 =====
+// 注意：本演示版未接管理员鉴权，仅用于内测后台；公网部署须在 nginx 层加 IP 白名单/Basic Auth。
+app.get('/api/admin/reports', async (req) => {
+  const q = (req.query ?? {}) as { status?: string; limit?: string };
+  const limit = Math.min(Math.max(parseInt(q.limit ?? '200', 10) || 200, 1), 500);
+  const status = q.status === 'open' || q.status === 'resolved' ? q.status : undefined;
+  return { reports: listReports({ status, limit }) };
+});
+
+app.post('/api/admin/reports/:id/resolve', async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const body = (req.body ?? {}) as { action?: string; note?: string };
+  const action: ReportResolutionAction | null =
+    body.action === 'warn' || body.action === 'mute' || body.action === 'unmute' ? body.action : null;
+  if (!action) {
+    return reply.code(400).send({ error: 'action 必须是 warn | mute | unmute' });
+  }
+  const resolved = resolveReport(id, action, body.note?.slice(0, 500));
+  if (!resolved) return reply.code(404).send({ error: '举报不存在' });
+  return { report: resolved };
 });
 
 // ===== R4-08: 服务端屏蔽 =====

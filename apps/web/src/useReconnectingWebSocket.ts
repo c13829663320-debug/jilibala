@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, type RefObject } from 'react'
 import type { ResumedSessionState, ReplayedMessage } from '@balabala/shared'
+import { handleIncomingModerationFrame } from './safety/moderation-bus'
 
 export type WsStatus = 'connecting' | 'open' | 'reconnecting' | 'closed'
 
@@ -114,6 +115,10 @@ export function useReconnectingWebSocket({
           onSessionTokenRef.current?.(parsed.token)
         } else if (parsed?.type === 'session_resumed' && parsed.state) {
           onSessionResumedRef.current?.(parsed.state, parsed.replayed ?? [])
+        }
+        // R5: 旁路解析禁言状态帧，喂给审核提示总线（不影响业务 onMessage）
+        if (parsed?.type === 'mute_status') {
+          handleIncomingModerationFrame(parsed as { type?: string; muted?: boolean; mutedUntil?: number; reason?: string })
         }
       } catch { /* 非 JSON 业务帧，忽略 */ }
       try { onMessageRef.current(raw) }

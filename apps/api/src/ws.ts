@@ -41,7 +41,7 @@ import {
   ChatError,
 } from "./chat.js";
 // R4-08: 内容治理（敏感词过滤 / 禁言 / 举报阈值自动禁言）
-import { moderateText, isMuted, registerReport } from "./moderation.js";
+import { moderateText, isMuted, getMutedUntil, registerReport, recordProfanityHit, recordStructuredReport } from "./moderation.js";
 
 // ===== 房间数据结构 =====
 export type RoomUser = {
@@ -763,10 +763,22 @@ export function registerWebSocket(app: FastifyInstance): void {
         }
         case "chat": {
           // R4-08: 禁言拒收；文本过敏感词过滤（命中替换为 ***，不改消息 ID/时间戳）
-          if (isMuted(userId)) return;
+          if (isMuted(userId)) {
+            // R5: 禁言期间发消息时回推 mute_status，前端 MuteIndicator 显示倒计时
+            const until = getMutedUntil(userId);
+            safeSend(socket, { type: "mute_status", muted: true, ...(until ? { mutedUntil: until } : {}), reason: "muted" } satisfies WSMessage);
+            return;
+          }
           const raw = String(data.text ?? "").slice(0, 500);
           if (!raw) return;
           const mod = moderateText(userId, raw);
+          // R5: 命中敏感词累计计数，达阈值自动禁言 5 分钟并通知本人
+          if (mod.hit) {
+            const hit = recordProfanityHit(userId);
+            if (hit.autoMuted && hit.mutedUntil) {
+              safeSend(socket, { type: "mute_status", muted: true, mutedUntil: hit.mutedUntil, reason: "profanity" } satisfies WSMessage);
+            }
+          }
           broadcastToRoom(roomId, {
             type: "chat",
             userId,
@@ -928,10 +940,20 @@ export function registerWebSocket(app: FastifyInstance): void {
         }
         case "text_shout": {
           // R4-08: 3D 头顶文字喊话（语音不可用时的回落），过敏感词/禁言
-          if (isMuted(userId)) return;
+          if (isMuted(userId)) {
+            const until = getMutedUntil(userId);
+            safeSend(socket, { type: "mute_status", muted: true, ...(until ? { mutedUntil: until } : {}), reason: "muted" } satisfies WSMessage);
+            return;
+          }
           const raw = String(data.text ?? "").slice(0, 80);
           if (!raw) return;
           const mod = moderateText(userId, raw);
+          if (mod.hit) {
+            const hit = recordProfanityHit(userId);
+            if (hit.autoMuted && hit.mutedUntil) {
+              safeSend(socket, { type: "mute_status", muted: true, mutedUntil: hit.mutedUntil, reason: "profanity" } satisfies WSMessage);
+            }
+          }
           broadcastToRoom(roomId, {
             type: "text_shout",
             userId,
@@ -1038,6 +1060,16 @@ export function registerWebSocket(app: FastifyInstance): void {
           const rawCategory = String(data.category ?? "other");
           const category = (VALID_REPORT_CATEGORIES.has(rawCategory) ? rawCategory : "other") as ReportCategory;
           appendReportLog({
+            reportedAt: new Date().toISOString(),
+            reporterUserId: userId,
+            reporterNickname: nickname,
+            targetUserId,
+            reason,
+            category,
+            room: roomId,
+          });
+          // R5: 同时写结构化 JSON（.data/reports/<id>.json），供 admin 列表/处置
+          recordStructuredReport({
             reportedAt: new Date().toISOString(),
             reporterUserId: userId,
             reporterNickname: nickname,
