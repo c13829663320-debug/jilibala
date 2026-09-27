@@ -1,0 +1,2137 @@
+{
+  "schema_version": 2,
+  "run_id": "qa-371e51a9c3fe",
+  "revision": 4,
+  "profile": "plan",
+  "test_intent": "non_ui_validation",
+  "execution_level": "blocked",
+  "selected_path": "undetermined",
+  "created_at": "2026-09-27T00:06:05.187773+00:00",
+  "target": {
+    "type": "attachment_or_directory",
+    "name": "jilibala 多人网络专项 feat/network-resilience",
+    "source": "/home/user/Doubao/chats/38444190639093762/repo"
+  },
+  "request_contract": {
+    "request_summary": "叽里呱啦多人网络专项：断线重连、掉线平滑移除、房间权限、实时状态同步、WebSocket中继稳定性、WebRTC信令健壮性，六个范围端到端验证",
+    "request_hash": "sha256:0efdf324f5321d4692cf4bb91c5677849a107a9452eeeba604ef08957aaa0064",
+    "task_mode": "plan",
+    "scope": {
+      "included_source_ids": [],
+      "excluded_source_ids": [],
+      "included_rounds": [],
+      "excluded_rounds": []
+    },
+    "evidence_policy": {
+      "allow_new_execution": false,
+      "allow_precheck_bug_promotion": false,
+      "required_bug_evidence_level": "L2_observation"
+    },
+    "delivery": {
+      "artifact_required": true,
+      "format": "markdown",
+      "carrier": "local",
+      "filenames": [
+        "qa-results/network-resilience/QA报告.md"
+      ],
+      "artifacts": [
+        {
+          "format": "markdown",
+          "carrier": "local",
+          "filename": "qa-results/network-resilience/QA报告.md"
+        }
+      ],
+      "required_sections": [
+        "测试报告",
+        "详细用例",
+        "Bug 单"
+      ],
+      "section_order": [
+        "测试报告",
+        "详细用例",
+        "Bug 单"
+      ],
+      "must_surface_to_user": true
+    }
+  },
+  "phase_receipts": [
+    {
+      "stage": "baseline",
+      "revision": 2,
+      "state": "CLOSED",
+      "checked_at": "2026-09-27T00:08:34.198235+00:00",
+      "source_fingerprint": "sha256:0a84fd5c335e215d69dd134b9690a9207881908ddd73676c38a564c2caf04d7c",
+      "warnings": 0
+    },
+    {
+      "stage": "baseline",
+      "revision": 3,
+      "state": "CLOSED",
+      "checked_at": "2026-09-27T00:10:30.804715+00:00",
+      "source_fingerprint": "sha256:232e057b83c87b55fc726c52ea93c39f9fd17c8652961ceee67ec20a0146374d",
+      "warnings": 0
+    },
+    {
+      "stage": "design",
+      "revision": 3,
+      "state": "CLOSED",
+      "checked_at": "2026-09-27T00:10:30.991125+00:00",
+      "source_fingerprint": "sha256:232e057b83c87b55fc726c52ea93c39f9fd17c8652961ceee67ec20a0146374d",
+      "warnings": 0
+    },
+    {
+      "stage": "baseline",
+      "revision": 4,
+      "state": "CLOSED",
+      "checked_at": "2026-09-27T00:12:36.416526+00:00",
+      "source_fingerprint": "sha256:1ea08c72ec9aabded59bfd6b9b7079e502484d5e0334613cb167567944a38b10",
+      "warnings": 0
+    },
+    {
+      "stage": "design",
+      "revision": 4,
+      "state": "CLOSED",
+      "checked_at": "2026-09-27T00:12:36.602922+00:00",
+      "source_fingerprint": "sha256:1ea08c72ec9aabded59bfd6b9b7079e502484d5e0334613cb167567944a38b10",
+      "warnings": 0
+    },
+    {
+      "stage": "execution",
+      "revision": 4,
+      "state": "CLOSED",
+      "checked_at": "2026-09-27T00:12:36.784598+00:00",
+      "source_fingerprint": "sha256:1ea08c72ec9aabded59bfd6b9b7079e502484d5e0334613cb167567944a38b10",
+      "warnings": 0
+    }
+  ],
+  "input": {
+    "summary": "jilibala 多人网络专项（集成分支 feat/network-resilience，基线提交 651ae1a）覆盖六个范围：①断线重连 ②掉线平滑移除 ③房间权限 ④实时状态同步 ⑤WebSocket中继 ⑥WebRTC信令。本次 QA 基于既有自动化测试结果与证据日志收口，不发起新执行；测试结果来自 vitest 单测/集成、独立 tsx E2E 脚本与 Chromium headless 浏览器冒烟。",
+    "sources": [
+      "apps/api/src/transport.ts",
+      "apps/api/src/state-sync-server.ts",
+      "apps/api/src/ws.ts",
+      "apps/api/src/room-routes.ts",
+      "apps/web/src/state-sync.ts",
+      "apps/web/src/voice/webrtc-manager.ts",
+      "apps/web/src/useReconnectingWebSocket.ts",
+      "apps/api/src/transport.test.ts",
+      "apps/api/src/state-sync-server.test.ts",
+      "apps/api/src/room-permissions.test.ts",
+      "apps/api/src/ws-rtc.test.ts",
+      "apps/web/src/state-sync.test.ts",
+      "apps/web/src/voice/webrtc-manager.test.ts",
+      "apps/api/tests/e2e/transport-resilience.test.ts",
+      "tests/e2e/room-permissions.test.ts",
+      "tests/e2e/state-sync.test.ts",
+      "tests/e2e/webrtc-signaling.test.ts",
+      "tests/e2e/browser-signaling.smoke.mjs",
+      "apps/api/tests/e2e/logs/transport-resilience.1790467389089.json",
+      "tests/e2e/logs/room-permissions-2026-09-27T00-04-05-386Z.ndjson",
+      "tests/e2e/logs/state-sync.jsonl",
+      "tests/e2e/logs/webrtc-signaling-2026-09-27T00-04-11-307Z.jsonl",
+      "tests/e2e/logs/browser-signaling-2026-09-26T23-36-08-081Z.jsonl",
+      "SOCIAL-PRESENCE-DELIVERY.md; prd_extracted.txt"
+    ],
+    "assumptions": [
+      "证据日志为本次集成分支真实运行产物，时间戳集中在 2026-09-26T23:36 ~ 2026-09-27T00:04Z。",
+      "单测/集成统计数字（API 33 文件 405 passed、Web 17 文件 229 passed、E2E vitest 2 文件 10 passed）以运行回执为准。",
+      "媒体面/TURN/真实 NAT 与 GPU 渲染插值不在本次证据范围，记为未覆盖。"
+    ],
+    "conflicts": [],
+    "artifacts": [
+      {
+        "id": "SRC-001",
+        "type": "source_file",
+        "locator": "apps/api/src/transport.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 1,
+        "reviewed_item_count": 1,
+        "note": "服务端传输层/会话重连状态机：心跳超时、会话签发恢复、在途广播补发、平滑断开窗口"
+      },
+      {
+        "id": "SRC-002",
+        "type": "source_file",
+        "locator": "apps/api/src/state-sync-server.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "序号去重/乱序检测、滑动窗口限流、presence 聚合与按大小分批"
+      },
+      {
+        "id": "SRC-003",
+        "type": "source_file",
+        "locator": "apps/api/src/ws.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "WebSocket 多人接入：广播中继、房主转移、信令转发接入点"
+      },
+      {
+        "id": "SRC-004",
+        "type": "source_file",
+        "locator": "apps/api/src/room-routes.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "房间创建/密码/锁定/踢人/房主转移/最大人数钳制"
+      },
+      {
+        "id": "SRC-005",
+        "type": "source_file",
+        "locator": "apps/web/src/state-sync.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "客户端实时状态同步：发送节流、插值/外推、快照接收"
+      },
+      {
+        "id": "SRC-006",
+        "type": "source_file",
+        "locator": "apps/web/src/voice/webrtc-manager.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "客户端 WebRTC PeerConnection 管理与信令交互"
+      },
+      {
+        "id": "SRC-007",
+        "type": "source_file",
+        "locator": "apps/web/src/useReconnectingWebSocket.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "客户端自动重连 WebSocket Hook"
+      },
+      {
+        "id": "SRC-008",
+        "type": "test_file",
+        "locator": "apps/api/src/transport.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "transport 单测，11 用例"
+      },
+      {
+        "id": "SRC-009",
+        "type": "test_file",
+        "locator": "apps/api/src/state-sync-server.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "state-sync-server 单测，9 用例"
+      },
+      {
+        "id": "SRC-010",
+        "type": "test_file",
+        "locator": "apps/api/src/room-permissions.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "房间权限单测，11 用例"
+      },
+      {
+        "id": "SRC-011",
+        "type": "test_file",
+        "locator": "apps/api/src/ws-rtc.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "WS/RTC 信令单测，10 用例"
+      },
+      {
+        "id": "SRC-012",
+        "type": "test_file",
+        "locator": "apps/web/src/state-sync.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "客户端 state-sync 单测，13 用例"
+      },
+      {
+        "id": "SRC-013",
+        "type": "test_file",
+        "locator": "apps/web/src/voice/webrtc-manager.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "webrtc-manager 单测，10 用例"
+      },
+      {
+        "id": "SRC-014",
+        "type": "test_file",
+        "locator": "apps/api/tests/e2e/transport-resilience.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "断线重连/平滑移除/房主转移 E2E"
+      },
+      {
+        "id": "SRC-015",
+        "type": "test_file",
+        "locator": "tests/e2e/room-permissions.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "房间权限独立 E2E（npx tsx），17 步"
+      },
+      {
+        "id": "SRC-016",
+        "type": "test_file",
+        "locator": "tests/e2e/state-sync.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "状态同步 E2E vitest，5 用例"
+      },
+      {
+        "id": "SRC-017",
+        "type": "test_file",
+        "locator": "tests/e2e/webrtc-signaling.test.ts",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "WebRTC 信令 E2E vitest，5 用例"
+      },
+      {
+        "id": "SRC-018",
+        "type": "test_file",
+        "locator": "tests/e2e/browser-signaling.smoke.mjs",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "Chromium headless + fake media 信令面冒烟"
+      },
+      {
+        "id": "SRC-019",
+        "type": "evidence_log",
+        "locator": "apps/api/tests/e2e/logs/transport-resilience.1790467389089.json",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "48 事件：welcome×3、pong、player_disconnecting×3、player_reconnected×2、reconnect_progress×4、room_owner_changed×1、user_left×1"
+      },
+      {
+        "id": "SRC-020",
+        "type": "evidence_log",
+        "locator": "tests/e2e/logs/room-permissions-2026-09-27T00-04-05-386Z.ndjson",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "17 步全部 ok=true：密码不泄露/错误密码1006/锁定1005/踢人2003/非房主踢人1007/房主转移"
+      },
+      {
+        "id": "SRC-021",
+        "type": "evidence_log",
+        "locator": "tests/e2e/logs/state-sync.jsonl",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "welcome 配置一致、presence 聚合、seq[1,1,4] 去重后 lastKnownSeq=4、限流 sent25/err10、快照 8 玩家"
+      },
+      {
+        "id": "SRC-022",
+        "type": "evidence_log",
+        "locator": "tests/e2e/logs/webrtc-signaling-2026-09-27T00-04-11-307Z.jsonl",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "裸 WS 客户端：rtc_config、offer/answer 中继、rtc_target_offline 21、重试 attempt2、ice_failed 回退 suggestText"
+      },
+      {
+        "id": "SRC-023",
+        "type": "evidence_log",
+        "locator": "tests/e2e/logs/browser-signaling-2026-09-26T23-36-08-081Z.jsonl",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "Chromium /usr/local/bin/chromium：welcome/hasRTC/STUN/offerToB/answerToA 全 true"
+      },
+      {
+        "id": "SRC-024",
+        "type": "doc",
+        "locator": "SOCIAL-PRESENCE-DELIVERY.md; prd_extracted.txt",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 0,
+        "reviewed_item_count": 0,
+        "note": "多人在场交付说明与 PRD 提取"
+      }
+    ]
+  },
+  "open_questions": [],
+  "change_ledger": [
+    {
+      "id": "CHG-001",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "run",
+      "added_ids": [
+        "qa-371e51a9c3fe"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 1,
+      "delta_count": 1,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-002",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "requirement",
+      "added_ids": [
+        "REQ-NETWORKRESIL-001",
+        "REQ-NETWORKRESIL-002",
+        "REQ-NETWORKRESIL-003",
+        "REQ-NETWORKRESIL-004",
+        "REQ-NETWORKRESIL-005",
+        "REQ-NETWORKRESIL-006"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 6,
+      "delta_count": 6,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-003",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "risk_mechanism",
+      "added_ids": [
+        "RM-RECONNECT-001",
+        "RM-REMOVE-001",
+        "RM-ROOMPERM-001",
+        "RM-STATESYNC-001",
+        "RM-WSRELAY-001",
+        "RM-WEBRTC-001"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 6,
+      "delta_count": 6,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-004",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "case",
+      "added_ids": [
+        "CASE-001",
+        "CASE-002",
+        "CASE-003",
+        "CASE-004",
+        "CASE-005",
+        "CASE-006",
+        "CASE-007",
+        "CASE-008",
+        "CASE-009",
+        "CASE-010",
+        "CASE-011",
+        "CASE-012",
+        "CASE-013",
+        "CASE-014",
+        "CASE-015",
+        "CASE-016",
+        "CASE-017",
+        "CASE-018",
+        "CASE-019",
+        "CASE-020",
+        "CASE-021",
+        "CASE-022"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 22,
+      "delta_count": 22,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-005",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "acceptance",
+      "added_ids": [
+        "AC-NETWORKRESIL-001",
+        "AC-NETWORKRESIL-002",
+        "AC-NETWORKRESIL-003",
+        "AC-NETWORKRESIL-004",
+        "AC-NETWORKRESIL-005",
+        "AC-NETWORKRESIL-006"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 6,
+      "delta_count": 6,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-006",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "execution",
+      "added_ids": [
+        "EXE-NETWORKRESIL-001",
+        "EXE-NETWORKRESIL-002",
+        "EXE-NETWORKRESIL-003",
+        "EXE-NETWORKRESIL-004",
+        "EXE-NETWORKRESIL-005",
+        "EXE-NETWORKRESIL-006",
+        "EXE-NETWORKRESIL-007",
+        "EXE-NETWORKRESIL-008",
+        "EXE-NETWORKRESIL-009",
+        "EXE-NETWORKRESIL-010",
+        "EXE-NETWORKRESIL-011",
+        "EXE-NETWORKRESIL-012",
+        "EXE-NETWORKRESIL-013",
+        "EXE-NETWORKRESIL-014",
+        "EXE-NETWORKRESIL-015",
+        "EXE-NETWORKRESIL-016",
+        "EXE-NETWORKRESIL-017",
+        "EXE-NETWORKRESIL-018",
+        "EXE-NETWORKRESIL-019",
+        "EXE-NETWORKRESIL-020",
+        "EXE-NETWORKRESIL-021",
+        "EXE-NETWORKRESIL-022"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 22,
+      "delta_count": 22,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-007",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "evidence",
+      "added_ids": [
+        "EV-001",
+        "EV-002",
+        "EV-003",
+        "EV-004",
+        "EV-005",
+        "EV-006",
+        "EV-007",
+        "EV-008",
+        "EV-009"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 9,
+      "delta_count": 9,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    }
+  ],
+  "environment": {
+    "branch": "feat/network-resilience",
+    "baseline_commit": "651ae1a",
+    "integration_head": "50ee17d",
+    "build": "npm run build 全绿（shared tsc + api tsc + web vite/PWA）",
+    "api_unit": "33 文件 / 405 passed（transport 11、room-permissions 11、state-sync-server 9、ws-rtc 10）",
+    "web_unit": "17 文件 / 229 passed（state-sync 13、webrtc-manager 10）",
+    "e2e_vitest": "2 文件 / 10 passed（state-sync 5 + webrtc-signaling 5）",
+    "e2e_standalone": "room-permissions 17 步全 PASS（npx tsx tests/e2e/room-permissions.test.ts）",
+    "browser_smoke": "Chromium headless + fake media 验证信令面"
+  },
+  "screenshot_policy": "unconfirmed",
+  "plan": {
+    "scope": [],
+    "out_of_scope": [],
+    "entry_criteria": [],
+    "exit_criteria": [],
+    "regression": []
+  },
+  "requirements": [
+    {
+      "id": "REQ-NETWORKRESIL-001",
+      "summary": "断线重连：客户端在重连窗口(reconnectWindowMs)内用 sessionToken 重连，服务端保留席位并补发在途广播，玩家无缝回到房间",
+      "source": "SRC-001;SRC-007;SRC-014;SRC-019",
+      "risk": "P0",
+      "behavior": {
+        "trigger": "网络中断后客户端重连",
+        "rules": "会话在 reconnectWindowMs(120s) 内有效，按 seq 环形缓冲补发",
+        "intermediate": "session 状态 active→reconnecting，socket=null 但席位保留",
+        "terminal": "reconnect_accepted，welcome 带最新房间快照",
+        "failure": "超窗→session 失效，按掉线移除处理",
+        "actor": "掉线后客户端",
+        "precondition": "客户端已在房间内并持有 welcome 下发的 sessionToken",
+        "rule": "重连窗口内凭 token 恢复会话，按 seq 环形缓冲补发在途广播",
+        "state_change": "active→reconnecting→active",
+        "observable_result": "收到 reconnect_response 与带最新快照的 welcome",
+        "failure_behavior": "超窗则 session 失效，按掉线移除",
+        "impact_scope": [
+          "在房间内的玩家",
+          "同房间其他成员"
+        ]
+      },
+      "impact_scope": [
+        "在房间内的玩家",
+        "同房间其他成员"
+      ]
+    },
+    {
+      "id": "REQ-NETWORKRESIL-002",
+      "summary": "掉线平滑移除：心跳超时判定离线后，在窗口内先保留席位、到期再平滑移除并广播 peer_left/player_removed，不残留幽灵玩家",
+      "source": "SRC-001;SRC-003;SRC-014;SRC-019",
+      "risk": "P0",
+      "behavior": {
+        "trigger": "超过 heartbeatTimeoutMs 未收到 ping",
+        "rules": "先进入 reconnecting 窗口，到期才 closed 并广播移除",
+        "intermediate": "player_disconnecting 广播，席位保留",
+        "terminal": "user_left/peer_removed 广播，房主为空时转移给最早成员",
+        "failure": "心跳误判需保留重连证据",
+        "actor": "服务端心跳超时判定",
+        "precondition": "成员已在房间内",
+        "rule": "超时先进入保留窗口，到期才 closed 并广播移除；房主为空转移最早成员",
+        "state_change": "active→reconnecting(保留席位)→closed(移除)",
+        "observable_result": "player_disconnecting→到期 user_left/room_owner_changed",
+        "failure_behavior": "误判需保留重连证据，不提前回收",
+        "impact_scope": [
+          "掉线成员",
+          "同房间其他成员",
+          "房间成员列表"
+        ]
+      },
+      "impact_scope": [
+        "掉线成员",
+        "同房间其他成员",
+        "房间成员列表"
+      ]
+    },
+    {
+      "id": "REQ-NETWORKRESIL-003",
+      "summary": "房间权限：私有房密码、房间锁定、踢人、房主身份与房主转移；密码不得出现在列表 DTO，未授权操作返回明确错误码",
+      "source": "SRC-004;SRC-010;SRC-015;SRC-020",
+      "risk": "P0",
+      "behavior": {
+        "trigger": "加入/锁定/踢人/转移房主",
+        "rules": "密码错=1006，锁定拒绝=1005，踢人=2003，非房主踢=1007",
+        "terminal": "拒绝方收到对应错误码，合法方进入并广播 room_owner_changed",
+        "failure": "密码泄漏到公开列表为安全缺陷",
+        "actor": "房主/加入者/服务端权限校验",
+        "precondition": "房间已创建，可能为私有/锁定",
+        "rule": "密码错1006、锁定1005、踢人2003、非房主踢1007，密码不进 DTO",
+        "state_change": "拒绝方连接被拒并收到错误码",
+        "observable_result": "错误码与广播 room_owner_changed",
+        "failure_behavior": "校验失败不泄漏房间内部信息",
+        "impact_scope": [
+          "私有房",
+          "房主",
+          "被踢者",
+          "公开房间列表"
+        ]
+      },
+      "impact_scope": [
+        "私有房",
+        "房主",
+        "被踢者",
+        "公开房间列表"
+      ]
+    },
+    {
+      "id": "REQ-NETWORKRESIL-004",
+      "summary": "实时状态同步：服务端权威 seq 去重/乱序检测、滑动窗口限流、presence 聚合与按大小分批广播；新加入者收到全量快照",
+      "source": "SRC-002;SRC-005;SRC-009;SRC-012;SRC-016;SRC-021",
+      "risk": "P1",
+      "behavior": {
+        "trigger": "客户端上报 playerState",
+        "rules": "seq<=lastSeq 丢弃，>lastSeq+1 计 gap；1s 内超 maxHz(15) 拒绝",
+        "intermediate": "重复包 dropped，超限返回限流错误",
+        "terminal": "presence 聚合后按 serverTickHz 广播，新成员收 state_snapshot",
+        "failure": "旧客户端无 seq 兼容放行不报错",
+        "actor": "服务端状态同步",
+        "precondition": "客户端带 seq 上报 playerState",
+        "rule": "seq<=lastSeq 丢弃、>lastSeq+1 计 gap；1s 超 15Hz 限流；新成员收快照",
+        "state_change": "重复包 dropped，超限拒绝",
+        "observable_result": "presence 聚合广播与 state_snapshot",
+        "failure_behavior": "旧客户端无 seq 兼容放行",
+        "impact_scope": [
+          "所有在场玩家",
+          "新加入成员",
+          "带宽"
+        ]
+      },
+      "impact_scope": [
+        "所有在场玩家",
+        "新加入成员",
+        "带宽"
+      ]
+    },
+    {
+      "id": "REQ-NETWORKRESIL-005",
+      "summary": "WebSocket 中继：服务端权威心跳/pong、消息大小上限、按房间广播中继；连接异常不影响其他房间",
+      "source": "SRC-001;SRC-003;SRC-008;SRC-011;SRC-019",
+      "risk": "P1",
+      "behavior": {
+        "trigger": "客户端 ping/入站广播消息",
+        "rules": "pingInterval 15s，maxMessageBytes 16KB 超限拒绝",
+        "terminal": "pong 回 serverTs，同房间其他客户端收到中继事件",
+        "failure": "单连接异常隔离，不波及其他会话",
+        "actor": "服务端 WebSocket 中继",
+        "precondition": "连接已建立",
+        "rule": "pingInterval15s、maxMessageBytes16KB 超限拒绝，按房间广播",
+        "state_change": "异常连接 closed，其他会话不变",
+        "observable_result": "pong 回 serverTs，中继事件送达同房",
+        "failure_behavior": "单连接异常隔离",
+        "impact_scope": [
+          "同房间玩家",
+          "其他房间"
+        ]
+      },
+      "impact_scope": [
+        "同房间玩家",
+        "其他房间"
+      ]
+    },
+    {
+      "id": "REQ-NETWORKRESIL-006",
+      "summary": "WebRTC 信令：服务端中继 SDP offer/answer 与 ICE，下发 rtc_config(STUN)；对端离线/ICE 失败时返回错误码并给出重试/文本回退",
+      "source": "SRC-003;SRC-006;SRC-011;SRC-013;SRC-017;SRC-022;SRC-023",
+      "risk": "P1",
+      "behavior": {
+        "trigger": "A 向 B 发起 WebRTC 连接",
+        "rules": "offer/answer/ICE 经 ws 中继，离线对端回 rtc_target_offline",
+        "intermediate": "sdp_offer_relayed / sdp_answer_relayed",
+        "terminal": "浏览器侧 offerToB/answerToA 完成；ice_failed→retry→fallback(suggestText)",
+        "failure": "真实媒体面/TURN/对称 NAT 需 GPU 真机验证",
+        "actor": "服务端信令中继",
+        "precondition": "A、B 同房间已连接",
+        "rule": "SDP/ICE 经 ws 中继，离线回 rtc_target_offline，ice_failed 重试后文本回退",
+        "state_change": "offer→answer→(失败)retry→fallback",
+        "observable_result": "rtc_config/中继事件/错误码",
+        "failure_behavior": "媒体面失败回退文本沟通不卡死",
+        "impact_scope": [
+          "通话双方",
+          "浏览器客户端"
+        ]
+      },
+      "impact_scope": [
+        "通话双方",
+        "浏览器客户端"
+      ]
+    }
+  ],
+  "risk_mechanisms": [
+    {
+      "id": "RM-RECONNECT-001",
+      "title": "重连窗口内席位与会话丢失",
+      "failure_mode": "网络抖动重连时 sessionToken 失效或席位被提前回收，玩家被踢出房间",
+      "business_impact": "在线玩家因短暂断网被误踢，破坏多人在场体验",
+      "oracle": "窗口内重连收到 reconnect_accepted 且 welcome 含原 userId/roomId，在途广播按 seq 补发",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-001"
+      ],
+      "case_ids": [
+        "CASE-001",
+        "CASE-002",
+        "CASE-003"
+      ],
+      "priority": "P0",
+      "status": "verified"
+    },
+    {
+      "id": "RM-REMOVE-001",
+      "title": "掉线幽灵玩家/误移除",
+      "failure_mode": "心跳超时后未平滑移除导致幽灵玩家占位；或误判在线玩家离线",
+      "business_impact": "场上残留卡住的 avatar、占满最大人数、新玩家无法进入",
+      "oracle": "超时后先 disconnecting 保留席位，到期才 user_left 广播；房主离线触发转移给最早成员",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-002"
+      ],
+      "case_ids": [
+        "CASE-004",
+        "CASE-005",
+        "CASE-006"
+      ],
+      "priority": "P0",
+      "status": "verified"
+    },
+    {
+      "id": "RM-ROOMPERM-001",
+      "title": "房间权限/房主身份绕过",
+      "failure_mode": "私有房密码泄漏、锁定房被闯入、被踢者重连、非房主踢人/锁房成功",
+      "business_impact": "未授权进入私密房间，多人房间秩序失控",
+      "oracle": "错误密码 1006、锁定 1005、踢人 2003、非房主踢 1007；密码不在列表 DTO",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-003"
+      ],
+      "case_ids": [
+        "CASE-007",
+        "CASE-008",
+        "CASE-009",
+        "CASE-010",
+        "CASE-011"
+      ],
+      "priority": "P0",
+      "status": "verified"
+    },
+    {
+      "id": "RM-STATESYNC-001",
+      "title": "序号去重/限流失效",
+      "failure_mode": "重复或乱序包未丢弃、高频上报未限流，导致状态抖动或客户端注入",
+      "business_impact": "场上位置抖动、单人刷包挤占带宽、他人状态被污染",
+      "oracle": "seq<=lastSeq 丢弃；1s 超 15Hz 返回限流；新成员收到完整快照",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-004"
+      ],
+      "case_ids": [
+        "CASE-012",
+        "CASE-013",
+        "CASE-014",
+        "CASE-015"
+      ],
+      "priority": "P1",
+      "status": "verified"
+    },
+    {
+      "id": "RM-WSRELAY-001",
+      "title": "WS 中继丢包/超大包/心跳失效",
+      "failure_mode": "广播中继遗漏、超大消息打满、心跳误判导致连接被误断",
+      "business_impact": "部分玩家看不到事件，单连接异常波及全房",
+      "oracle": "pong 回 serverTs；>16KB 消息拒绝；异常连接隔离不影响其他房间",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-005"
+      ],
+      "case_ids": [
+        "CASE-016",
+        "CASE-017",
+        "CASE-018"
+      ],
+      "priority": "P1",
+      "status": "verified"
+    },
+    {
+      "id": "RM-WEBRTC-001",
+      "title": "WebRTC 信令失败无回退",
+      "failure_mode": "SDP/ICE 中继失败、对端离线、ICE 失败后无重试或文本回退",
+      "business_impact": "语音通话建立失败，用户无任何提示而卡住",
+      "oracle": "offer/answer 正确中继；离线回 rtc_target_offline；ice_failed 触发 retry 与 suggestText 回退",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-006"
+      ],
+      "case_ids": [
+        "CASE-019",
+        "CASE-020",
+        "CASE-021",
+        "CASE-022"
+      ],
+      "priority": "P1",
+      "status": "blocked"
+    }
+  ],
+  "observed_surfaces": [],
+  "cases": [
+    {
+      "id": "CASE-001",
+      "module": "断线重连",
+      "title": "窗口内断线重连恢复席位并补发在途广播",
+      "priority": "P0",
+      "type": "positive",
+      "steps": [
+        "房主建房，alice 加入并在房间内移动",
+        "主动断开 alice 的 socket（不发关闭帧）",
+        "alice 用原 sessionToken 在 reconnectWindowMs 内重连"
+      ],
+      "test_data": "sessionToken 由 welcome 下发；重连窗口 120s",
+      "expected_result": "收到 reconnect_response/accepted，welcome 带回原 userId/roomId 与最新房间快照，断线期间在途事件按 seq 补发",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-001"
+      ],
+      "risk_mechanism_ids": [
+        "RM-RECONNECT-001"
+      ],
+      "state_oracle": {
+        "intermediate": "session active→reconnecting，socket=null 但席位保留",
+        "terminal": "reconnect_accepted，peer 侧不出现 user_left",
+        "technical_outcome": "reconnect_progress 多次、player_reconnected 事件",
+        "side_effect": "其他成员视角该玩家短暂消失后恢复，不触发房主转移"
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-019"
+      ],
+      "release_blocking_reason": "窗口内重连失败=在线玩家被误踢，核心多人在场不可用，阻断"
+    },
+    {
+      "id": "CASE-002",
+      "module": "断线重连",
+      "title": "超过重连窗口后重连被拒",
+      "priority": "P0",
+      "type": "negative",
+      "steps": [
+        "alice 加入房间",
+        "断开 socket 并等待超过 reconnectWindowMs",
+        "用原 sessionToken 重连"
+      ],
+      "test_data": "重连窗口 120s，sessionTtl 120s",
+      "expected_result": "服务端判定 session 过期，拒绝重连并要求重新走加入流程，不复活旧席位",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-001"
+      ],
+      "risk_mechanism_ids": [
+        "RM-RECONNECT-001"
+      ],
+      "state_oracle": {
+        "intermediate": "session 已 closed，旧席位已回收",
+        "terminal": "重连被拒/会话失效，旧席位已按掉线移除",
+        "technical_outcome": "无 reconnect_accepted",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-001"
+      ],
+      "release_blocking_reason": "超窗未正确拒绝会复活过期席位，造成双端/幽灵状态，阻断"
+    },
+    {
+      "id": "CASE-003",
+      "module": "断线重连",
+      "title": "伪造或过期 sessionToken 重连被拒",
+      "priority": "P1",
+      "type": "negative",
+      "steps": [
+        "构造伪造/已过期的 sessionToken",
+        "携带该 token 向房间重连"
+      ],
+      "test_data": "伪造签名、过期 expiresAt",
+      "expected_result": "服务端校验失败，拒绝重连，不泄露任何房间内部信息",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-001"
+      ],
+      "risk_mechanism_ids": [
+        "RM-RECONNECT-001"
+      ],
+      "state_oracle": {
+        "intermediate": "进入重连校验阶段，token 签名/时间校验",
+        "terminal": "重连拒绝，无 welcome 下发",
+        "technical_outcome": "校验失败关闭连接，不发 welcome",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-001",
+        "SRC-008"
+      ],
+      "release_blocking_reason": "伪造会话重连通过=身份伪造进入他人房间，安全阻断"
+    },
+    {
+      "id": "CASE-004",
+      "module": "掉线平滑移除",
+      "title": "心跳超时进入保留窗口，窗口内复联不误踢",
+      "priority": "P0",
+      "type": "positive",
+      "steps": [
+        "成员正常心跳",
+        "停止 ping 模拟超时但在 reconnectWindowMs 内复连",
+        "观察其他成员视角"
+      ],
+      "test_data": "pingInterval 15s / heartbeatTimeout 45s",
+      "expected_result": "超时先广播 player_disconnecting，席位保留；窗口内复连成功，不被误踢",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-002"
+      ],
+      "risk_mechanism_ids": [
+        "RM-REMOVE-001"
+      ],
+      "state_oracle": {
+        "intermediate": "player_disconnecting 广播，席位保留",
+        "terminal": "player_reconnected，场上人数回升",
+        "technical_outcome": "player_disconnecting×3、player_reconnected×2",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-019"
+      ],
+      "release_blocking_reason": "心跳窗口内误踢正常玩家=核心链路误杀，阻断"
+    },
+    {
+      "id": "CASE-005",
+      "module": "掉线平滑移除",
+      "title": "超时到期后平滑移除并广播，无幽灵玩家",
+      "priority": "P0",
+      "type": "positive",
+      "steps": [
+        "成员掉线不重连",
+        "等待超过 reconnectWindowMs",
+        "观察房间成员列表"
+      ],
+      "test_data": "reconnectWindowMs 120s",
+      "expected_result": "到期后 session closed，广播 user_left/peer_removed，成员列表移除该玩家，不残留卡住 avatar",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-002"
+      ],
+      "risk_mechanism_ids": [
+        "RM-REMOVE-001"
+      ],
+      "state_oracle": {
+        "intermediate": "reconnecting 窗口等待中，席位暂留",
+        "terminal": "user_left 广播，playerCount 下降",
+        "technical_outcome": "user_left×1、__close__×2",
+        "side_effect": "不占用 maxPlayers"
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-019"
+      ],
+      "release_blocking_reason": "掉线不平滑移除=幽灵玩家占满席位、新玩家无法进入，阻断"
+    },
+    {
+      "id": "CASE-006",
+      "module": "掉线平滑移除",
+      "title": "房主离开/掉线触发房主转移",
+      "priority": "P0",
+      "type": "positive",
+      "steps": [
+        "房主与若干成员在房",
+        "房主主动离开或掉线到期",
+        "观察剩余成员"
+      ],
+      "test_data": "转移给加入时间最早的存活成员",
+      "expected_result": "广播 room_owner_changed，新房主收到相应权限，房间不被解散",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-002",
+        "REQ-NETWORKRESIL-003"
+      ],
+      "risk_mechanism_ids": [
+        "RM-REMOVE-001"
+      ],
+      "state_oracle": {
+        "intermediate": "房主 socket 关闭，服务端挑选最早存活成员",
+        "terminal": "room_owner_changed，新 owner 可执行锁房等操作",
+        "technical_outcome": "room_owner_changed×1",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-019",
+        "SRC-020"
+      ],
+      "release_blocking_reason": "房主离线不转移=房间无主且可能解散，阻断"
+    },
+    {
+      "id": "CASE-007",
+      "module": "房间权限",
+      "title": "私有房凭正确密码进入",
+      "priority": "P0",
+      "type": "positive",
+      "steps": [
+        "创建带密码私有房",
+        "第二位玩家凭正确密码加入"
+      ],
+      "test_data": "密码哈希存储",
+      "expected_result": "合法玩家进入，playerCount 增加，收到 welcome",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-003"
+      ],
+      "risk_mechanism_ids": [
+        "RM-ROOMPERM-001"
+      ],
+      "state_oracle": {
+        "intermediate": "携带密码发起加入握手",
+        "terminal": "join_with_correct_password ok=true",
+        "technical_outcome": "密码校验通过，playerCount+1 并发 welcome",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-020"
+      ],
+      "release_blocking_reason": "合法密码进不去=私有房基本不可用，阻断"
+    },
+    {
+      "id": "CASE-008",
+      "module": "房间权限",
+      "title": "错误密码拒绝且私有房不出现在公开列表",
+      "priority": "P0",
+      "type": "negative",
+      "steps": [
+        "创建私有房",
+        "用错误密码加入",
+        "查询公开房间列表"
+      ],
+      "test_data": "错误密码",
+      "expected_result": "错误密码连接被拒 code=1006；私有房在公开列表中 listed=0",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-003"
+      ],
+      "risk_mechanism_ids": [
+        "RM-ROOMPERM-001"
+      ],
+      "state_oracle": {
+        "intermediate": "错误密码进入校验分支",
+        "terminal": "wrong_password_rejected code=1006、private_not_in_list listed=0",
+        "technical_outcome": "校验失败 code=1006；列表过滤不含私有房",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-020"
+      ],
+      "release_blocking_reason": "错误密码进入=私有房泄密/越权，安全阻断"
+    },
+    {
+      "id": "CASE-009",
+      "module": "房间权限",
+      "title": "密码不出现在 DTO / 锁定房拒绝新人",
+      "priority": "P0",
+      "type": "negative",
+      "steps": [
+        "创建私有房后读取房间 DTO/列表",
+        "房主锁定房间",
+        "第三方尝试加入"
+      ],
+      "test_data": "locked=true",
+      "expected_result": "DTO 中不含明文/哈希密码；锁定后新人被拒 code=1005",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-003"
+      ],
+      "risk_mechanism_ids": [
+        "RM-ROOMPERM-001"
+      ],
+      "state_oracle": {
+        "intermediate": "读取 DTO；锁定后新人进入",
+        "terminal": "password_not_leaked_in_dto ok、locked_room_rejects_newcomer code=1005",
+        "technical_outcome": "DTO 不含密码字段；锁定标记生效 code=1005",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-020"
+      ],
+      "release_blocking_reason": "密码泄漏 DTO 或锁定房被闯入=权限绕过，安全阻断"
+    },
+    {
+      "id": "CASE-010",
+      "module": "房间权限",
+      "title": "非房主踢人被拒 / 被踢者不能重连",
+      "priority": "P0",
+      "type": "negative",
+      "steps": [
+        "普通成员尝试踢人",
+        "房主踢人后被踢者尝试重连"
+      ],
+      "test_data": "被踢 code=2003",
+      "expected_result": "非房主踢人 code=1007；被踢者收到 2003 且重连仍 2003",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-003"
+      ],
+      "risk_mechanism_ids": [
+        "RM-ROOMPERM-001"
+      ],
+      "state_oracle": {
+        "intermediate": "普通成员发起踢人；被踢者重连",
+        "terminal": "non_owner_kick_rejected code=1007、kicked_cannot_reconnect code=2003",
+        "technical_outcome": "权限位校验失败 code=1007；踢人黑名单生效 code=2003",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-020"
+      ],
+      "release_blocking_reason": "非房主可踢人或被踢可重连=房间秩序失控，阻断"
+    },
+    {
+      "id": "CASE-011",
+      "module": "房间权限",
+      "title": "房主转移后新房主获得操作权",
+      "priority": "P1",
+      "type": "positive",
+      "steps": [
+        "房主转移给 bob",
+        "bob 执行锁房",
+        "第三人加入"
+      ],
+      "test_data": "newOwner=bob",
+      "expected_result": "转移成功 room_owner_changed，bob 可锁房，第三人正常加入",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-003"
+      ],
+      "risk_mechanism_ids": [
+        "RM-ROOMPERM-001"
+      ],
+      "state_oracle": {
+        "intermediate": "房主调用转移接口",
+        "terminal": "owner_transferred newOwner=bob、new_owner_can_lock ok",
+        "technical_outcome": "所有权写入 bob，锁房权限随之生效",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-020"
+      ]
+    },
+    {
+      "id": "CASE-012",
+      "module": "实时状态同步",
+      "title": "welcome 下发一致的状态同步配置",
+      "priority": "P1",
+      "type": "positive",
+      "steps": [
+        "客户端连接并加入房间",
+        "读取 welcome.stateSync"
+      ],
+      "test_data": "serverTickHz10/clientSendMaxHz15/interp100/extrap250/clip50/4096B",
+      "expected_result": "所有客户端收到完全一致的 stateSync 配置块",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-004"
+      ],
+      "risk_mechanism_ids": [
+        "RM-STATESYNC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "新连接 welcome 阶段",
+        "terminal": "assert_welcome_config ok=true，cfg 六字段一致",
+        "technical_outcome": "读取 welcome.stateSync 六字段逐一比对",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-021"
+      ]
+    },
+    {
+      "id": "CASE-013",
+      "module": "实时状态同步",
+      "title": "重复与乱序 seq 包去重，gap 正确",
+      "priority": "P1",
+      "type": "negative",
+      "steps": [
+        "客户端发送 seq 系列 [1,1,4]",
+        "读取服务端 lastKnownSeq"
+      ],
+      "test_data": "seq=[1,1,4]",
+      "expected_result": "重复 seq=1 被丢弃，乱序不报错；最终 lastKnownSeq=4，按 gap=2 计丢包",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-004"
+      ],
+      "risk_mechanism_ids": [
+        "RM-STATESYNC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "SeqTracker 逐包 observe",
+        "terminal": "seq_last_seen lastKnownSeq=4，observedLastKnownSeq=4",
+        "technical_outcome": "seq<=lastSeq 标记 dropped，lastSeq 推进到 4",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-021",
+        "SRC-009"
+      ]
+    },
+    {
+      "id": "CASE-014",
+      "module": "实时状态同步",
+      "title": "高频上报超阈值被滑动窗口限流",
+      "priority": "P1",
+      "type": "negative",
+      "steps": [
+        "客户端 1s 内连续发送 25 条移动",
+        "统计被限流错误数"
+      ],
+      "test_data": "maxHz=15/window=1000ms",
+      "expected_result": "超限包被拒绝并返回限流错误（sent=25, rateLimitedErrors=10），不污染场上状态",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-004"
+      ],
+      "risk_mechanism_ids": [
+        "RM-STATESYNC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "SlidingWindowRateLimiter 逐包计数",
+        "terminal": "rate_limit_result sent=25 rateLimitedErrors=10",
+        "technical_outcome": "窗口内超 maxHz 包被拒并计数",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-021"
+      ]
+    },
+    {
+      "id": "CASE-015",
+      "module": "实时状态同步",
+      "title": "presence 聚合与新成员全量快照",
+      "priority": "P1",
+      "type": "positive",
+      "steps": [
+        "多名玩家上报移动",
+        "新成员后加入"
+      ],
+      "test_data": "8 名玩家",
+      "expected_result": "服务端 presence 聚合按 tick 广播；新成员收到含全部在场玩家的 state_snapshot",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-004"
+      ],
+      "risk_mechanism_ids": [
+        "RM-STATESYNC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "presence 聚合按 tick 调度",
+        "terminal": "state_snapshot_received players=8；presence_count_observed 聚合正确",
+        "technical_outcome": "聚合后广播；新成员连接补发 state_snapshot",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-021"
+      ]
+    },
+    {
+      "id": "CASE-016",
+      "module": "WebSocket中继",
+      "title": "ping/pong 与房间广播中继",
+      "priority": "P1",
+      "type": "positive",
+      "steps": [
+        "客户端发送 ping(clientSeq)",
+        "同房另一客户端发广播事件"
+      ],
+      "test_data": "clientSeq=42",
+      "expected_result": "服务端回 pong 含 serverTs；同房其他客户端收到中继后的事件",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-005"
+      ],
+      "risk_mechanism_ids": [
+        "RM-WSRELAY-001"
+      ],
+      "state_oracle": {
+        "intermediate": "入站 ping 与广播路由",
+        "terminal": "pong 回 serverTs=1790467386550、room_player_update 中继",
+        "technical_outcome": "计算 serverTs 回 pong，按房间路由中继",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-019"
+      ]
+    },
+    {
+      "id": "CASE-017",
+      "module": "WebSocket中继",
+      "title": "超限消息被服务端拒绝",
+      "priority": "P2",
+      "type": "negative",
+      "steps": [
+        "客户端发送超过 maxMessageBytes(16KB) 的消息"
+      ],
+      "test_data": ">16KB",
+      "expected_result": "服务端直接拒绝该消息，不广播、不断开正常连接",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-005"
+      ],
+      "risk_mechanism_ids": [
+        "RM-WSRELAY-001"
+      ],
+      "state_oracle": {
+        "intermediate": "入站消息字节数校验",
+        "terminal": "超大包被拒，其余会话不受影响",
+        "technical_outcome": "超过 maxMessageBytes 直接丢弃该帧",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-001",
+        "SRC-008"
+      ]
+    },
+    {
+      "id": "CASE-018",
+      "module": "WebSocket中继",
+      "title": "单连接异常隔离不波及其他房间",
+      "priority": "P2",
+      "type": "negative",
+      "steps": [
+        "房 A、房 B 同时有玩家",
+        "强制异常断开房 A 一连接"
+      ],
+      "test_data": "两房间并发",
+      "expected_result": "异常连接关闭，房 B 与房 A 其他玩家的心跳/广播继续正常",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-005"
+      ],
+      "risk_mechanism_ids": [
+        "RM-WSRELAY-001"
+      ],
+      "state_oracle": {
+        "intermediate": "单连接 error/close 事件",
+        "terminal": "异常连接 closed，其他房间 pong/广播正常",
+        "technical_outcome": "仅关闭该 socket，房间表与其他会话不变",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-003",
+        "SRC-019"
+      ]
+    },
+    {
+      "id": "CASE-019",
+      "module": "WebRTC信令",
+      "title": "rtc_config 下发且 SDP offer/answer 正确中继",
+      "priority": "P1",
+      "type": "positive",
+      "steps": [
+        "A、B 同房连接",
+        "A 发起 SDP offer，B 回 answer"
+      ],
+      "test_data": "STUN stun.l.google.com:19302",
+      "expected_result": "welcome 后下发 rtc_config(STUN)；offer A→B、answer B→A 正确中继",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-006"
+      ],
+      "risk_mechanism_ids": [
+        "RM-WEBRTC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "信令握手与 SDP 转发",
+        "terminal": "rtc_config_received、sdp_offer_relayed seq=11、sdp_answer_relayed",
+        "technical_outcome": "rtc_config 下发，按目标 userId 转发 offer/answer",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-022",
+        "SRC-023"
+      ]
+    },
+    {
+      "id": "CASE-020",
+      "module": "WebRTC信令",
+      "title": "对端离线时信令返回 rtc_target_offline",
+      "priority": "P1",
+      "type": "negative",
+      "steps": [
+        "A 向不在线的目标发起 RTC 请求"
+      ],
+      "test_data": "reqSeq=21",
+      "expected_result": "服务端回 rtc_target_offline 错误码，不悬挂等待",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-006"
+      ],
+      "risk_mechanism_ids": [
+        "RM-WEBRTC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "查找目标会话在线状态",
+        "terminal": "rtc_error_online_check code=rtc_target_offline reqSeq=21",
+        "technical_outcome": "目标不在线，返回 rtc_target_offline",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-022"
+      ]
+    },
+    {
+      "id": "CASE-021",
+      "module": "WebRTC信令",
+      "title": "ICE 失败触发重试与文本回退",
+      "priority": "P1",
+      "type": "negative",
+      "steps": [
+        "模拟 ice_failed",
+        "观察服务端/客户端回退路径"
+      ],
+      "test_data": "attempt=2 reason=ice_failed",
+      "expected_result": "触发重试 attempt2，仍失败后回退 suggestText(文本沟通)，用户不卡死",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-006"
+      ],
+      "risk_mechanism_ids": [
+        "RM-WEBRTC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "ICE 失败回调处理",
+        "terminal": "rtc_retry_relayed attempt=2、rtc_fallback_relayed suggestText=true",
+        "technical_outcome": "递增 attempt 重试，超限切文本回退",
+        "side_effect": ""
+      },
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "SRC-022"
+      ]
+    },
+    {
+      "id": "CASE-022",
+      "module": "WebRTC信令",
+      "title": "浏览器真机媒体面/TURN/对称NAT（待真机）",
+      "priority": "P2",
+      "type": "positive",
+      "steps": [
+        "两台真实浏览器建立 WebRTC",
+        "经 TURN 中继穿越对称 NAT",
+        "验证真实音频/视频媒体流"
+      ],
+      "test_data": "需 GPU 真机 + TURN 服务器",
+      "expected_result": "媒体面连通、对称 NAT 下经 TURN 成功、可听到对方语音（本次未执行）",
+      "requirement_ids": [
+        "REQ-NETWORKRESIL-006"
+      ],
+      "risk_mechanism_ids": [
+        "RM-WEBRTC-001"
+      ],
+      "state_oracle": {
+        "intermediate": "信令面已通，媒体面未建立",
+        "terminal": "待 GPU 真机验证",
+        "technical_outcome": "待双浏览器+TURN 真机建立媒体通道",
+        "side_effect": ""
+      },
+      "execution_mode": "manual",
+      "evidence_expected": [
+        "SRC-023"
+      ],
+      "manual_reason": "媒体面/TURN/对称 NAT 与 Three 渲染插值需真实 GPU 设备，本次仅信令面冒烟"
+    }
+  ],
+  "executions": [
+    {
+      "id": "EXE-NETWORKRESIL-001",
+      "case_id": "CASE-001",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "窗口内重连收到 reconnect_response，welcome 带回原房间快照，player_reconnected 事件出现",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-005"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-002",
+      "case_id": "CASE-002",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "超窗 session 失效路径由 transport 单测覆盖，过期 token 不复活旧席位",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-001"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-003",
+      "case_id": "CASE-003",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "伪造/过期 sessionToken 重连被拒，无 welcome 下发（transport 单测）",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-001"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-004",
+      "case_id": "CASE-004",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "停止 ping 后广播 player_disconnecting，席位保留，窗口内复连成功 player_reconnected",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-005"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-005",
+      "case_id": "CASE-005",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "到期后 user_left 广播，成员移除，无幽灵玩家（user_left×1、__close__×2）",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-005"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-006",
+      "case_id": "CASE-006",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "房主离开触发 room_owner_changed→新 owner=bob；独立脚本 owner_leave_transfers_to_next ok",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-005",
+        "EV-004"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-007",
+      "case_id": "CASE-007",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "create_private_room 后 join_with_correct_password ok=true",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-004"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-008",
+      "case_id": "CASE-008",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "wrong_password_rejected code=1006；private_not_in_list listed=0",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-004"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-009",
+      "case_id": "CASE-009",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "password_not_leaked_in_dto ok；locked_room_rejects_newcomer code=1005",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-004"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-010",
+      "case_id": "CASE-010",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "non_owner_kick_rejected code=1007；kicked_cannot_reconnect code=2003",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-004"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-011",
+      "case_id": "CASE-011",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "owner_transferred newOwner=bob；new_owner_can_lock ok；third_user_joins ok",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-004"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-012",
+      "case_id": "CASE-012",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "assert_welcome_config ok，六字段与服务端默认一致",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-006"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-013",
+      "case_id": "CASE-013",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "发送 seq[1,1,4]，重复丢弃，lastKnownSeq=4",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-006"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-014",
+      "case_id": "CASE-014",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "1s 发送 25 条，rateLimitedErrors=10，超限被限流",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-006"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-015",
+      "case_id": "CASE-015",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "state_snapshot_received players=8，presence 聚合正确",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-006"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-016",
+      "case_id": "CASE-016",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "ping(clientSeq42)→pong serverTs 回送，room_player_update 中继同房",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-005"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-017",
+      "case_id": "CASE-017",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "超 maxMessageBytes 消息被拒（transport 单测），正常连接不受影响",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-001"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-018",
+      "case_id": "CASE-018",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "异常连接隔离，其他会话心跳/广播继续（集成/单测覆盖）",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-001",
+        "EV-005"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-019",
+      "case_id": "CASE-019",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "rtc_config 下发 STUN，sdp_offer_relayed seq=11、sdp_answer_relayed；浏览器 offerToB/answerToA 全 true",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-007",
+        "EV-008"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-020",
+      "case_id": "CASE-020",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "rtc_error_online_check code=rtc_target_offline reqSeq=21",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-007"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-021",
+      "case_id": "CASE-021",
+      "status": "passed",
+      "execution_level": "full_automation",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "operator": "qa-automation",
+      "actual_result": "rtc_retry_relayed attempt=2；rtc_fallback_relayed suggestText=true",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-007"
+      ],
+      "tester_notes": ""
+    },
+    {
+      "id": "EXE-NETWORKRESIL-022",
+      "case_id": "CASE-022",
+      "status": "blocked",
+      "execution_level": "blocked",
+      "validation_scope": "formal",
+      "execution_method": "manual",
+      "operator": "qa-automation",
+      "actual_result": "媒体面/TURN/对称 NAT 与 Three 渲染插值需 GPU 真机，本轮仅信令面冒烟，未执行",
+      "attempt": 1,
+      "retest_of": null,
+      "evidence_ids": [
+        "EV-008"
+      ],
+      "tester_notes": "列入 unverified，待真机回归",
+      "started_at": "2026-09-26T23:36:08.081Z",
+      "finished_at": "2026-09-26T23:36:13.249Z"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EV-001",
+      "type": "test_run",
+      "description": "API 端 vitest：33 测试文件 / 405 passed（transport 11、room-permissions 11、state-sync-server 9、ws-rtc 10 等）",
+      "level": "L3_reproducible",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/apps/api",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/apps/api"
+    },
+    {
+      "id": "EV-002",
+      "type": "test_run",
+      "description": "Web 端 vitest：17 测试文件 / 229 passed（state-sync 13、webrtc-manager 10 等）",
+      "level": "L3_reproducible",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/apps/web",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/apps/web"
+    },
+    {
+      "id": "EV-003",
+      "type": "test_run",
+      "description": "E2E vitest：2 文件 / 10 passed（state-sync 5 + webrtc-signaling 5）",
+      "level": "L3_reproducible",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e"
+    },
+    {
+      "id": "EV-004",
+      "type": "log",
+      "description": "房间权限独立脚本：17 步全部 ok=true（密码不泄漏/错密1006/锁定1005/踢人2003/非房主1007/房主转移）",
+      "level": "L2_observation",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/room-permissions-2026-09-27T00-04-05-386Z.ndjson",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/room-permissions-2026-09-27T00-04-05-386Z.ndjson"
+    },
+    {
+      "id": "EV-005",
+      "type": "log",
+      "description": "传输韧性 E2E：48 事件，含 welcome×3、pong、player_disconnecting×3、player_reconnected×2、reconnect_progress×4、room_owner_changed×1、user_left×1",
+      "level": "L2_observation",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/apps/api/tests/e2e/logs/transport-resilience.1790467389089.json",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/apps/api/tests/e2e/logs/transport-resilience.1790467389089.json"
+    },
+    {
+      "id": "EV-006",
+      "type": "log",
+      "description": "状态同步 E2E：welcome 配置一致、presence 聚合、seq[1,1,4]→lastKnownSeq=4、限流 sent25/err10、快照 8 玩家",
+      "level": "L2_observation",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/state-sync.jsonl",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/state-sync.jsonl"
+    },
+    {
+      "id": "EV-007",
+      "type": "log",
+      "description": "WebRTC 信令 E2E：rtc_config(STUN)、offer/answer 中继、rtc_target_offline reqSeq21、retry attempt2、ice_failed→suggestText",
+      "level": "L2_observation",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/webrtc-signaling-2026-09-27T00-04-11-307Z.jsonl",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/webrtc-signaling-2026-09-27T00-04-11-307Z.jsonl"
+    },
+    {
+      "id": "EV-008",
+      "type": "log",
+      "description": "浏览器冒烟：Chromium /usr/local/bin/chromium headless + fake media，welcome/hasRTC/STUN/offerToB/answerToA 全 true",
+      "level": "L2_observation",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/browser-signaling-2026-09-26T23-36-08-081Z.jsonl",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/tests/e2e/logs/browser-signaling-2026-09-26T23-36-08-081Z.jsonl"
+    },
+    {
+      "id": "EV-009",
+      "type": "build",
+      "description": "构建：npm run build 全绿（shared tsc + api tsc + web vite/PWA）",
+      "level": "L1_document",
+      "validation_scope": "formal",
+      "locator": "/home/user/Doubao/chats/38444190639093762/repo/apps/api/dist",
+      "path": "/home/user/Doubao/chats/38444190639093762/repo/apps/api/dist"
+    }
+  ],
+  "bugs": [],
+  "bug_candidates": [],
+  "risks": [],
+  "acceptance_checks": [
+    {
+      "id": "AC-NETWORKRESIL-001",
+      "title": "断线重连核心旅程",
+      "type": "core_flow",
+      "case_ids": [
+        "CASE-001"
+      ],
+      "blocking": true,
+      "notes": "窗口内重连恢复席位是多人在场的核心 P0"
+    },
+    {
+      "id": "AC-NETWORKRESIL-002",
+      "title": "掉线平滑移除与房主转移",
+      "type": "core_flow",
+      "case_ids": [
+        "CASE-004",
+        "CASE-005",
+        "CASE-006"
+      ],
+      "blocking": true,
+      "notes": "幽灵玩家与房间解散为 P0"
+    },
+    {
+      "id": "AC-NETWORKRESIL-003",
+      "title": "房间权限与房主身份",
+      "type": "permission_security",
+      "case_ids": [
+        "CASE-007",
+        "CASE-008",
+        "CASE-009",
+        "CASE-010",
+        "CASE-011"
+      ],
+      "blocking": true,
+      "notes": "密码/锁定/踢人/转移全路径"
+    },
+    {
+      "id": "AC-NETWORKRESIL-004",
+      "title": "状态同步一致性",
+      "type": "data_consistency",
+      "case_ids": [
+        "CASE-012",
+        "CASE-013",
+        "CASE-014",
+        "CASE-015"
+      ],
+      "blocking": false,
+      "notes": "去重/限流/快照"
+    },
+    {
+      "id": "AC-NETWORKRESIL-005",
+      "title": "WebSocket 中继健壮性",
+      "type": "exception",
+      "case_ids": [
+        "CASE-016",
+        "CASE-017",
+        "CASE-018"
+      ],
+      "blocking": false,
+      "notes": "心跳/大包/隔离"
+    },
+    {
+      "id": "AC-NETWORKRESIL-006",
+      "title": "WebRTC 信令健壮性",
+      "type": "exception",
+      "case_ids": [
+        "CASE-019",
+        "CASE-020",
+        "CASE-021"
+      ],
+      "blocking": false,
+      "notes": "信令面全路径；媒体面见未覆盖"
+    }
+  ],
+  "blockers": [],
+  "manual_handoff": {
+    "required": false,
+    "status": "not_required",
+    "reason": "",
+    "target_platform": "",
+    "operator": "",
+    "prerequisites": [],
+    "case_ids": [],
+    "evidence_requirements": [],
+    "result_submission": []
+  },
+  "unverified": [
+    "WebRTC 真实媒体面（音频/视频流）未在自动化中验证，裸 WS E2E 仅覆盖信令面，媒体连通需双浏览器真机",
+    "TURN 中继与对称 NAT 穿越未验证，本次仅下发 STUN(stun.l.google.com:19302)，无自建 TURN",
+    "ENABLE_INTERPOLATION_RENDER=false 客户端 Three.js 渲染插值效果未在真机 GPU 验证，仅服务端插值参数经单测断言",
+    "弱网长时稳定性（分钟级丢包/抖动/带宽受限）与移动端/低性能设备适配未覆盖",
+    "浏览器双端真实双向通话仅做 Chromium headless + fake media 信令冒烟，未验证真实采集设备与回声消除"
+  ],
+  "coverage": {
+    "requirement_total": 6,
+    "requirement_linked": 6,
+    "requirement_unlinked": 0,
+    "p0_requirement_total": 3,
+    "p0_requirement_linked": 3,
+    "case_total": 22,
+    "case_status_counts": {
+      "通过": 21,
+      "阻塞": 1
+    },
+    "acceptance_total": 6,
+    "acceptance_status_counts": {
+      "通过": 6
+    }
+  },
+  "release_decision": {
+    "decision": "conditional_go",
+    "rationale": "六个范围的服务端逻辑、单测/集成、E2E 与浏览器信令面冒烟全部通过（22 用例 21 通过、1 项 GPU 真机阻塞），无开放 Bug；但 WebRTC 真实媒体面/TURN/对称 NAT 与客户端 Three.js 渲染插值未在真机验证，发布前需补齐该条件。",
+    "conditions": [
+      "发布前在真实双浏览器+TURN 环境验证 WebRTC 媒体面连通与对称 NAT 穿越（CASE-022）",
+      "开启 ENABLE_INTERPOLATION_RENDER 后真机验证 Three.js 位置插值平滑效果",
+      "灰度期监控房间掉线率、重连成功率与 RTC ice_failed 回退触发量",
+      "回滚方案：feat/network-resilience 可整体回退至上一稳定集成分支，信令/权限服务端开关可独立降级"
+    ]
+  },
+  "delivery_manifest": {
+    "source_revision": 4,
+    "outputs": [
+      {
+        "purpose": "deliverable",
+        "carrier": "local",
+        "format": "markdown",
+        "filename": "qa-results/network-resilience/QA报告.md",
+        "source_revision": 4,
+        "sha256": "46fceff75efb942fe43d6743d9033d2bb2251da44ff2cd6b038cf9221fbd4af4",
+        "status": "validated",
+        "locator": "/home/user/Doubao/chats/38444190639093762/repo/qa-results/network-resilience/QA报告.md",
+        "readback_receipt": "6095 字符 / 145 行；约定章节齐全",
+        "validated": true
+      }
+    ],
+    "fingerprint": "sha256:cd343731199d697dbcbbeef3583eaeebc868293ec61096c1fc319a59efbdaa39"
+  },
+  "test_data": {
+    "writes_allowed": false,
+    "accounts": [],
+    "created_records": [],
+    "cleanup": {
+      "required": false,
+      "status": "completed",
+      "command": "none",
+      "residuals": []
+    }
+  },
+  "disclosures": [
+    "非法执行等级 automated（executions[].execution_level）",
+    "非法执行等级 manual（executions[].execution_level）",
+    "人工执行必须记录 started_at（executions[].started_at）",
+    "人工执行必须记录 finished_at（executions[].finished_at）",
+    "文件型证据必须提供路径（evidence[].path）",
+    "证据文件不存在：apps/api（npm test）（evidence[].path）",
+    "证据文件不存在：apps/web（npm test）（evidence[].path）",
+    "证据文件不存在：tests/e2e（vitest.e2e.config.ts）（evidence[].path）",
+    "证据文件不存在：tests/e2e/logs/room-permissions-2026-09-27T00-04-05-386Z.ndjson（evidence[].path）",
+    "证据文件不存在：apps/api/tests/e2e/logs/transport-resilience.1790467389089.json（evidence[].path）",
+    "证据文件不存在：tests/e2e/logs/state-sync.jsonl（evidence[].path）",
+    "证据文件不存在：tests/e2e/logs/webrtc-signaling-2026-09-27T00-04-11-307Z.jsonl（evidence[].path）",
+    "证据文件不存在：tests/e2e/logs/browser-signaling-2026-09-26T23-36-08-081Z.jsonl（evidence[].path）",
+    "证据文件不存在：CI/本地 build（evidence[].path）"
+  ]
+}
