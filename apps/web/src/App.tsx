@@ -9,6 +9,10 @@ import MyPage from './MyPage'
 import VideoStudio from './VideoStudio'
 import TopNav, { type TopView } from './TopNav'
 import CourtroomShell, { type EvidenceMeta } from './CourtroomShell'
+import MainTabBar from './ia/MainTabBar'
+import SceneRouter from './ia/SceneRouter'
+import SceneSelectView from './ia/SceneSelectView'
+import { pathToView, viewToPath } from './ia/routes'
 import { IdentityProvider, useIdentity } from './identity'
 import ErrorBoundary from './ErrorBoundary'
 import GlobalErrorBoundary from './error-boundary/GlobalErrorBoundary'
@@ -36,17 +40,12 @@ const CharacterHall = lazy(() => import('./CharacterHall'))
 const CustomCharacterStudio = lazy(() => import('./CustomCharacterStudio'))
 const Plaza3D = lazy(() => import('./Plaza3D'))
 const MultiplayerLobby = lazy(() => import('./MultiplayerLobby'))
-const TalkshowShell = lazy(() => import('./TalkshowShell'))
-const WerewolfShell = lazy(() => import('./WerewolfShell'))
-const BarShell = lazy(() => import('./BarShell'))
-const LibraryShell = lazy(() => import('./LibraryShell'))
-const GymShell = lazy(() => import('./GymShell'))
 const SceneStudio = lazy(() => import('./scene-studio/SceneStudio'))
 const MyScenes = lazy(() => import('./scene-studio/MyScenes'))
 const ScenePlay = lazy(() => import('./scene-studio/ScenePlay'))
 
 type HearingMode = 'quick' | 'evidence'
-type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play'
+type View = TopView | 'entry' | 'avatar' | 'custom-studio' | 'talkshow' | 'werewolf' | 'bar' | 'library' | 'gym' | 'scene-play' | 'scenes'
   | 'onboarding-interest' | 'onboarding-quickstart' | 'multiplayer-lobby'
 
 /** 把一个懒加载组件包成 ErrorBoundary + Suspense，带重试。 */
@@ -95,10 +94,13 @@ function AppInner() {
     if (parseRoomParam()) return 'court'
     if (new URLSearchParams(window.location.search).get('plaza') === '1') return 'plaza'
     const scene = new URLSearchParams(window.location.search).get('scene')
-    if (scene === 'werewolf' || scene === 'gym') return scene
+    if (scene === 'werewolf' || scene === 'gym') return scene as View
     // 新用户（localStorage 无引导记录）：开屏后先选兴趣，再直达推荐场景
     if (needsInterestSelection()) return 'onboarding-interest'
-    return 'entry'
+    // R5-IA: 老用户按 URL 落位（/、/plaza、/celebrities、/scenes、/scene/:id、/studio/*、/mypage、/entry）
+    const fromPath = pathToView(window.location.pathname)
+    if (fromPath) return fromPath as View
+    return 'plaza'
   })
   // 新手引导：兴趣选择后推荐的那个兴趣（用于渲染 QuickStartCard）
   const [quickStartInterest, setQuickStartInterest] = useState<InterestId | null>(null)
@@ -137,6 +139,26 @@ function AppInner() {
       .then(setSharedCase).catch(() => setSharedCase(null))
   }, [shareId])
 
+  // ===== R5-IA: 视图 ↔ URL history 同步 =====
+  // 可路由视图变化时压栈；浏览器前进/后退时按 path 恢复视图。
+  const firstHistorySync = useRef(true)
+  useEffect(() => {
+    const path = viewToPath(view)
+    if (!path) return // onboarding/archive 等内存叠加态不改地址栏
+    if (firstHistorySync.current) { firstHistorySync.current = false; return }
+    if (window.location.pathname === path) return
+    window.history.pushState({}, '', path)
+  }, [view])
+
+  useEffect(() => {
+    const onPopState = () => {
+      const fromPath = pathToView(window.location.pathname)
+      if (fromPath) setView(fromPath as View)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
   // Identity still loading: show nothing (the setup modal covers 'setup' phase)
   if (phase === 'loading') return null
 
@@ -150,7 +172,10 @@ function AppInner() {
     finally { setArchiveLoading(false) }
   }
 
-  const navigate = (next: TopView) => setView(next === 'home' ? 'entry' : next)
+  const navigate = (next: TopView) => setView(next === 'home' ? 'scenes' : next)
+  // R5-IA: 底部 MainTabBar 三主页面切换（人物=characters 视图）
+  const goMainTab = (tab: 'plaza' | 'celebrities' | 'scenes') => setView(tab === 'celebrities' ? 'characters' : tab)
+  const currentMainTab: 'plaza' | 'celebrities' | 'scenes' = view === 'characters' ? 'celebrities' : view === 'scenes' ? 'scenes' : 'plaza'
   const openArchives = (origin: View) => { archiveOriginRef.current = origin; void fetchArchives(); setView('archive') }
 
   // ===== 分享页（路径直达，无导航） =====
@@ -221,13 +246,13 @@ function AppInner() {
         onClear={async () => { try { await fetch('/api/archives', { method: 'DELETE' }); await fetchArchives() } catch { setArchiveError('清空案卷失败') } }} />
   }
 
-  // ===== 角色馆（懒加载） =====
+  // ===== 角色馆（人物馆 /celebrities，卡片页） =====
   if (view === 'characters') {
     return <>
       <TopNav {...navProps} currentView="characters" />
       <LazyScene component={CharacterHall} label="角色馆"
         props={{
-          onBack: () => setView('entry'),
+          onBack: () => setView('scenes'),
           onEnterCourt: () => setView('court'),
           onPlaza: () => setView('plaza'),
           onCreateCharacter: () => setView('custom-studio'),
@@ -237,6 +262,16 @@ function AppInner() {
             else if (sceneId === 'gym' || sceneId === 'bar' || sceneId === 'library' || sceneId === 'talkshow' || sceneId === 'werewolf') setView(sceneId as View)
           },
         }} />
+      <MainTabBar current="celebrities" onNavigate={goMainTab} />
+    </>
+  }
+
+  // ===== R5-IA: 场景选择（/scenes，六大场景卡片列表，卡片页） =====
+  if (view === 'scenes') {
+    return <>
+      <TopNav {...navProps} currentView="home" />
+      <SceneSelectView onEnterScene={(id: SceneId) => setView(id as View)} />
+      <MainTabBar current="scenes" onNavigate={goMainTab} />
     </>
   }
 
@@ -258,13 +293,13 @@ function AppInner() {
       }} />
   }
 
-  // ===== 广场（懒加载） =====
+  // ===== 广场（/plaza，卡片页） =====
   if (view === 'plaza') {
     return <>
       <TopNav {...navProps} currentView="plaza" />
       <LazyScene component={Plaza3D} label="广场"
         props={{
-          onBack: () => setView('entry'),
+          onBack: () => setView('scenes'),
           onEnterCourt: () => setView('court'),
           onEnterTalkshow: () => setView('talkshow'),
           onEnterWerewolf: () => setView('werewolf'),
@@ -277,56 +312,16 @@ function AppInner() {
             ? () => { setMultiplayerRoomId(null); setView('multiplayer-lobby') }
             : undefined,
         }} />
+      <MainTabBar current="plaza" onNavigate={goMainTab} />
     </>
   }
 
-  // ===== M8: 脱口秀剧场 =====
-  if (view === 'talkshow') {
+  // ===== R5-IA: 五个通用场景统一走 SceneRouter（/scene/:sceneId，全屏） =====
+  if (view === 'talkshow' || view === 'werewolf' || view === 'bar' || view === 'library' || view === 'gym') {
+    const sid = view as Exclude<SceneId, 'court'>
     return <>
-      <TopNav {...navProps} currentView="talkshow" />
-      <LazyScene component={TalkshowShell} label="脱口秀剧场"
-        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
-      <SceneFirstTimeGuide scene="talkshow" />
-    </>
-  }
-
-  // ===== M9: 狼人杀馆 =====
-  if (view === 'werewolf') {
-    return <>
-      <TopNav {...navProps} currentView="werewolf" />
-      <LazyScene component={WerewolfShell} label="狼人杀馆"
-        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
-      <SceneFirstTimeGuide scene="werewolf" />
-    </>
-  }
-
-  // ===== M8: 酒吧辩论 =====
-  if (view === 'bar') {
-    return <>
-      <TopNav {...navProps} currentView="bar" />
-      <LazyScene component={BarShell} label="酒吧辩论"
-        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
-      <SceneFirstTimeGuide scene="bar" />
-    </>
-  }
-
-  // ===== M8: 图书馆 =====
-  if (view === 'library') {
-    return <>
-      <TopNav {...navProps} currentView="library" />
-      <LazyScene component={LibraryShell} label="图书馆"
-        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
-      <SceneFirstTimeGuide scene="library" />
-    </>
-  }
-
-  // ===== M11: 健身房 =====
-  if (view === 'gym') {
-    return <>
-      <TopNav {...navProps} currentView="gym" />
-      <LazyScene component={GymShell} label="健身房"
-        props={{ onBack: () => setView('entry'), onPlaza: () => setView('plaza') }} />
-      <SceneFirstTimeGuide scene="gym" />
+      <SceneRouter sceneId={sid} onBack={() => setView('scenes')} onPlaza={() => setView('plaza')} />
+      <SceneFirstTimeGuide scene={sid} />
     </>
   }
 

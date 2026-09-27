@@ -1,3 +1,9 @@
+/**
+ * @deprecated R5-IA 归档：旧全屏法庭版（CourtroomM13）。
+ * 现默认 m13Mode 渲染 court/CourtFlow，本文件不再被任何路由引用，
+ * 已移出 src/tsconfig 编译范围（见 apps/web/tsconfig.json 的 exclude）。
+ * 仅保留作历史参考，请勿在新代码中 import。
+ */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Link2, Users } from 'lucide-react'
 import type { CourtCase, CourtRecord, CourtTrialEvent, CourtTurn, CourtVerdict, Perspective, WSMessage } from '@balabala/shared'
